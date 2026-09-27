@@ -1,0 +1,50 @@
+# Delivery summary: requirements → implementation
+
+Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, touch, flow, features, multiplayer), `npm run test:perf` (budget gate), `npm run bench` (results in `bench/results/`).
+
+## 1. GPU port and performance
+| Requirement | Done | Where |
+|---|---|---|
+| three.js batched, instanced 2D pipeline | ✅ Ribbon, sprite and glow instanced batches, plus background and fog passes; 6 draw calls per frame | `js/render/gl/*` |
+| Atlases for 6 chassis + 30 organs + effects | ✅ Baked at startup from the original draw code: 30 × 4 tiers × 8 frames, plus decor, petals, markers and glyphs | `js/render/gl/atlas.js` |
+| Custom shader glow, efficient fog, cached minimap | ✅ SDF glow kinds; fog from a soft-vision RG texture; minimap with terrain, fog (ImageData) and dynamic layers | `batches.js`, `minimap.js` |
+| WebGL2 + WebGPU path + Canvas2D fallback | ✅ WebGPU through TSL node materials (verified on an RX 590 adapter); Canvas2D picked automatically on software GL or no WebGL2 | `backend.js`, `gpu/gpurenderer.js` |
+| Repeatable benchmark on the host GPU, before and after | ✅ ANGLE/Vulkan harness. At 700 creatures: **6.9 → 125 fps**, p95 289 → 10.9 ms | `bench/`, `docs/PERFORMANCE.md` |
+| 60 fps contract: budget, tiers, caps | ✅ Governor, 4 tiers, detail budget, hard fx/text/corpse caps, population-cap option, regression gate | `js/ui/perf.js`, `bench/budget.json` |
+| Hotspots removed | ✅ No per-unit allocation in the GL path, no gradients or rgba strings in hot loops, minimap fog cached, backdrop capped at 30 fps and stopped in game, autosave on idle | |
+| Mobile 30+ fps | ⚠️ Emulated (390×844@3×, 4× CPU throttle): 35–58 fps at 200–400 creatures. **Not measured on real phones.** The emulation throttles CPU only; the GPU is still the desktop card. | `bench/results/after-mobile.json` |
+
+## 2. Web + mobile distribution
+| Requirement | Done |
+|---|---|
+| Installable offline PWA | ✅ Generated precaching service worker, manifest with PNG and maskable icons, self-hosted fonts; `npm run build` → `www/` |
+| Android app | ✅ Capacitor 6 project; `npm run android:apk` builds `dist/efflorescent-debug.apk`; installed and played on an Android 14 emulator (menu, setup and tutorial gameplay under WebGL2) |
+| iOS app | ⚠️ The Xcode project is generated and synced (`ios/`). **Blocker: building needs macOS with Xcode and CocoaPods, which this Linux host doesn't have.** Run `npm run ios:open` on a Mac. |
+| Touch parity, safe areas, notch | ✅ Touch gesture tests; `env(safe-area-inset-*)` on web and iOS; dark status band on Android (the WebView reports a zero inset when overlaid); Android back button; app-background autosave and pause |
+
+## 3. Art direction
+✅ The HUD is built as membranes tinted live by the colony palette (the same `E.playerPalette` the renderer uses), so fever, starvation and blight show in the UI. Cilia edges beat faster with colony activity. Resources are vesicle chips, buttons are polyps, and the minimap is a lens. Command icons are drawn from the organ art itself. Caustics concentrate on lumen pools, and current streaks follow the real flow field with brightness showing strength. Each culture has its own musical scale for hatch and research chimes, and the ambient pad follows energy and fever.
+
+## 4. Gameplay and immersion
+| Gap | Done |
+|---|---|
+| Feedback | ✅ Damage and heal numbers (observed hp deltas, so they work for network guests too), a batched kill feed, off-screen threat arrows you can tap to jump |
+| Objectives | ✅ Annihilation, Heartfall (nucleus), Hold the Tide (great caustics), Luminance (gather race); objective HUD; bots play the objective |
+| Orders | ✅ Shift or Queue-mode waypoints (up to 12), patrol, drawn order paths, Stop clears the queue |
+| Meaningful currents | ✅ Riding the flow speeds creatures up to ×1.4 and fighting it slows them to ×0.75; vortex cores cut damage by 15%; Tidecall adds a temporary vortex |
+| Meta-progression and rematch | ✅ Lineage XP, levels and titles; 16 achievements that unlock Forge designs; Rematch and New Dreamscape buttons, including for multiplayer hosts |
+| Bot variety | ✅ Five personalities (Swarm, Bloom-farmer, Reef-builder, Raider with harassment squads, Evolver) independent of difficulty |
+| Legible counters | ✅ Tide Wheel applied as damage (+12% / −8%), shown on every culture row in setup and in the codex |
+| Onboarding | ✅ Tutorial mode with a passive rival released by the guide, plus the first-game guide and the codex |
+
+## 5. Mobile UX and accessibility
+✅ A culture shape marker (circle, triangle, square, diamond, hexagon, star) under every creature, on structures and on the minimap (setting: auto, always or off). Undo button for 4 s after any order, and Ctrl+Z. Touch build placement is two-step (preview, then Confirm) and spends nothing on the first tap. Orientation setting uses the native lock in the app and the Screen Orientation API on the web; rotation triggers a relayout. No text below 11 px on coarse pointers, and keyboard hints are hidden. Music, effects and mute controls are in the pause menu and the HUD.
+
+## 6. Quality bar
+✅ Tests expanded (queue/patrol/restore, modes, counters, persona determinism, features suite, perf gate), all green. Deterministic save/load re-verified. The multiplayer test covers lobby, guest commands, pause, drop-to-bot and rejoin, with snapshots carrying queues and objectives. Docs: `ARCHITECTURE.md`, `DECISIONS.md`, `PERFORMANCE.md`, this file.
+
+## Known limits
+- Real-device phone performance is unmeasured; the emulator run proves function, not frame rate.
+- No iOS binary (see the blocker above).
+- The WebGPU bundle carries its own copy of three's core (about 1 MB), loaded only when WebGPU is chosen.
+- Balance is tuned on bot-vs-bot games.

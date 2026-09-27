@@ -7,11 +7,18 @@ You tend a glowing culture: you harvest drifting light, evolve organs and body p
 
 | How | Command | Notes |
 |---|---|---|
-| Single player | open `index.html` in a browser | Works from `file://`. No build step. |
+| Single player | open `index.html` in a browser | Works from `file://`. No build step. three.js is vendored in `vendor/`. |
 | Everything, including multiplayer | `npm start`, then open http://localhost:8080 | Zero-dependency Node server (Node 18+). Friends on your network use the LAN address it prints. |
 | Install on a phone | open the served URL, then "Add to Home Screen" | Plays offline after the first visit. |
 
 `PORT` and `HOST` environment variables override the server defaults. To play over the internet, run the server on any reachable host (or behind a TLS proxy; the client uses `wss://` automatically on https).
+
+## Rendering and platforms
+- **three.js GPU renderer:** instanced batches, a baked organ atlas and shader caustics, currents and fog. WebGL2 by default, WebGPU optional, Canvas2D fallback. A frame-budget governor holds 60 fps. At 700 creatures it runs 125 fps versus 7 fps on the old renderer (`docs/PERFORMANCE.md`).
+- **Installable PWA:** `npm run build` → `www/`.
+- **Android:** `npm run android:apk`.
+- **iOS:** `npm run ios:open` on a Mac (Capacitor 6).
+- **Docs:** `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, and `docs/DELIVERY.md` (a requirement-by-requirement summary).
 
 ## What's in the game
 
@@ -70,7 +77,8 @@ server/server.js     static files + WebSocket room relay (RFC 6455, no dependenc
 ```
 npm test          # simulation: content counts, mapgen, deterministic save/load, bot games on every map size,
                   # and every ability/power/powerup/organ has an observable effect
-npm run test:ui   # browser: menus and a full match, touch gestures and reload→continue,
+npm run test:perf # frame-budget regression gate on the host GPU (bench/budget.json)
+npm run test:ui   # browser: features (backends, governor, undo, touch build confirm, tutorial, rematch), menus and a full match, touch gestures and reload→continue,
                   # two-browser multiplayer (lobby, commands, pause, drop→bot, rejoin)
 ```
 
