@@ -85,7 +85,7 @@
   };
   // Command icons drawn from the organs themselves (cached per culture).
   const ICON_ORGAN = { Attack: 'nippers', Move: 'whiptail', Hold: 'stilts', Patrol: 'finveil', Queue: 'tether', Harvest: 'fuzz', Spore: 'sporesacs',
-    Evolve: 'plumes', Forge: 'horns', Army: 'pincers', Idle: 'lures', Rally: 'photophores', Next: 'corkscrew', Hatch: 'tubefeet', Build: 'combs', Stop: 'thorn' };
+    Evolve: 'plumes', Spawnforge: 'horns', Army: 'pincers', Idle: 'lures', Rally: 'photophores', Next: 'corkscrew', Hatch: 'tubefeet', Build: 'combs', Stop: 'thorn' };
   const iconCache = new Map();
   E.cmdIcon = function (label, cult) {
     const id = ICON_ORGAN[label]; if (!id) return null;

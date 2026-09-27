@@ -93,7 +93,12 @@
           case 'destroy': this.burst(ev.x, ev.y, c1, 220, 1.8, 1.2); this.ring(ev.x, ev.y, c1, 240, 1.6); break;
           case 'convert': this.burst(ev.x, ev.y, c1, 70, 1.2); this.ring(ev.x, ev.y, c1, 50, 0.9); break;
           case 'rank': this.text(ev.x, ev.y - 16, '▲'.repeat(ev.rank), '#ffe066'); break;
-          case 'spire': this.burst(ev.x, ev.y, c1, 24, 0.4); break;
+          case 'spire': {
+            this.burst(ev.x, ev.y, c1, 24, 0.4);
+            const b = view.s.structs.find(s => s.x === ev.x && s.y === ev.y), sv = b && this.structVis && this.structVis.get(b.id);
+            if (sv) sv.fireT = t;
+            break;
+          }
           case 'apex': this.burst(ev.x, ev.y, c1, 260, 2, 1); this.ring(ev.x, ev.y, c1, 300, 2); break;
           case 'deposit': if (ev.o === this.local && this.quality !== 'low') this.burst(ev.x, ev.y, { r: 200, g: 255, b: 255 }, 22, 0.3, 0.5); break;
           case 'cloud': if (ev.kind === 'flare') this.burst(ev.x, ev.y, { r: 255, g: 243, b: 160 }, ev.r, 1.4, 0.7); break;

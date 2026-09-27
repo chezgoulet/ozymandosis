@@ -10,7 +10,7 @@
 
   const DEFAULTS = {
     quality: 'auto', backend: 'auto', markers: 'auto', orientation: 'auto', muted: false, organIcons: true, music: 0.5, sfx: 0.7, uiScale: 1, edgePan: true, showHp: true, tapCommand: true,
-    rightClick: 'amove', invertZoom: false, tips: true, guideStep: 0, name: '', server: '', lastSetup: null, mmCollapsed: false, speed: 1, haptics: true,
+    rightClick: 'amove', invertZoom: false, tips: true, guideStep: 0, name: '', server: '', lastSetup: null, mmCollapsed: false, speed: 1, haptics: true, fullscreen: true,
   };
   E.Settings = Object.assign({}, DEFAULTS, LS.get('efl.settings', {}));
   E.saveSettings = () => LS.set('efl.settings', E.Settings);
@@ -37,7 +37,7 @@
     read(id) { return LS.get('efl.save.' + id, null); },
     remove(id) { LS.del('efl.save.' + id); LS.del('efl.meta.' + id); },
     freeSlot() { const used = new Set(this.list().map(m => m.id)); return SAVE_SLOTS.slice(1).find(s => !used.has(s)) || SAVE_SLOTS[1]; },
-    exportBlob(world, extra) { return new Blob([JSON.stringify({ efflorescent: 1, v: 1, state: world.serialize(), extra: extra || {} })], { type: 'application/json' }); },
+    exportBlob(world, extra) { return new Blob([JSON.stringify({ ozymandosis: 1, v: 1, state: world.serialize(), extra: extra || {} })], { type: 'application/json' }); },
   };
 
   // Design library shared across games (player-authored designs).

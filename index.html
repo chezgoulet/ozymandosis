@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#02070a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Efflorescent</title>
+<title>Ozymandosis</title>
 <meta name="description" content="A real-time strategy game of bioluminescent evolution.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.35' stop-color='%2360f0ff'/%3E%3Cstop offset='1' stop-color='%2360f0ff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%2302070a'/%3E%3Ccircle cx='32' cy='32' r='26' fill='url(%23g)'/%3E%3C/svg%3E">
@@ -20,7 +20,7 @@
 <!-- ═══ Main menu ═══ -->
 <section class="screen" id="scr-menu">
   <div class="menu-main">
-    <div class="logo">Efflorescent</div>
+    <div class="logo">Ozymandosis</div>
     <p class="tagline">Grow a culture. Tend its light. Outshine the dark.</p>
     <button class="btn primary" id="m-continue" hidden>Continue</button>
     <div class="lineage" id="m-lineage"></div>
@@ -28,7 +28,7 @@
     <button class="btn" id="m-tutorial">Tutorial</button>
     <button class="btn" id="m-mp">Multiplayer</button>
     <button class="btn" id="m-load">Load game</button>
-    <button class="btn" id="m-forge">Organism Forge</button>
+    <button class="btn" id="m-forge">Spawnforge</button>
     <div class="row" style="width:100%;gap:10px">
       <button class="btn" id="m-codex" style="flex:1">Codex</button>
       <button class="btn" id="m-settings" style="flex:1">Settings</button>
@@ -39,7 +39,7 @@
 
 <!-- ═══ Skirmish / lobby setup (shared) ═══ -->
 <section class="screen dim" id="scr-setup" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2 id="setup-title">Skirmish</h2><span class="mono" id="setup-room"></span></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2 id="setup-title">Skirmish</h2><span class="mono" id="setup-room"></span></div>
   <div class="scr-body grid2 wide-left">
     <div class="card">
       <h3>Cultures</h3>
@@ -72,7 +72,7 @@
 
 <!-- ═══ Multiplayer ═══ -->
 <section class="screen dim" id="scr-mp" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Multiplayer</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Multiplayer</h2></div>
   <div class="scr-body grid2">
     <div class="card">
       <h3>You</h3>
@@ -91,26 +91,26 @@
 
 <!-- ═══ Load ═══ -->
 <section class="screen dim" id="scr-load" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Saved games</h2>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Saved games</h2>
     <label class="btn small">Import<input type="file" id="load-import" accept=".json,application/json" hidden></label></div>
   <div class="scr-body"><div class="save-list" id="save-list"></div></div>
 </section>
 
 <!-- ═══ Settings ═══ -->
 <section class="screen dim" id="scr-settings" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Settings</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Settings</h2></div>
   <div class="scr-body grid2" id="settings-body"></div>
 </section>
 
 <!-- ═══ Codex ═══ -->
 <section class="screen dim" id="scr-codex" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Codex</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Codex</h2></div>
   <div class="scr-body"><div class="tabs" id="codex-tabs" role="tablist"></div><div id="codex-body"></div></div>
 </section>
 
 <!-- ═══ Forge (lab) ═══ -->
 <section class="screen dim" id="scr-forge" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Organism Forge</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Spawnforge</h2></div>
   <div class="scr-body" id="forge-lab"></div>
 </section>
 
@@ -127,18 +127,18 @@
       <span class="chip objective" id="h-obj" hidden title="Objective"><i>◎</i><span class="obar"><b id="h-obj-me"></b><b id="h-obj-foe"></b></span><em id="h-obj-t"></em></span>
     </div>
     <div class="hud-right">
-      <button class="icon-btn" id="h-chat" title="Chat (Enter)" hidden>💬</button>
-      <button class="icon-btn" id="h-mute" title="Sound" aria-label="Toggle sound">🔊</button>
-      <button class="icon-btn" id="h-menu" title="Menu (Esc)" aria-label="Menu">☰</button>
+      <button class="icon-btn" id="h-chat" title="Chat (Enter)" aria-label="Chat" hidden><i data-icon="speech"></i></button>
+      <button class="icon-btn" id="h-mute" title="Sound" aria-label="Toggle sound"><i data-icon="conch"></i></button>
+      <button class="icon-btn" id="h-menu" title="Menu (Esc)" aria-label="Menu"><i data-icon="tendrils"></i></button>
     </div>
   </div>
   <div class="minimap-wrap" id="mm-wrap"><canvas id="minimap"></canvas><button class="mm-toggle" id="mm-toggle" aria-label="Toggle minimap">▾</button></div>
   <div class="fabs">
-    <button class="icon-btn" id="f-army" title="Select army (F2)">⚔<small>ARMY</small></button>
-    <button class="icon-btn" id="f-idle" title="Idle foragers (F1)">◌<small>IDLE</small><span class="badge" id="f-idle-n" hidden>0</span></button>
-    <button class="icon-btn" id="f-home" title="Nucleus (Space)">⌂<small>HOME</small></button>
-    <button class="icon-btn" id="f-tech" title="Evolve (T)">⧉<small>EVOLVE</small><span class="badge" id="f-tech-n" hidden>0</span></button>
-    <button class="icon-btn" id="f-forge" title="Forge (G)">✎<small>FORGE</small></button>
+    <button class="fab" id="f-army" title="Select army (F2)"><i data-icon="claws"></i><small>Army</small></button>
+    <button class="fab" id="f-idle" title="Idle foragers (F1)"><i data-icon="grub"></i><small>Idle</small><span class="badge" id="f-idle-n" hidden>0</span></button>
+    <button class="fab" id="f-home" title="Nucleus (Space)"><i data-icon="nucleus"></i><small>Home</small></button>
+    <button class="fab" id="f-tech" title="Evolve (T)"><i data-icon="helix"></i><small>Evolve</small><span class="badge" id="f-tech-n" hidden>0</span></button>
+    <button class="fab" id="f-forge" title="Spawnforge (G)"><i data-icon="egg"></i><small>Spawn</small></button>
   </div>
   <div class="alerts" id="alerts"></div>
   <div class="killfeed" id="killfeed" aria-live="polite"></div>
@@ -153,11 +153,11 @@
     <div class="sheet-body" id="sh-body"></div>
   </div>
   <div class="overlay" id="ov-tech" hidden>
-    <div class="ov-head"><h2>Evolve</h2><span class="mono" id="tech-res"></span><button class="icon-btn" data-close aria-label="Close">✕</button></div>
+    <div class="ov-head"><h2>Evolve</h2><span class="mono" id="tech-res"></span><button class="icon-btn" data-close aria-label="Close"><i data-icon="cancel"></i></button></div>
     <div class="tabs" id="tech-tabs"></div><div id="tech-body"></div>
   </div>
   <div class="overlay" id="ov-forge" hidden>
-    <div class="ov-head"><h2>Forge</h2><button class="icon-btn" data-close aria-label="Close">✕</button></div>
+    <div class="ov-head"><h2>Spawnforge</h2><button class="icon-btn" data-close aria-label="Close"><i data-icon="cancel"></i></button></div>
     <div id="forge-game"></div>
   </div>
   <div class="overlay" id="ov-pause" hidden>
@@ -177,7 +177,7 @@
   </div>
   <div class="overlay" id="ov-end" hidden>
     <div class="ov-center" style="max-width:720px">
-      <h2 id="end-title">Efflorescence</h2>
+      <h2 id="end-title">Look on my works</h2>
       <p id="end-text" style="color:var(--ink-soft)"></p>
       <div class="card" style="overflow-x:auto"><table class="stats-tbl" id="end-stats"></table></div>
       <div class="card end-xp" id="end-xp"></div>
@@ -199,6 +199,7 @@
 <script src="js/sim/world.js"></script>
 <script src="js/sim/ai.js"></script>
 <script src="js/render/look.js"></script>
+<script src="js/render/anatomy.js"></script>
 <script src="js/render/core.js"></script>
 <script src="js/render/renderer.js"></script>
 <script src="js/render/minimap.js"></script>
@@ -213,6 +214,7 @@
 <script src="js/net/net.js"></script>
 <script src="js/ui/perf.js"></script>
 <script src="js/ui/dom.js"></script>
+<script src="js/ui/icons.js"></script>
 <script src="js/ui/forge.js"></script>
 <script src="js/ui/tech.js"></script>
 <script src="js/ui/codex.js"></script>

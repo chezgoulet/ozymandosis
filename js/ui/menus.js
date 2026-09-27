@@ -128,7 +128,7 @@
     for (const v of m.vents) { ctx.fillStyle = 'rgba(255,180,120,.7)'; ctx.fillRect(v.x - 40, v.y - 40, 80, 80); }
     m.starts.forEach((s, i) => { const c = E.CULTURES[slots[i].culture]; ctx.fillStyle = c.hex[1]; ctx.shadowColor = c.hex[0]; ctx.shadowBlur = 30; ctx.beginPath(); ctx.arc(s.x, s.y, 110, 0, E.TAU); ctx.fill(); ctx.shadowBlur = 0; });
     ctx.restore();
-    ctx.fillStyle = 'rgba(212,236,231,.6)'; ctx.font = '10px "Martian Mono", monospace'; ctx.fillText(`${m.w}×${m.h} · ${m.pools.length} pools · ${m.vents.length} vents`, 8, r.height - 8);
+    ctx.fillStyle = 'rgba(212,236,231,.6)'; ctx.font = '11px "Atkinson Hyperlegible Mono", monospace'; ctx.fillText(`${m.w}×${m.h} · ${m.pools.length} pools · ${m.vents.length} vents`, 8, r.height - 8);
   }
   function bindSetup() {
     $('slot-add').onclick = () => {
@@ -278,8 +278,8 @@
   }
   function exportSave(id) {
     const d = E.Saves.read(id); if (!d) return;
-    const blob = new Blob([JSON.stringify(Object.assign({ efflorescent: 1 }, d))], { type: 'application/json' });
-    const a = h('a', { href: URL.createObjectURL(blob), download: `efflorescent-${id}.json` }); document.body.appendChild(a); a.click(); a.remove();
+    const blob = new Blob([JSON.stringify(Object.assign({ ozymandosis: 1 }, d))], { type: 'application/json' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `ozymandosis-${id}.json` }); document.body.appendChild(a); a.click(); a.remove();
   }
 
   // ── settings ────────────────────────────────────────────────────
@@ -296,11 +296,12 @@
       h('div', { class: 'field' }, h('label', null, 'Your name'), nameIn),
       seg('Renderer', 'backend', [['auto', 'Auto'], ['webgpu', 'WebGPU'], ['webgl2', 'WebGL2'], ['canvas2d', 'Canvas 2D']], () => { if (S.backend === 'webgpu') E.loadWebGPU(); }),
       h('small', { class: 'hint-s' }, `This device: WebGL2 ${E.hasWebGL2() ? '✓' : '✗'} · WebGPU ${navigator.gpu ? '✓' : '✗'}. Auto uses WebGL2, and Canvas 2D if WebGL2 is unavailable.`),
-      seg('Quality', 'quality', [['auto', 'Auto (keeps 60 fps)'], ['ultra', 'Ultra'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']], () => { if (game.renderer) { if (game.renderer.setTier) game.renderer.setTier(S.quality === 'auto' ? E.Perf.defaultTier() : S.quality); else game.renderer.quality = S.quality === 'low' ? 'low' : 'high'; game.resize(); } }),
+      seg('Quality', 'quality', [['auto', 'Auto'], ['ultra', 'Ultra'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']], () => { if (game.renderer) { if (game.renderer.setTier) game.renderer.setTier(S.quality === 'auto' ? E.Perf.defaultTier() : S.quality); else game.renderer.quality = S.quality === 'low' ? 'low' : 'high'; game.resize(); } }),
+      h('small', { class: 'hint-s' }, 'Auto adjusts detail to hold 60 frames per second.'),
       seg('Culture shape markers', 'markers', [['auto', 'When zoomed in'], ['always', 'Always'], ['off', 'Off']]),
       seg('Orientation', 'orientation', [['auto', 'Auto'], ['landscape', 'Landscape'], ['portrait', 'Portrait']]),
       seg('Interface size', 'uiScale', [[0.9, 'S'], [1, 'M'], [1.15, 'L'], [1.3, 'XL']], applyUi),
-      slider('Music', 'music'), slider('Effects', 'sfx'), tog('Mute all sound', 'muted'), tog('Organ-art command icons', 'organIcons'), tog('Health bars on damaged creatures', 'showHp'), tog('Vibration (touch)', 'haptics')));
+      slider('Music', 'music'), slider('Effects', 'sfx'), tog('Mute all sound', 'muted'), tog('Organ-art command icons', 'organIcons'), tog('Health bars on damaged creatures', 'showHp'), tog('Vibration (touch)', 'haptics'), E.isDesktop() ? tog('Fullscreen on launch (desktop)', 'fullscreen') : null));
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
       seg('Right-click / tap on ground', 'rightClick', [['amove', 'Attack-move'], ['move', 'Move']]),
@@ -352,13 +353,14 @@
   $('mp-join').onclick = () => joinGame();
   $('load-import').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-    try { const d = JSON.parse(await f.text()); if (!d.state) throw new Error('bad'); loadSave(null, d); } catch (err) { E.toast('That file is not an Efflorescent save'); }
+    try { const d = JSON.parse(await f.text()); if (!d.state) throw new Error('bad'); loadSave(null, d); } catch (err) { E.toast('That file is not an Ozymandosis save'); }
   };
   window.addEventListener('resize', () => { if (!$('scr-setup').hidden && setup) drawMapPreview(); });
   bindSetup();
 
   // ── boot ────────────────────────────────────────────────────────
   applyUi();
+  E.hydrateIcons();
   if (E.Settings.backend === 'webgpu' || /[?&]bench/.test(location.search)) E.loadWebGPU();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !/[?&]nosw/.test(location.search)) navigator.serviceWorker.register('sw.js').catch(() => {});
   requestAnimationFrame(bgFrame);

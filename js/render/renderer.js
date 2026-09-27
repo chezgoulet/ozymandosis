@@ -146,7 +146,7 @@
         const pu = E.POWERUPS[k.k], c = E.hex(pu.color), bob = Math.sin(t * 2 + k.id) * 4;
         E.drawGlow(ctx, k.x, k.y + bob, 30, c, 0.7 + 0.2 * Math.sin(t * 3), true);
         ctx.strokeStyle = E.rgba(c, 0.6); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(k.x, k.y + bob, 12, 0, TAU); ctx.stroke();
-        ctx.fillStyle = E.rgba(E.mix(c, E.WHITE, 0.5), 0.95); ctx.font = '600 14px Figtree, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = E.rgba(E.mix(c, E.WHITE, 0.5), 0.95); ctx.font = '600 14px "Atkinson Hyperlegible Next", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(pu.glyph, k.x, k.y + bob + 1);
       }
     }
@@ -178,27 +178,9 @@
       const vis = b.o === this.local || this.seen(b.x, b.y);
       const R = sd.r, beat = 0.5 + 0.5 * Math.sin(t * (1.4 + p.energy * 3 + p.fever * 4) + b.id);
       const ga = ctx.globalAlpha; ctx.globalAlpha = ga * (b.build < 1 ? 0.35 + b.build * 0.5 : 1) * (vis ? 1 : 0.55);
-      E.drawGlow(ctx, b.x, b.y, R * 3.4, pal.accent, 0.35 + 0.15 * beat, true);
-      if (b.kind === 'spire') {
-        for (let k = 0; k < 3; k++) { ctx.strokeStyle = E.rgba(c1, 0.25 + k * 0.15); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(b.x, b.y, R * (1.4 - k * 0.35), 0, TAU); ctx.stroke(); }
-        const n = 6 + cult.idx;
-        for (let k = 0; k < n; k++) {
-          const a = k / n * TAU + t * 0.4; ctx.strokeStyle = E.rgba(E.mix(c1, E.WHITE, 0.3), 0.7); ctx.lineWidth = 1.2;
-          ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * R * 0.6, b.y + Math.sin(a) * R * 0.6); ctx.lineTo(b.x + Math.cos(a + 0.2) * R * 1.8, b.y + Math.sin(a + 0.2) * R * 1.8); ctx.stroke();
-        }
-        E.drawGlow(ctx, b.x, b.y, R * 1.2, pal.accent, 0.9);
-      } else {
-        const petals = (b.kind === 'bud' ? 3 : 5) + cult.idx;
-        for (let k = 0; k < petals; k++) {
-          const a = k / petals * TAU + t * 0.12 * (b.id % 2 ? 1 : -1), L = R * (1.25 + 0.1 * Math.sin(t * 1.8 + k)) * (0.96 + 0.08 * beat), w = 0.42;
-          ctx.beginPath(); ctx.moveTo(b.x, b.y);
-          ctx.quadraticCurveTo(b.x + Math.cos(a - w) * L * 0.8, b.y + Math.sin(a - w) * L * 0.8, b.x + Math.cos(a) * L, b.y + Math.sin(a) * L);
-          ctx.quadraticCurveTo(b.x + Math.cos(a + w) * L * 0.8, b.y + Math.sin(a + w) * L * 0.8, b.x, b.y);
-          ctx.fillStyle = E.rgba(E.mix(c0, pal.primary, 0.5), 0.14); ctx.fill();
-          ctx.strokeStyle = E.rgba(E.mix(c1, pal.accent, 0.5), 0.5); ctx.lineWidth = 1; ctx.stroke();
-        }
-        E.drawGlow(ctx, b.x, b.y, R * 0.9 * (0.9 + 0.15 * beat), pal.accent, 0.95);
-      }
+      E.drawGlow(ctx, b.x, b.y, R * 3.4, pal.accent, 0.3 + 0.12 * beat, true);
+      const z = this.cam.z, lod = z < 0.25 || this.quality === 'low' ? (z < 0.25 ? 2 : 1) : z < 0.45 ? 1 : 0;
+      E.drawStructure(E.canvasStructAdapter(ctx, z, lod, (x, y) => this.seen(x, y), pal), this, view, b, pal, t, { alpha: 1 });
       // lance
       if (b.lance && sd.lance && vis) {
         const tg = view.byId.get(b.lance);
@@ -311,7 +293,7 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (const x of this.texts) {
         const a = (t - x.t0) / 1.8;
-        ctx.globalAlpha = 1 - a; ctx.fillStyle = x.color; ctx.font = `600 ${Math.round(13 / Math.max(0.6, this.cam.z))}px Figtree, system-ui, sans-serif`;
+        ctx.globalAlpha = 1 - a; ctx.fillStyle = x.color; ctx.font = `600 ${Math.round(13 / Math.max(0.6, this.cam.z))}px "Atkinson Hyperlegible Next", system-ui, sans-serif`;
         ctx.fillText(x.s, x.x, x.y - a * 26); ctx.globalAlpha = 1;
       }
     }

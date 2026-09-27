@@ -170,7 +170,7 @@
             this.shapes[it.id] = [it.x / W, it.y / H, (it.x + it.w) / W, (it.y + it.h) / H];
           } else if (it.kind === 'glyph') {
             ctx.setTransform(s, 0, 0, s, it.x + it.w / 2, it.y + it.h / 2);
-            ctx.fillStyle = 'rgb(255,0,0)'; ctx.font = '600 20px Figtree, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(it.ch, 0, 1);
+            ctx.fillStyle = 'rgb(255,0,0)'; ctx.font = '600 20px "Atkinson Hyperlegible Next", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(it.ch, 0, 1);
             this.glyphs[it.id] = [it.x / W, it.y / H, (it.x + it.w) / W, (it.y + it.h) / H];
           }
           ctx.restore();

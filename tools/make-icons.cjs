@@ -6,6 +6,7 @@ const fs = require('fs'), path = require('path');
 const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
 const ROOT = path.join(__dirname, '..'), svg = fs.readFileSync(path.join(ROOT, 'icon.svg'), 'utf8');
 const RES = path.join(ROOT, 'android/app/src/main/res');
+const LOGO_FONT = 'data:font/woff2;base64,' + fs.readFileSync(path.join(ROOT, 'vendor/fonts/CinzelDecorative-700.woff2')).toString('base64');
 const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROME || (process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome') });
@@ -13,11 +14,12 @@ const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
   const render = async (file, w, h, opts) => {
     opts = opts || {};
     const inner = opts.logo ? `<div style="position:absolute;left:50%;top:50%;width:${opts.logo}px;height:${opts.logo}px;transform:translate(-50%,-50%)">${svg.replace('<svg', '<svg width="100%" height="100%"')}</div>
-      <div style="position:absolute;left:0;right:0;top:calc(50% + ${opts.logo * 0.62}px);text-align:center;font:italic 200 ${Math.round(opts.logo * 0.28)}px Georgia,serif;color:#9ff6e4;letter-spacing:-.02em">Efflorescent</div>`
+      <div style="position:absolute;left:0;right:0;top:calc(50% + ${opts.logo * 0.62}px);text-align:center;font:700 ${Math.round(opts.logo * 0.2)}px 'Cinzel Decorative',serif;color:#9ff6e4;letter-spacing:.02em;white-space:nowrap">Ozymandosis</div>`
       : `<div style="position:absolute;inset:${opts.pad || 0}px">${svg.replace('<svg', '<svg width="100%" height="100%"')}</div>`;
     await p.setViewportSize({ width: w, height: h });
-    await p.setContent(`<html><body style="margin:0;background:${opts.bg || 'transparent'};width:${w}px;height:${h}px;position:relative;overflow:hidden">${inner}</body></html>`);
+    await p.setContent(`<html><head><style>@font-face{font-family:'Cinzel Decorative';font-weight:700;src:url(${LOGO_FONT}) format('woff2')}</style></head><body style="margin:0;background:${opts.bg || 'transparent'};width:${w}px;height:${h}px;position:relative;overflow:hidden">${inner}</body></html>`);
     fs.mkdirSync(path.dirname(file), { recursive: true });
+    await p.evaluate(() => document.fonts.ready);
     await p.screenshot({ path: file, omitBackground: !opts.bg });
   };
   for (const [d, k] of Object.entries(DENS)) {

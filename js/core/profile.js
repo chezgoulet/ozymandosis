@@ -1,10 +1,10 @@
 // Meta-progression: a persistent Lineage (XP, level, titles), achievements that
-// unlock preset Forge designs, and per-culture records. Stored locally; it never
+// unlock preset Spawnforge designs, and per-culture records. Stored locally; it never
 // changes match balance (unlocks are cosmetic titles and designs anyone could build).
 (function (E) {
   'use strict';
   const KEY = 'efl.profile';
-  const TITLES = [[1, 'Drifter'], [2, 'Spawnling'], [3, 'Tender'], [5, 'Lamplighter'], [7, 'Luminary'], [10, 'Tidecaller'], [14, 'Abyssal'], [19, 'Leviathan-lord'], [25, 'Efflorescent']];
+  const TITLES = [[1, 'Drifter'], [2, 'Spawnling'], [3, 'Tender'], [5, 'Lamplighter'], [7, 'Luminary'], [10, 'Tidecaller'], [14, 'Abyssal'], [19, 'Leviathan-lord'], [25, 'Ozymandian']];
   const ACH = [
     { id: 'first', name: 'First Light', desc: 'Win a match.', test: r => r.won },
     { id: 'hard', name: 'Into the Deep', desc: 'Win against an Abyssal or Leviathan bot.', test: r => r.won && r.hardest >= 2 },
@@ -23,7 +23,7 @@
     { id: 'all6', name: 'Six Lights', desc: 'Win with every culture.', test: (r, p) => Object.keys(p.cultureWins).length >= 6 },
     { id: 'tutor', name: 'Spawned', desc: 'Finish the tutorial.', test: r => r.tutorial && r.won },
   ];
-  // Each achievement adds a preset design to your Forge library.
+  // Each achievement adds a preset design to your Spawnforge library.
   const REWARDS = {
     first: { name: 'Dawnwhip', chassis: 'serpent', organs: ['sawjaw', 'twinwhip', 'feelers'] },
     hard: { name: 'Deepmaw', chassis: 'carapace', organs: ['pincers', 'stilts', 'thorn', 'whiptail'] },

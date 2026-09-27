@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Efflorescent</title>
-<meta name="description" content="Design document and playable vertical slice for Efflorescent, a real-time strategy game set in the Bioluminescent Dreamscape.">
+<title>Ozymandosis</title>
+<meta name="description" content="Design document and playable vertical slice for Ozymandosis, a real-time strategy game set in the Bioluminescent Dreamscape.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,200..700,0..100,0..1;1,9..144,200..700,0..100,0..1&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -301,14 +301,14 @@ footer .glyph{font-family:var(--display); font-style:italic; font-size:2rem; col
 </style>
 </head>
 <body>
-<div style="position:sticky;top:0;z-index:99;background:#061a1e;border-bottom:1px solid rgba(96,240,255,.3);padding:10px 16px;font:500 14px system-ui;color:#d4ece7;text-align:center">This is the original concept document and prototype. The full game has since been built: <a href="../index.html" style="color:#60f0ff">play Efflorescent</a>.</div>
+<div style="position:sticky;top:0;z-index:99;background:#061a1e;border-bottom:1px solid rgba(96,240,255,.3);padding:10px 16px;font:500 14px system-ui;color:#d4ece7;text-align:center">This is the original concept document and prototype. The full game has since been built: <a href="../index.html" style="color:#60f0ff">play Ozymandosis</a>.</div>
 <nav class="rail" id="rail" aria-label="Sections"></nav>
 
 <header class="hero" id="top">
   <canvas id="hero-canvas" aria-hidden="true"></canvas>
   <div class="hero-inner">
     <p class="kicker">Design Document &nbsp;·&nbsp; Playable Vertical Slice &nbsp;·&nbsp; v0.1</p>
-    <h1>Efflorescent</h1>
+    <h1>Ozymandosis</h1>
     <p class="sub">A real-time strategy game set in the Bioluminescent Dreamscape</p>
     <p class="tag">Grow a culture. Tend its light. Outshine the dark.</p>
     <div class="hero-cta">
@@ -326,7 +326,7 @@ footer .glyph{font-family:var(--display); font-style:italic; font-size:2rem; col
     <div class="sec-head">
       <div class="sec-num">§ 01 · Prologue</div>
       <h2>A visualizer that learned to breathe</h2>
-      <p class="lede">Efflorescent started as an ambient screen for an Android app that ran local AI models. The job was to show how hard the phone was working without printing a single number. The answer was an ecosystem.</p>
+      <p class="lede">Ozymandosis started as an ambient screen for an Android app that ran local AI models. The job was to show how hard the phone was working without printing a single number. The answer was an ecosystem.</p>
     </div>
     <div class="cols side">
       <div>
@@ -335,7 +335,7 @@ footer .glyph{font-family:var(--display); font-style:italic; font-size:2rem; col
         <p>So the pitch is this: keep the visual language and let it drive a simulation. Instead of watching a phone think, you tend a <strong>culture</strong>. You harvest light, evolve organs along biological tech trees, build more complex organisms, and send them into the drift against rival cultures.</p>
       </div>
       <div>
-        <div class="pull">“The screen was never showing us a phone. It was showing us an ecosystem that happened to be reporting on one. Efflorescent lets that ecosystem report on itself.”</div>
+        <div class="pull">“The screen was never showing us a phone. It was showing us an ecosystem that happened to be reporting on one. Ozymandosis lets that ecosystem report on itself.”</div>
         <div class="aside"><b>High concept</b>A real-time strategy game of bioluminescent evolution. Six glowing cultures compete for drifting pools of light in an endless abyss. Every organ you evolve changes how your creatures look and what they can do, and your whole colony's health shows up in its color.</div>
       </div>
     </div>
@@ -363,7 +363,7 @@ footer .glyph{font-family:var(--display); font-style:italic; font-size:2rem; col
       <thead><tr><th>In the seed</th><th>What it did there</th><th>What it becomes</th></tr></thead>
       <tbody>
         <tr><td><code>_BODY_PARTS</code></td><td>Five organ builders × ten variants, used as random decoration</td><td class="becomes"><strong>The tech tree.</strong> Organ type is the role. Variant <code>v</code> is the tier. Researching an organ literally lengthens it on screen.</td></tr>
-        <tr><td><code>_assignParts(rng)</code></td><td>Random 2–5 organ body plans</td><td class="becomes"><strong>The Organism Forge.</strong> Body plans you design deliberately, with costs and derived stats.</td></tr>
+        <tr><td><code>_assignParts(rng)</code></td><td>Random 2–5 organ body plans</td><td class="becomes"><strong>The Spawnforge.</strong> Body plans you design deliberately, with costs and derived stats.</td></tr>
         <tr><td><code>trail</code> → 20-point <code>pts</code></td><td>The body follows the head's real path, so swimming looks natural</td><td class="becomes"><strong>Locomotion and silhouette.</strong> Turn radius, pursuit arcs and swarming behavior all fall out of it.</td></tr>
         <tr><td><code>_palette(e, healthy, charging, battery, temp)</code></td><td>Device telemetry → scene color</td><td class="becomes"><strong>The Vitality Signature.</strong> Activity, reserves, fever and blight, all readable at a glance.</td></tr>
         <tr><td><code>panic</code> (temp &gt; 38°)</td><td>Erratic turns, flickering heads, reddening</td><td class="becomes"><strong>Fever.</strong> Speed and bite in exchange for burning your own health.</td></tr>
@@ -477,10 +477,10 @@ footer .glyph{font-family:var(--display); font-style:italic; font-size:2rem; col
 </section>
 
 <!-- ═══════════════ 07 FORGE ═══════════════ -->
-<section id="forge" data-rail="Organism Forge">
+<section id="forge" data-rail="Spawnforge">
   <div class="wrap">
     <div class="sec-head">
-      <div class="sec-num">§ 07 · The Organism Forge</div>
+      <div class="sec-num">§ 07 · The Spawnforge</div>
       <h2>Design a creature</h2>
       <p class="lede">The seed's <code>_assignParts</code> rolled random body plans. The Forge lets you choose them. Pick up to five organs, set their variants, and watch the stats and role update. Then send the design to the demo, where it fills hatchery slot 4.</p>
     </div>
@@ -674,7 +674,7 @@ lifespan: Bloomtide wither at 80s</div>
   </div>
   <div class="stage-wrap">
     <div class="stage" id="stage">
-      <canvas id="game-canvas" aria-label="Efflorescent game field"></canvas>
+      <canvas id="game-canvas" aria-label="Ozymandosis game field"></canvas>
       <div class="hud" id="hud">
         <div class="box">
           <div class="nm" id="hud-p-name">—</div>
@@ -761,7 +761,7 @@ lifespan: Bloomtide wither at 80s</div>
       <div class="phase now"><span class="m">Phase 0 · now</span><h4>Tidepool</h4><ul><li>This document and slice</li><li>Validate the core loop and readability</li><li>Playtest the six culture rules</li></ul></div>
       <div class="phase"><span class="m">Phase 1</span><h4>Reef</h4><ul><li>Scrolling map, depth bands, Murk fog</li><li>Spore and chimeric grafts</li><li>Strains: use-driven mutation</li></ul></div>
       <div class="phase"><span class="m">Phase 2</span><h4>Bloom</h4><ul><li>Deterministic lockstep multiplayer</li><li>Android build via the Kotlin parity path</li><li>Audio: the colony as a chord</li></ul></div>
-      <div class="phase"><span class="m">Phase 3</span><h4>Efflorescence</h4><ul><li>Campaign across six cultures</li><li>2v2 and free-for-all tides</li><li>Forge sharing between players</li></ul></div>
+      <div class="phase"><span class="m">Phase 3</span><h4>Ozymandosis</h4><ul><li>Campaign across six cultures</li><li>2v2 and free-for-all tides</li><li>Forge sharing between players</li></ul></div>
     </div>
     <h3>Risks &amp; open questions</h3>
     <ul class="clean">
@@ -792,7 +792,7 @@ lifespan: Bloomtide wither at 80s</div>
 </section>
 
 <footer>
-  <div class="glyph">Efflorescent</div>
+  <div class="glyph">Ozymandosis</div>
   <p>Grown from the <em>Bioluminescent Dreamscape</em> visualization pack. Single-file design document and demo.</p>
 </footer>
 <div class="toast" id="toast"></div>
@@ -1903,7 +1903,7 @@ function drawTreeCell(c, t) {
   ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, 12, 0, TAU); ctx.fill();
 }
 
-// ── Organism Forge ─────────────────────────────────────────────
+// ── Spawnforge ─────────────────────────────────────────────
 const forge = { cult: CULTURES[0], slots: [{ type: 'mandible', v: 4 }, { type: 'flagella', v: 5 }, { type: 'antenna', v: 3 }, { type: '', v: 0 }, { type: '', v: 0 }] };
 forge.tank = new Tank($('forge-canvas'), { zoom: 1.8, margin: 0.22, state: () => ({ pal: culturePalette(forge.cult, 0.35, 0, 100, false), cult: forge.cult }) });
 function forgeParts() { return forge.slots.filter(s => s.type); }
@@ -2582,7 +2582,7 @@ $('btn-again').onclick = showStart;
 function endGame(won) {
   G.over = true;
   const P = G.player, E = G.ai;
-  $('end-title').textContent = won ? 'Efflorescence' : 'Your light goes out';
+  $('end-title').textContent = won ? 'Ozymandosis' : 'Your light goes out';
   $('end-title').style.color = won ? P.cult.hex[1] : '#ff8a8a';
   const m = Math.floor(G.t / 60), s = Math.floor(G.t % 60);
   $('end-text').textContent = won

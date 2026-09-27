@@ -1,4 +1,4 @@
-package com.chezgoulet.efflorescent;
+package com.ozymandosis.game;
 
 import com.getcapacitor.BridgeActivity;
 

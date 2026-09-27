@@ -1,6 +1,6 @@
 # Architecture
 
-Efflorescent is plain browser scripts on one global namespace `E`. There is no bundler, so the same files run from `file://`, from any static host, as an offline PWA, inside the Capacitor native shell, and in Node for tests.
+Ozymandosis is plain browser scripts on one global namespace `E`. There is no bundler, so the same files run from `file://`, from any static host, as an offline PWA, inside the Capacitor native shell, and in Node for tests.
 
 ```
              commands (humans, bots, remote guests)

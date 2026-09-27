@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Efflorescent relay server: serves the game files and relays multiplayer
+// Ozymandosis relay server: serves the game files and relays multiplayer
 // messages between a room's host and its guests. Zero dependencies.
 //   node server/server.js            (PORT=8080 by default)
 'use strict';
@@ -125,7 +125,7 @@ function log(s) { if (!process.env.QUIET) console.log(new Date().toISOString().s
 
 server.listen(PORT, HOST, () => {
   const ips = Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address);
-  console.log(`Efflorescent server on http://localhost:${PORT}`);
+  console.log(`Ozymandosis server on http://localhost:${PORT}`);
   for (const ip of ips) console.log(`  LAN: http://${ip}:${PORT}`);
 });
 module.exports = server;

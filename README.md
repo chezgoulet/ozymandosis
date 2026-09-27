@@ -1,4 +1,4 @@
-# Efflorescent
+# Ozymandosis
 
 A real-time strategy game of bioluminescent evolution, grown from the *Bioluminescent Dreamscape* visualizer.
 You tend a glowing culture: you harvest drifting light, evolve organs and body plans, and send living swarms against rival cultures. The whole colony's condition shows in its color.
@@ -28,7 +28,7 @@ You tend a glowing culture: you harvest drifting light, evolve organs and body p
 - **Twelve unit abilities** granted by organs or chassis: Jet Dash, Ink Cloud, Dazzle, Camouflage, Spit Volley, Venom Burst, Harden, Tentacle Lash, War Song, Mend Spores, Tether Drain, Bud Split. All auto-cast by default, and you can toggle each one.
 - **Twelve colony powers** on the tech tree: Frenzy, Lumen Flare, Tidecall, Spore Bloom, Apex Spawn, Mitosis, Chitin Weave, Deep Roots, Symbiosis, Hive Mind, Abyssal Hunger, Metamorphosis.
 - **Twelve powerups** that spawn at hydrothermal vents.
-- **The Organism Forge**: design your own creatures, save them to a library, and hatch them in any match once their parts are evolved.
+- **The Spawnforge**: design your own creatures, save them to a library, and hatch them in any match once their parts are evolved.
 - **Maps** generated from a seed: Tidepool 2400², Lagoon 3600×2400, Reef 4800×3200, Abyss 6400×4200. Also configurable: 2–6 cultures, teams or free-for-all, resource richness, powerup frequency, starting lumen, fog of war, ocean currents.
 - **Bots** at four difficulty levels (Gentle, Tidal, Abyssal, Leviathan). They expand, research, design creatures, raid, defend, and use powers.
 - **Multiplayer**: humans and bots in any mix, host-authoritative, with a lobby, room codes, chat and pause sync. If a player drops, a bot takes over their colony until they rejoin.

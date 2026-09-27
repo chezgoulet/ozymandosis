@@ -6,6 +6,22 @@
   'use strict';
   const Cap = window.Capacitor;
   E.Native = { is: !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform()), platform: Cap && Cap.getPlatform ? Cap.getPlatform() : 'web' };
+  // Desktop: play fullscreen. Browsers only grant fullscreen from a user gesture,
+  // so the first click or key press after launch enters it (installed PWAs start
+  // in fullscreen display mode already). Alt+Enter / F11 toggles.
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  E.isDesktop = () => !E.Native.is && matchMedia('(pointer: fine)').matches && matchMedia('(min-width: 900px)').matches;
+  E.enterFullscreen = () => {
+    const d = document.documentElement, req = d.requestFullscreen || d.webkitRequestFullscreen;
+    if (fsEl() || !req) return Promise.resolve();
+    try { return Promise.resolve(req.call(d, { navigationUI: 'hide' })).catch(() => {}); } catch (e) { return Promise.resolve(); }
+  };
+  E.toggleFullscreen = () => { if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else E.enterFullscreen(); };
+  if (E.isDesktop() && E.Settings.fullscreen !== false && !/[?&](nofs|bench|quick)/.test(location.search) && !navigator.webdriver) {
+    const go = e => { if (e.type === 'keydown' && (e.key === 'F11' || (e.altKey && e.key === 'Enter'))) return; E.enterFullscreen(); off(); };
+    const off = () => { removeEventListener('pointerdown', go, true); removeEventListener('keydown', go, true); };
+    addEventListener('pointerdown', go, true); addEventListener('keydown', go, true);
+  }
   if (!E.Native.is) return;
   const P = Cap.Plugins || {};
   document.documentElement.classList.add('native', 'native-' + E.Native.platform);

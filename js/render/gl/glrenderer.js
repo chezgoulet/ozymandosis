@@ -249,22 +249,10 @@
       const vis = b.o === this.local || this.seen(b.x, b.y);
       const R = sd.r, beat = 0.5 + 0.5 * Math.sin(t * (1.4 + p.energy * 3 + p.fever * 4) + b.id);
       const A = (b.build < 1 ? 0.35 + b.build * 0.5 : 1) * (vis ? 1 : 0.55);
-      this.glowU.add(b.x, b.y, R * 3.4, 0, pal.accent, (0.35 + 0.15 * beat) * A);
-      const D = this.atlas.decor.petal;
-      if (b.kind === 'spire') {
-        for (let k = 0; k < 3; k++) this.glowU.add(b.x, b.y, R * (1.4 - k * 0.35), 2, c1, (0.3 + k * 0.15) * A, 1.2);
-        const n = 6 + cult.idx;
-        for (let k = 0; k < n; k++) { const a = k / n * TAU + t * 0.4; this.ribbon.add(b.x + Math.cos(a) * R * 0.6, b.y + Math.sin(a) * R * 0.6, b.x + Math.cos(a + 0.2) * R * 1.8, b.y + Math.sin(a + 0.2) * R * 1.8, 0.6, 2, 1, E.mix(c1, WHITE, 0.3), 0.7 * A); }
-        this.glowT.add(b.x, b.y, R * 1.2, 1, pal.accent, 0.9 * A);
-      } else {
-        const petals = (b.kind === 'bud' ? 3 : 5) + cult.idx, sc = R / 38;
-        for (let k = 0; k < petals; k++) {
-          const a = k / petals * TAU + t * 0.12 * (b.id % 2 ? 1 : -1), L = (1.25 + 0.1 * Math.sin(t * 1.8 + k)) * (0.96 + 0.08 * beat) * 0.95;
-          const scl = sc * L * 1.0;
-          this.sprite.add(b.x + Math.cos(a) * 25 * scl * 1.1, b.y + Math.sin(a) * 25 * scl * 1.1, a, scl * 1.1, D.ext, D.cells[0], D.cells[0], 0, E.mix(c0, pal.primary, 0.5), E.mix(c1, pal.accent, 0.5), A, false);
-        }
-        this.glowT.add(b.x, b.y, R * 0.9 * (0.9 + 0.15 * beat), 1, pal.accent, 0.95 * A);
-      }
+      this.glowU.add(b.x, b.y, R * 3.4, 0, pal.accent, (0.3 + 0.12 * beat) * A);
+      const z = this.cam.z, D = this.structAdapter();
+      D.z = z; D.lod = z < 0.2 ? 2 : (z < 0.4 || this.tierName === 'low') ? 1 : 0;
+      E.drawStructure(D, this, view, b, pal, t, { alpha: A });
       // culture marker (shape, not colour alone)
       this.marker(b.x, b.y - R * 1.95, cult, 0.85);
       if (b.lance && sd.lance && vis) {
@@ -277,6 +265,28 @@
       const q = b.queue[0];
       if (q && b.o === this.local) this.glowUI.add(b.x, b.y, R * 0.95, 3, WHITE, 0.6, 1.6, E.clamp(q.t / q.dur, 0, 1));
       if (sel) { this.ribbonUI.add(b.x, b.y, b.rally.x, b.rally.y, 0.6 / this.cam.z, 2, 2, WHITE, 0.4); this.glowUI.add(b.rally.x, b.rally.y, 6, 2, c1, 0.9, 1.5); }
+    }
+    // Adapter from the living-structure drawer to the GPU batches.
+    structAdapter() {
+      if (this._sa) return this._sa;
+      const r = this;
+      const seg = (x0, y0, x1, y1, s, prof, c, a, wk) => r.ribbon.add(x0, y0, x1, y1, s, prof === 0 ? 5 * s * (wk || 1) + 1 : s + 2, prof, c, a, wk);
+      this._sa = {
+        z: 1, lod: 0, seen: (x, y) => r.seen(x, y),
+        glow: (x, y, rad, k, c, a, p0, p1) => r.glowU.add(x, y, rad, k, c, a, p0, p1),
+        glowTop: (x, y, rad, k, c, a, p0, p1) => r.glowT.add(x, y, rad, k, c, a, p0, p1),
+        seg,
+        poly(P, n, closed, s0, s1, prof, c, a, wk) {
+          const m = closed ? n : n - 1;
+          for (let i = 0; i < m; i++) { const j = (i + 1) % n, s = m > 1 ? s0 + (s1 - s0) * (i / (m - 1)) : s0; seg(P[i * 2], P[i * 2 + 1], P[j * 2], P[j * 2 + 1], s, prof, c, a, wk); }
+        },
+        organ(id, x, y, rot, sc, ti, side, ph, speed, t, body, acc, a) {
+          const O = r.atlas.organs[id]; if (!O) return;
+          const F = E.GL_FRAMES, fr = (t / E.GL_CYCLE) * F, ff = ((fr * speed + ph * 1.27) % F + F) % F, fa = Math.floor(ff), fb = (fa + 1) % F, cells = O.cells[ti] || O.cells[0];
+          r.sprite.add(x, y, rot, sc, O.ext, cells[fa], cells[fb], ff - fa, body, acc, a, side < 0);
+        },
+      };
+      return this._sa;
     }
     marker(x, y, cult, a) {
       const z = this.cam.z, mode = E.Settings.markers || 'auto';
@@ -492,7 +502,7 @@
           const sx = (x.x - this.cam.x) * z + this.W / 2, sy = (x.y - this.cam.y) * z + this.H / 2 - a * (x.dmg ? 22 : 26);
           if (sx < -40 || sy < -40 || sx > this.W + 40 || sy > this.H + 40) continue;
           ctx.globalAlpha = 1 - a * a;
-          ctx.font = `${x.dmg ? 700 : 600} ${Math.round((x.dmg ? 12 : 13) * (x.size || 1) * Math.min(1.3, Math.max(0.85, z)))}px Figtree, system-ui, sans-serif`;
+          ctx.font = `${x.dmg ? 700 : 600} ${Math.round((x.dmg ? 12 : 13) * (x.size || 1) * Math.min(1.3, Math.max(0.85, z)))}px "Atkinson Hyperlegible Next", system-ui, sans-serif`;
           ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,6,10,.75)'; ctx.strokeText(x.s, sx, sy);
           ctx.fillStyle = x.color; ctx.fillText(x.s, sx, sy);
         }

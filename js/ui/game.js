@@ -3,7 +3,9 @@
 (function (E) {
   'use strict';
   const h = E.h, $ = E.$, DT = E.DT;
-  const ABILITY_KEYS = ['q', 'w', 'e', 'r', 'd', 'f'];
+  // WASD and the arrows pan the camera, so abilities sit around them.
+  const ABILITY_KEYS = ['q', 'e', 'r', 'f', 'c', 'v'];
+  const PAN_KEYS = { a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0], w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1] };
 
   // First-game guide: contextual steps that complete themselves as you play.
   const GUIDE = [
@@ -12,7 +14,7 @@
     { text: 'Foragers carry lumen home by themselves. ◌ Idle finds any that stopped working.', done: (g, t) => t > 12 },
     { text: 'Open ⧉ Evolve and start an evolution. New organs change how your creatures look and fight.', done: g => g.me().research.length > 0 || (g.me().stats.evolved || 0) > 0 },
     { text: 'Select a creature, tap ⬡ Build and plant a Bud beside distant pools to expand.', done: g => g.world.s.structs.some(b => b.o === g.local && b.kind === 'bud') },
-    { text: 'Design a creature of your own in ✎ Forge, then hatch it.', done: g => g.me().designs.some(d => d.id[0] === 'u') },
+    { text: 'Design a creature of your own in the Spawnforge, then hatch it.', done: g => g.me().designs.some(d => d.id[0] === 'u') },
     { text: 'Tap ⚔ Army, then tap the ground to send them. They fight anything on the way.', done: g => g.me().stats.kills > 0 },
   ];
 
@@ -307,9 +309,13 @@
 
     // ── camera ──────────────────────────────────────────────────
     updateCamera(dt) {
-      const c = this.renderer.cam, sp = 900 / c.z * dt;
-      if (this.keys.has('arrowleft')) c.x -= sp; if (this.keys.has('arrowright')) c.x += sp;
-      if (this.keys.has('arrowup')) c.y -= sp; if (this.keys.has('arrowdown')) c.y += sp;
+      const c = this.renderer.cam, sp = (this.shiftHeld ? 1800 : 900) / c.z * dt;
+      // keyboard pan eases in and out so WASD feels like a camera, not a teleport
+      let kx = 0, ky = 0; for (const k of this.keys) { const v = PAN_KEYS[k]; if (v) { kx += v[0]; ky += v[1]; } }
+      const pv = this.panV || (this.panV = { x: 0, y: 0 }), ease = 1 - Math.exp(-dt * 14);
+      pv.x += (E.clamp(kx, -1, 1) - pv.x) * ease; pv.y += (E.clamp(ky, -1, 1) - pv.y) * ease;
+      if (Math.abs(pv.x) < 0.002) pv.x = 0; if (Math.abs(pv.y) < 0.002) pv.y = 0;
+      c.x += pv.x * sp; c.y += pv.y * sp;
       if (E.Settings.edgePan && this.mouseIn && this.mouse && !this.pointers.size) {
         const m = this.mouse, W = this.renderer.W, H = this.renderer.H, e = 10;
         if (m.x < e) c.x -= sp; else if (m.x > W - e) c.x += sp;
@@ -496,6 +502,7 @@
       }, { passive: false });
       window.addEventListener('keydown', e => this.onKey(e));
       window.addEventListener('keyup', e => { this.keys.delete(e.key.toLowerCase()); this.shiftHeld = e.shiftKey; });
+      window.addEventListener('blur', () => this.keys.clear());
       const reorient = () => setTimeout(() => this.resize(), 250);
       window.addEventListener('orientationchange', reorient);
       if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', reorient);
@@ -535,7 +542,9 @@
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') { if (e.key === 'Escape') e.target.blur(); return; }
       const k = e.key.toLowerCase();
-      this.keys.add(k);
+      if ((e.altKey && k === 'enter') || k === 'f11') { e.preventDefault(); E.toggleFullscreen(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) { if (!/^[0-9z]$/.test(k)) return; } else this.keys.add(k);
+      if (PAN_KEYS[k]) { e.preventDefault(); return; }
       const overlayOpen = !$('ov-tech').hidden || !$('ov-forge').hidden || !$('ov-pause').hidden || !$('ov-end').hidden;
       if (k === 'escape') {
         if (this.mode) this.setMode(null);
@@ -563,10 +572,10 @@
         return;
       }
       const us = this.selUnits();
-      if (k === 'a' && us.length) this.setMode({ k: 'amove' });
+      if (k === 'x' && us.length) this.setMode({ k: 'amove' });
       else if (k === 'm' && us.length) this.setMode({ k: 'move' });
       else if (k === 'p' && us.length) this.setMode({ k: 'patrol' });
-      else if (k === 's' && us.length) this.send({ c: 'stop', ids: us.map(u => u.id) });
+      else if (k === 'z' && us.length) this.send({ c: 'stop', ids: us.map(u => u.id) });
       else if (k === 'h' && us.length) this.send({ c: 'hold', ids: us.map(u => u.id), x: us[0].x, y: us[0].y });
       else if (k === 'b') this.showBuild();
       else if (k === 't') this.openTech();
@@ -624,7 +633,7 @@
     bindHud() {
       $('h-menu').onclick = () => this.openPause();
       $('guide-next').onclick = () => { E.Settings.guideStep = (E.Settings.guideStep || 0) + 1; E.saveSettings(); this.guideTick(); };
-      $('guide-off').onclick = () => { E.Settings.tips = false; E.saveSettings(); $('guide').hidden = true; E.toast('Tips off. Turn them back on in Settings.'); };
+      $('guide-off').onclick = () => { E.Settings.tips = false; E.saveSettings(); $('guide').hidden = true; this.measureSheet(); E.toast('Tips off. Turn them back on in Settings.'); };
       $('f-army').onclick = () => this.selectArmy();
       $('f-idle').onclick = () => this.selectIdle();
       $('f-home').onclick = () => this.goHome();
@@ -670,7 +679,7 @@
       $('p-speed').innerHTML = '';
       for (const s of speeds) $('p-speed').appendChild(h('button', { 'aria-pressed': 'false', onclick: () => { this.speed = s; E.Settings.speed = s; E.saveSettings(); this.renderSpeed(); } }, s + '×'));
     }
-    renderMute() { $('h-mute').textContent = E.Settings.muted ? '🔇' : '🔊'; $('p-music').value = Math.round(E.Settings.music * 100); $('p-sfx').value = Math.round(E.Settings.sfx * 100); }
+    renderMute() { $('h-mute').innerHTML = E.iconSvg(E.Settings.muted ? 'conchMute' : 'conch'); $('h-mute').setAttribute('aria-pressed', String(!E.Settings.muted)); $('p-music').value = Math.round(E.Settings.music * 100); $('p-sfx').value = Math.round(E.Settings.sfx * 100); }
     renderSpeed() { [...$('p-speed').children].forEach((b, i) => b.setAttribute('aria-pressed', String([0.5, 1, 1.5, 2][i] === this.speed))); $('p-speed').parentElement.hidden = this.netMode !== 'local'; }
     openChat() { $('chat').hidden = false; $('chat-form').hidden = false; $('chat-input').focus(); }
     openPause() {
@@ -690,7 +699,7 @@
       if (!ok) return;
       const blob = E.Saves.exportBlob(this.world, { local: this.local, name });
       if (await E.confirm('Saved', 'Also download a copy of this save as a file?', 'Download')) {
-        const a = h('a', { href: URL.createObjectURL(blob), download: `efflorescent-${name.replace(/[^\w-]+/g, '_')}.json` }); document.body.appendChild(a); a.click(); a.remove();
+        const a = h('a', { href: URL.createObjectURL(blob), download: `ozymandosis-${name.replace(/[^\w-]+/g, '_')}.json` }); document.body.appendChild(a); a.click(); a.remove();
       }
     }
     openTech() { $('ov-tech').hidden = false; this.tech.open(); }
@@ -710,7 +719,7 @@
       this.ended = true;
       const w = this.world, s = w.s, me = this.me();
       const won = me && s.winner !== null && w.teamOf(this.local) === s.winner;
-      $('end-title').textContent = won ? 'Efflorescence' : me ? 'Your light goes out' : 'The tide settles';
+      $('end-title').textContent = won ? 'Look on my works' : me ? 'Nothing beside remains' : 'The lone and level sands';
       $('end-title').style.color = won ? 'var(--pc1)' : '#ff9a9a';
       const winners = s.players.filter(p => s.winner !== null && w.teamOf(p.idx) === s.winner).map(p => p.name).join(', ');
       $('end-text').textContent = winners ? `Victory to ${winners} after ${E.fmtTime(s.t)}.` : `The Dreamscape falls dark after ${E.fmtTime(s.t)}.`;
@@ -727,7 +736,7 @@
           time: s.t, mode: s.cfg.map.mode || 'annihilation', online: this.netMode !== 'local', tutorial: this.tutorial });
         box.appendChild(h('div', { class: 'xp-row' }, h('b', null, `+${r.xp} lineage`), h('span', null, `Level ${r.level} · ${r.title}${r.levelUp ? ' ✦ new level' : ''}`)));
         box.appendChild(h('div', { class: 'bar-l', style: 'margin:6px 0 4px' }, h('i', { style: `width:${Math.round(r.progress * 100)}%` })));
-        for (const a of r.got) box.appendChild(h('div', { class: 'ach' }, h('span', { class: 'glyph', style: '--gc:#ffe066' }, '✦'), h('div', null, h('b', null, a.name), h('small', null, a.desc + ' A new design is waiting in your Forge library.'))));
+        for (const a of r.got) box.appendChild(h('div', { class: 'ach' }, h('span', { class: 'glyph', style: '--gc:#ffe066' }, '✦'), h('div', null, h('b', null, a.name), h('small', null, a.desc + ' A new design is waiting in your Spawnforge library.'))));
       }
       $('end-rematch').hidden = this.netMode === 'guest'; $('end-reseed').hidden = this.netMode === 'guest';
       setTimeout(() => { $('ov-end').hidden = false; }, 1800);
@@ -752,6 +761,7 @@
       this.renderSheet(true);
       this.guideTick();
       this.updateThreats(); this.updateObjective();
+      this.measT = (this.measT || 0) - 0.1; if (this.measT <= 0) { this.measT = 1; this.measureSheet(); }
       // the HUD membrane takes on the colony's live palette (fever, starvation, blight)
       if (me) { const pal = E.playerPalette(w, me), rs = document.documentElement.style; rs.setProperty('--pal-p', E.toHex(pal.primary)); rs.setProperty('--pal-a', E.toHex(pal.accent)); rs.setProperty('--fever', me.fever.toFixed(2)); rs.setProperty('--energy', me.energy.toFixed(2)); }
     }
@@ -762,7 +772,7 @@
     guideTick() {
       const el = $('guide'); if (!el) return;
       const i = E.Settings.guideStep || 0, me = this.me();
-      if (!E.Settings.tips || i >= GUIDE.length || !me) { el.hidden = true; return; }
+      if (!E.Settings.tips || i >= GUIDE.length || !me) { if (!el.hidden) { el.hidden = true; this.measureSheet(); } return; }
       if (!this.guideStart) this.guideStart = { i, t: this.world.s.t };
       if (this.guideStart.i !== i) this.guideStart = { i, t: this.world.s.t };
       if (GUIDE[i].done(this, this.world.s.t - this.guideStart.t)) {
@@ -770,11 +780,20 @@
         if (this.tutorial && i + 1 >= GUIDE.length - 1) this.unleashTutor();
         return;
       }
-      el.hidden = false; $('guide-text').textContent = GUIDE[i].text; $('guide-n').textContent = `${i + 1}/${GUIDE.length}`;
+      const txt = GUIDE[i].text; if ($('guide-text').textContent !== txt || el.hidden) { el.hidden = false; $('guide-text').textContent = txt; $('guide-n').textContent = `${i + 1}/${GUIDE.length}`; this.measureSheet(); }
     }
 
     // ── command sheet ───────────────────────────────────────────
-    measureSheet() { requestAnimationFrame(() => { const sh = $('sheet'); if (sh) document.documentElement.style.setProperty('--sheet-h', sh.offsetHeight + 'px'); }); }
+    // Publish the heights of the docked HUD pieces so floating cards stack instead of overlapping.
+    measureSheet() {
+      requestAnimationFrame(() => {
+        const rs = document.documentElement.style, px = (k, v) => { const s = Math.round(v) + 'px'; if (this['_m' + k] !== s) { this['_m' + k] = s; rs.setProperty(k, s); } };
+        const sh = $('sheet'), hud = document.querySelector('.hud-top .res'), gd = $('guide');
+        if (sh) px('--sheet-h', sh.offsetHeight);
+        if (hud) px('--hud-h', hud.offsetHeight + 8);
+        if (gd) px('--guide-h', gd.hidden ? 0 : gd.offsetHeight);
+      });
+    }
     renderSheet(tick) {
       const w = this.world; if (!w) return;
       const me = this.me();
@@ -795,7 +814,8 @@
       const cult = me ? me.culture : 'verdant';
       const cmd = (glyph, label, key, onclick, extra) => {
         const ico = E.Settings.organIcons !== false && E.cmdIcon(label, cult);
-        return h('button', Object.assign({ class: 'cmd', onclick: e => { E.Audio.init(); onclick(e); } }, extra || {}), ico ? h('img', { class: 'ico', src: ico, alt: '' }) : h('b', null, glyph), h('span', null, label), key ? h('kbd', null, key) : null);
+        const svg = !ico && E.ICON_FOR[label.split(' ')[0]];
+        return h('button', Object.assign({ class: 'cmd', onclick: e => { E.Audio.init(); onclick(e); } }, extra || {}), ico ? h('img', { class: 'ico', src: ico, alt: '' }) : svg ? E.icon(svg, 'ico') : h('b', null, glyph), h('span', null, label), key ? h('kbd', null, key) : null);
       };
       if (!me) { $('sh-title').textContent = 'Spectating'; $('sh-sub').textContent = ''; body.appendChild(h('p', { style: 'margin:0;color:var(--ink-soft)' }, 'Your colony is gone. You can keep watching the match.')); this.measureSheet(); return; }
       if (kind === 'colony') {
@@ -804,7 +824,7 @@
           cmd('⌂', 'Hatch', 'Space', () => this.goHome()),
           cmd('⧉', 'Evolve', 'T', () => this.openTech()),
           cmd('⬡', 'Build', 'B', () => this.showBuild()),
-          cmd('✎', 'Forge', 'G', () => this.openForge()),
+          cmd('✎', 'Spawnforge', 'G', () => this.openForge()),
           cmd('⚔', 'Army', 'F2', () => this.selectArmy()),
           cmd('◌', 'Idle', 'F1', () => this.selectIdle()));
         body.appendChild(row);
@@ -845,9 +865,9 @@
         }
         const canHarv = us.some(u => w.stats(u).canHarvest);
         const cmds = h('div', { class: 'hrow' },
-          cmd('➤', 'Attack', 'A', () => this.setMode({ k: 'amove' })),
+          cmd('➤', 'Attack', 'X', () => this.setMode({ k: 'amove' })),
           cmd('↗', 'Move', 'M', () => this.setMode({ k: 'move' })),
-          cmd('■', 'Stop', 'S', () => this.send({ c: 'stop', ids: this.selUnits().map(u => u.id) })),
+          cmd('■', 'Stop', 'Z', () => this.send({ c: 'stop', ids: this.selUnits().map(u => u.id) })),
           cmd('⛉', 'Hold', 'H', () => { const s = this.selUnits(); this.order({ c: 'hold', ids: s.map(u => u.id), x: s[0].x, y: s[0].y }); }),
           cmd('⟲', 'Patrol', 'P', () => this.setMode({ k: 'patrol' })),
           cmd('⋯', 'Queue', 'Shift', () => { this.queueMode = !this.queueMode; this.sheetSig = ''; this.renderSheet(); E.toast(this.queueMode ? 'Queue on: each order is added as a waypoint' : 'Queue off'); }, { class: 'cmd' + (this.queueMode ? ' active' : ''), title: 'Queue orders as waypoints (hold Shift on desktop)' }),
@@ -898,7 +918,7 @@
           body.appendChild(h('div', { class: 'hrow' },
             cmd('⚑', 'Rally', null, () => this.setMode({ k: 'rally' })),
             cmd('⧉', 'Evolve', 'T', () => this.openTech()),
-            cmd('✎', 'Forge', 'G', () => this.openForge()),
+            cmd('✎', 'Spawnforge', 'G', () => this.openForge()),
             cmd('⇥', 'Next', 'Tab', () => this.cycleStruct())));
         } else if (kind === 'enemyStruct') body.appendChild(h('div', { style: 'color:var(--ink-soft);font-size:.86em' }, E.CULTURES[owner.culture].name));
       } else if (kind === 'enemyUnit') {

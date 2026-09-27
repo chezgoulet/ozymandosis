@@ -1,6 +1,6 @@
 {
-  "appId": "com.chezgoulet.efflorescent",
-  "appName": "Efflorescent",
+  "appId": "com.ozymandosis.game",
+  "appName": "Ozymandosis",
   "webDir": "www",
   "backgroundColor": "#02070a",
   "server": {
