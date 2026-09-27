@@ -21,7 +21,7 @@ const server = require('../server/server.js');
   const p = await (await b.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })).newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(`http://localhost:${process.env.PORT}/?nosw=1&bench=1`);
-  await p.waitForFunction(() => window.E && E.Bench && E.createRenderer);
+  await p.waitForFunction(() => window.E && E.Bench && E.createRenderer && window.THREE_GPU);
   const gpu = await p.evaluate(() => { const c = document.createElement('canvas').getContext('webgl2'); if (!c) return 'none'; const e = c.getExtension('WEBGL_debug_renderer_info'); return e ? c.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
   const rows = [];
   for (const be of backends) for (const n of units) {

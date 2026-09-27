@@ -337,6 +337,7 @@
 
   // ── boot ────────────────────────────────────────────────────────
   applyUi();
+  if (E.Settings.backend === 'webgpu' || /[?&]bench/.test(location.search)) E.loadWebGPU();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !/[?&]nosw/.test(location.search)) navigator.serviceWorker.register('sw.js').catch(() => {});
   requestAnimationFrame(bgFrame);
   E.Menus.home();

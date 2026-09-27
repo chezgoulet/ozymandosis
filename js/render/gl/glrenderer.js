@@ -51,29 +51,30 @@
   class GLRenderer extends E.RenderCore {
     constructor(canvas, opts) {
       super(canvas);
-      const THREE = window.THREE;
       opts = opts || {};
-      this.kind = 'webgl2';
+      const B = this.B = opts.backend || E.GL_BACKEND();
+      const THREE = this.ns = B.ns;
+      this.kind = B.kind;
       this.tierName = opts.quality && E.GL_TIERS[opts.quality] ? opts.quality : 'high';
-      this.r = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, premultipliedAlpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: !!opts.preserve });
+      this.r = this.makeRenderer(canvas, opts);
       this.r.autoClear = true; this.r.setClearColor(0x000000, 1);
       this.scene = new THREE.Scene(); this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-      const U = this.U = { uCam: { value: new THREE.Vector4(0, 0, 1, 0) }, uRes: { value: new THREE.Vector2(1, 1) } };
+      const U = this.U = B.uniforms ? B.uniforms() : { uCam: { value: new THREE.Vector4(0, 0, 1, 0) }, uRes: { value: new THREE.Vector2(1, 1) } };
       this.buildAtlas(E.GL_TIERS[this.tierName].atlas);
       const G = GL();
-      this.bg = G.fullscreen(G.BG_FRAG, Object.assign({
+      this.bg = G.fullscreen(B, 'bg', Object.assign({
         uMap: { value: new THREE.Vector2(1, 1) }, uBgC: { value: new THREE.Vector3() }, uBg: { value: new THREE.Vector3() }, uPrim: { value: new THREE.Vector3() }, uQ: { value: 1 },
         uPools: { value: Array.from({ length: G.MAX_POOLS }, () => new THREE.Vector4()) }, uPoolN: { value: 0 },
         uCur: { value: Array.from({ length: G.MAX_CUR }, () => new THREE.Vector4()) }, uCurK: { value: Array.from({ length: G.MAX_CUR }, () => new THREE.Vector2()) }, uCurN: { value: 0 },
       }, U), 0, false);
-      this.glowU = new G.GlowBatch(U, 1);
-      this.ribbon = new G.RibbonBatch(U, 2);
-      this.sprite = new G.SpriteBatch(U, this.tex, 3);
-      this.glowT = new G.GlowBatch(U, 4);
+      this.glowU = new G.GlowBatch(B, U, 1);
+      this.ribbon = new G.RibbonBatch(B, U, 2);
+      this.sprite = new G.SpriteBatch(B, U, this.tex, 3);
+      this.glowT = new G.GlowBatch(B, U, 4);
       this.fogTex = new THREE.DataTexture(new Uint8Array(8), 2, 2, THREE.RGFormat); this.fogTex.magFilter = this.fogTex.minFilter = THREE.LinearFilter; this.fogTex.needsUpdate = true;
-      this.fog = G.fullscreen(G.FOG_FRAG, Object.assign({ uGrid: { value: new THREE.Vector2(1, 1) }, uCell: { value: E.FOG_CELL }, uFog: { value: this.fogTex } }, U), 5, true);
-      this.glowUI = new G.GlowBatch(U, 6);
-      this.ribbonUI = new G.RibbonBatch(U, 7);
+      this.fog = G.fullscreen(B, 'fog', Object.assign({ uGrid: { value: new THREE.Vector2(1, 1) }, uCell: { value: E.FOG_CELL }, uFog: { value: this.fogTex } }, U), 5, true);
+      this.glowUI = new G.GlowBatch(B, U, 6);
+      this.ribbonUI = new G.RibbonBatch(B, U, 7);
       for (const m of [this.bg, this.glowU.mesh, this.ribbon.mesh, this.sprite.mesh, this.glowT.mesh, this.fog, this.glowUI.mesh, this.ribbonUI.mesh]) this.scene.add(m);
       // text/box overlay (cheap 2D: only text and the selection box)
       this.ov = document.createElement('canvas'); this.ov.className = 'view-overlay';
@@ -83,6 +84,9 @@
       this.lost = false;
       canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); this.lost = true; });
       canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.buildAtlas(this.atlasScale); this.sprite.mesh.material.uniforms.uTex.value = this.tex; });
+    }
+    makeRenderer(canvas, opts) {
+      return new this.ns.WebGLRenderer({ canvas, antialias: false, alpha: false, premultipliedAlpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: !!opts.preserve });
     }
     get quality() { return this.tierName === 'low' ? 'low' : 'high'; }
     set quality(q) { if (!this.r) return; if (E.GL_TIERS[q]) this.setTier(q); else if (q === 'low' || q === 'high') this.setTier(q); }
@@ -94,8 +98,8 @@
     }
     get tier() { return E.GL_TIERS[this.tierName]; }
     buildAtlas(scale) {
-      const THREE = window.THREE;
-      const maxTex = this.r.capabilities.maxTextureSize || 4096;
+      const THREE = this.ns;
+      const maxTex = (this.r.capabilities && this.r.capabilities.maxTextureSize) || 4096;
       this.atlas = new E.Atlas({ scale, maxSize: Math.min(4096, maxTex) }).build();
       this.atlasScale = scale;
       if (this.tex) this.tex.dispose();
@@ -125,7 +129,7 @@
     }
     reset(view, local) {
       super.reset(view, local);
-      const THREE = window.THREE;
+      const THREE = this.ns;
       this.fogData = new Uint8Array(this.cols * this.rows * 2);
       if (this.fogTex) this.fogTex.dispose();
       this.fogTex = new THREE.DataTexture(this.fogData, this.cols, this.rows, THREE.RGFormat);

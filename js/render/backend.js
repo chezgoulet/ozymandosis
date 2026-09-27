@@ -11,6 +11,19 @@
     return E._gl2;
   };
   E.hasWebGPU = () => !!(navigator.gpu && window.THREE_GPU);
+  // The WebGPU build of three is ~1 MB and only needed when that backend is chosen,
+  // so it is loaded on demand (from the vendored file; works offline and from file://).
+  E.loadWebGPU = function () {
+    if (window.THREE_GPU) return Promise.resolve(true);
+    if (!navigator.gpu) return Promise.resolve(false);
+    if (E._gpuP) return E._gpuP;
+    E._gpuP = new Promise(res => {
+      const s = document.createElement('script'); s.src = 'vendor/three.webgpu.min.js';
+      s.onload = () => res(!!window.THREE_GPU); s.onerror = () => res(false);
+      document.head.appendChild(s);
+    });
+    return E._gpuP;
+  };
   E.resolveBackend = function (want) {
     if (want === 'canvas2d') return 'canvas2d';
     if (want === 'webgpu' && E.hasWebGPU() && E.GPURenderer) return 'webgpu';

@@ -26,11 +26,12 @@
       return w;
     },
     // Visual check: render a static-camera scene and leave it on screen.
-    show(opts) {
+    async show(opts) {
       const w = this.world(opts.units || 60, opts.seed);
       const host = document.getElementById('game'); host.hidden = false; E.Screens.hideAll(); document.getElementById('bg').hidden = true;
       const cv = document.createElement('canvas'); Object.assign(cv.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: 50 }); host.appendChild(cv);
       const r = E.createRenderer(cv, opts.backend, { quality: opts.quality || 'high', preserve: true });
+      if (r.initP) await r.initP;
       r.resize(); r.reset(w, opts.local === undefined ? -1 : opts.local);
       r.cam.x = w.s.map.w / 2; r.cam.y = w.s.map.h / 2; r.cam.z = opts.zoom || 1.4;
       for (let i = 0; i < (opts.frames || 90); i++) { w.step(); r.frame(w, 1, w.s.t, 1 / 30, { selection: new Set(w.s.units.slice(0, 3).map(u => u.id)), pings: [] }); }
@@ -45,6 +46,8 @@
       const cv = document.createElement('canvas'); Object.assign(cv.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: 50 });
       host.appendChild(cv);
       const r = E.createRenderer(cv, opts.backend || 'auto', { quality: opts.quality || 'high' });
+      if (r.initP) await r.initP;
+      if (r.failed) return { backend: r.kind, units: n, error: String(r.failed) };
       r.resize(); r.reset(w, -1);
       r.cam.x = w.s.map.w / 2; r.cam.y = w.s.map.h / 2; r.cam.z = opts.zoom || 1;
       const ui = { selection: new Set(), pings: [] };
