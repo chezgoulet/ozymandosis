@@ -1,0 +1,11 @@
+{
+  "name": "Efflorescent",
+  "short_name": "Efflorescent",
+  "description": "A real-time strategy game of bioluminescent evolution.",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#02070a",
+  "theme_color": "#02070a",
+  "icons": []
+}

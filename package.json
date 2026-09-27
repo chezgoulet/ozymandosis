@@ -1,0 +1,11 @@
+{
+  "name": "efflorescent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A real-time strategy game of bioluminescent evolution.",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node test/sim.test.cjs"
+  },
+  "engines": { "node": ">=18" }
+}

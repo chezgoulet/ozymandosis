@@ -70,10 +70,10 @@
         nuc.rally = { x: st.x + Math.cos(toC) * 120, y: st.y + Math.sin(toC) * 120 };
         for (let k = 0; k < 5; k++) {
           const a = toC + (k - 2) * 0.5;
-          const u = this.spawnUnit(i, 'forager', st.x + Math.cos(a) * 70, st.y + Math.sin(a) * 70, { free: true });
-          u.fade = 1;
+          const u = this.spawnUnit(i, 'forager', st.x + Math.cos(a) * 70, st.y + Math.sin(a) * 70, { fade: 1 });
+          p.stats.hatched--;
         }
-        const w = this.spawnUnit(i, 'warden', nuc.rally.x, nuc.rally.y, { free: true }); w.fade = 1;
+        this.spawnUnit(i, 'warden', nuc.rally.x, nuc.rally.y, { fade: 1 }); p.stats.hatched--;
       });
       return s;
     }
@@ -479,6 +479,7 @@
       else if (t.kind === 'form') { if (!p.forms.includes(t.organ)) p.forms.push(t.organ); }
       else if (t.kind === 'chassis') { if (!p.chassis.includes(t.chassis)) p.chassis.push(t.chassis); }
       else if (t.kind === 'power') { if (!p.specials.includes(t.power)) p.specials.push(t.power); }
+      p.stats.evolved = (p.stats.evolved || 0) + 1;
       // keep hp fraction across stat changes
       const fr = new Map(); for (const u of this.s.units) if (u.o === p.idx) fr.set(u, u.hp / this.stats(u).hp);
       p.techVer++;
