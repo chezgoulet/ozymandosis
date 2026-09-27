@@ -7,5 +7,5 @@
   "orientation": "any",
   "background_color": "#02070a",
   "theme_color": "#02070a",
-  "icons": []
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

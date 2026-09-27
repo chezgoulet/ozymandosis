@@ -57,7 +57,7 @@
 
   E.roleOf = function (s, design) {
     if (design && design.chassis === 'leviathan') return 'Apex';
-    if (s.harvest >= 6 && s.dps < 6) return 'Harvester';
+    if (s.harvest > 0 && s.dps < 6 && !s.shot) return 'Harvester';
     const sc = [
       ['Artillery', s.shot ? 2 + s.shot / 10 : 0],
       ['Brawler', (s.dps - 1.2) / 8],

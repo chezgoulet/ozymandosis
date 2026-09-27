@@ -71,8 +71,9 @@
       const team = h('select', { disabled: !editable || (lobby && lobby.save), 'aria-label': 'Team' }, [['0', 'Free-for-all'], ['1', 'Team 1'], ['2', 'Team 2'], ['3', 'Team 3']].map(([v, l]) => h('option', { value: v }, l)));
       team.value = String(s.team || 0);
       team.onchange = () => { if (isGuest) { lobby.relay.toHost({ k: 'pick', culture: s.culture, team: +team.value }); return; } s.team = +team.value; changed(); };
-      const spec = h('span', { class: 'mono', style: 'color:var(--ink-dim);align-self:center' }, c.spec);
-      host.appendChild(h('div', { class: 'slot-row', style: `--c0:${c.hex[0]};--c1:${c.hex[1]}` }, h('div', { class: 'sw' }), h('div', { class: 'ctl' }, cult, ctrl, team, spec)));
+      const spec = h('span', { class: 'mono', style: 'color:var(--ink-dim);align-self:center', title: c.rule }, c.spec);
+      host.appendChild(h('div', { class: 'slot-row', style: `--c0:${c.hex[0]};--c1:${c.hex[1]}` }, h('div', { class: 'sw' }), h('div', null, h('div', { class: 'ctl' }, cult, ctrl, team, spec),
+        h('div', { style: 'font-size:.8em;color:var(--ink-soft);margin-top:6px' }, `${c.epithet}. ${c.rule}. Starts with ${E.ORGANS[c.startForm].name} and the ${E.CHASSIS[c.startChassis].name}.`))));
     });
     $('slot-add').hidden = setup.slots.length >= 6 || isGuest || (lobby && lobby.save);
     $('slot-note').textContent = `${setup.slots.length}/6 cultures`;
@@ -283,6 +284,8 @@
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
       seg('Right-click / tap on ground', 'rightClick', [['amove', 'Attack-move'], ['move', 'Move']]),
+      tog('Show first-game tips', 'tips'),
+      h('button', { class: 'btn small', style: 'margin-top:8px', onclick: () => { S.guideStep = 0; S.tips = true; E.saveSettings(); E.toast('Tips will start again next match'); renderSettings(); } }, 'Restart tips'),
       h('div', { style: 'height:12px' }),
       h('button', { class: 'btn danger small', onclick: async () => { if (await E.confirm('Erase all data?', 'Deletes settings, saves and your design library on this device.', 'Erase')) { localStorage.clear(); location.reload(); } } }, 'Erase all local data')));
   }
@@ -328,6 +331,7 @@
 
   // ── boot ────────────────────────────────────────────────────────
   applyUi();
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !/[?&]nosw/.test(location.search)) navigator.serviceWorker.register('sw.js').catch(() => {});
   requestAnimationFrame(bgFrame);
   E.Menus.home();
   $('loading').remove();

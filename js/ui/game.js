@@ -5,6 +5,17 @@
   const h = E.h, $ = E.$, DT = E.DT;
   const ABILITY_KEYS = ['q', 'w', 'e', 'r', 'd', 'f'];
 
+  // First-game guide: contextual steps that complete themselves as you play.
+  const GUIDE = [
+    { text: 'Tap your Nucleus (⌂ Home) to open the hatchery.', done: g => { const s = g.selStruct(); return s && s.o === g.local; } },
+    { text: 'Hatch a Warden to guard your foragers. Long-press a card to queue five.', done: g => g.me().stats.hatched >= 1 },
+    { text: 'Foragers carry lumen home by themselves. ◌ Idle finds any that stopped working.', done: (g, t) => t > 12 },
+    { text: 'Open ⧉ Evolve and start an evolution. New organs change how your creatures look and fight.', done: g => g.me().research.length > 0 || (g.me().stats.evolved || 0) > 0 },
+    { text: 'Select a creature, tap ⬡ Build and plant a Bud beside distant pools to expand.', done: g => g.world.s.structs.some(b => b.o === g.local && b.kind === 'bud') },
+    { text: 'Design a creature of your own in ✎ Forge, then hatch it.', done: g => g.me().designs.some(d => d.id[0] === 'u') },
+    { text: 'Tap ⚔ Army, then tap the ground to send them. They fight anything on the way.', done: g => g.me().stats.kills > 0 },
+  ];
+
   class Game {
     constructor() {
       this.root = $('game'); this.cv = $('view');
@@ -139,7 +150,7 @@
         if (!this.paused) {
           this.acc += dt * this.speed;
           let n = 0;
-          while (this.acc >= DT && n < 8) { w.step(); this.acc -= DT; n++; const ev = w.drainEvents(); this.handleEvents(ev); if (this.netMode === 'host') this.evBuf.push(...ev); }
+          while (this.acc >= DT && n < 8) { try { w.step(); } catch (err) { console.error(err); if (!this.simErr) { this.simErr = true; E.toast('A simulation error occurred. The game will try to continue.'); } } this.acc -= DT; n++; const ev = w.drainEvents(); this.handleEvents(ev); if (this.netMode === 'host') this.evBuf.push(...ev); }
           if (n >= 8) this.acc = 0;
         }
         alpha = this.paused ? 1 : E.clamp(this.acc / DT, 0, 1);
@@ -149,13 +160,24 @@
       this.updateCamera(dt);
       this.pings = this.pings.filter(p => this.renderer.t - p.t0 < 0.8);
       const ui = { selection: this.selection, box: this.box, ghost: this.ghost, target: this.targetPreview, pings: this.pings, showHp: E.Settings.showHp };
+      const f0 = performance.now();
       this.renderer.frame(w, alpha, this.netMode === 'guest' ? w.s.t + alpha * this.snapDt / 1000 : w.s.t + alpha * DT, dt, ui);
+      this.adaptQuality(performance.now() - f0, dt);
       if (!$('mm-wrap').classList.contains('collapsed')) this.minimap.draw(w, dt, this.alerts);
       this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 0.1; this.updateHud(); }
       if (!$('ov-tech').hidden) { this.techT = (this.techT || 0) - dt; if (this.techT <= 0) { this.techT = 0.25; this.tech.update(); } }
       if (this.forge && !$('ov-forge').hidden) this.forge.frame(dt);
       const me = this.me(); if (me) E.Audio.mood(me.energy, me.fever);
       if (w.s.over && !this.ended) this.onOver();
+    }
+    // Settings 'auto': drop to the low-cost path when frames get heavy, recover when light.
+    adaptQuality(ms, dt) {
+      if (E.Settings.quality !== 'auto') return;
+      this.fms = this.fms === undefined ? ms : this.fms * 0.95 + ms * 0.05;
+      const r = this.renderer;
+      if (r.quality === 'high' && this.fms > 22) { this.qT = (this.qT || 0) + dt; if (this.qT > 2) { r.quality = 'low'; this.qT = 0; this.resize(); } }
+      else if (r.quality === 'low' && this.fms < 7) { this.qT = (this.qT || 0) + dt; if (this.qT > 6) { r.quality = 'high'; this.qT = 0; this.resize(); } }
+      else this.qT = 0;
     }
     handleEvents(events) {
       if (!events.length) return;
@@ -221,8 +243,8 @@
       }
       if (best) return best;
       for (const b of w.s.structs) { const r = E.STRUCTS[b.kind].r; if (Math.hypot(b.x - pt.x, b.y - pt.y) < r * 1.4 + slop * 0.5 && (b.o === this.local || this.renderer.explore(b.x, b.y))) return b; }
-      for (const k of w.s.pickups) if (Math.hypot(k.x - pt.x, k.y - pt.y) < 22 + slop * 0.5 && this.renderer.seen(k.x, k.y)) return Object.assign({ pickup: true }, k);
-      for (const r of w.s.pools) if (Math.hypot(r.x - pt.x, r.y - pt.y) < r.r && this.renderer.explore(r.x, r.y)) return Object.assign({ pool: true }, r);
+      for (const k of w.s.pickups) if (Math.hypot(k.x - pt.x, k.y - pt.y) < 22 + slop * 0.5 && this.renderer.seen(k.x, k.y)) return { pickup: true, id: k.id, x: k.x, y: k.y, k: k.k };
+      for (const r of w.s.pools) if (Math.hypot(r.x - pt.x, r.y - pt.y) < r.r && this.renderer.explore(r.x, r.y)) return { pool: true, id: r.id, x: r.x, y: r.y, r: r.r, res: r.kind };
       return null;
     }
     selUnits() { const w = this.world; return [...this.selection].map(id => w.byId.get(id)).filter(u => u && u.kind === undefined && u.o === this.local && u.hp > 0); }
@@ -292,7 +314,12 @@
       const pt = this.renderer.s2w(sx, sy);
       if (this.mode) return this.execMode(pt);
       const e = this.pick(pt, true);
-      if (e && e.kind === undefined && !e.pool && !e.pickup && e.o !== undefined) {
+      if (e && (e.pool || e.pickup)) {
+        if (this.selUnits().length && (this.isTouch || e.pickup)) this.smart(pt);
+        else if (!add && !this.isTouch) { this.selection.clear(); this.sheetSig = ''; this.renderSheet(); }
+        return;
+      }
+      if (e && e.kind === undefined && e.o !== undefined) {
         if (e.o === this.local) { if (dbl) this.selectSame(e); else if (add && this.selection.has(e.id)) { this.selection.delete(e.id); this.sheetSig = ''; } else this.select([e.id], add); }
         else if (this.selUnits().length && this.world.isEnemy(this.local, e.o)) this.smart(pt);
         else this.select([e.id]);
@@ -304,7 +331,6 @@
       }
       // empty ground / pool / pickup
       if (this.isTouch && E.Settings.tapCommand && this.selUnits().length) { this.smart(pt); return; }
-      if (this.isTouch && e && (e.pool || e.pickup) && this.selUnits().length) { this.smart(pt); return; }
       if (!add) { this.selection.clear(); this.sheetSig = ''; this.renderSheet(); }
     }
 
@@ -314,7 +340,7 @@
       cv.addEventListener('contextmenu', e => e.preventDefault());
       cv.addEventListener('pointerdown', e => {
         E.Audio.init();
-        cv.setPointerCapture(e.pointerId);
+        try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
         this.isTouch = e.pointerType === 'touch' || e.pointerType === 'pen';
         const p = { id: e.pointerId, x: e.offsetX, y: e.offsetY, x0: e.offsetX, y0: e.offsetY, t0: performance.now(), btn: e.button, moved: false };
         this.pointers.set(e.pointerId, p);
@@ -379,7 +405,7 @@
       // minimap
       const mm = $('minimap');
       const mmMove = e => { const r = mm.getBoundingClientRect(), pt = this.minimap.toWorld(this.world, e.clientX - r.left, e.clientY - r.top); this.jump(pt.x, pt.y); };
-      mm.addEventListener('pointerdown', e => { e.stopPropagation(); if (e.button === 2) { const r = mm.getBoundingClientRect(); this.smart(this.minimap.toWorld(this.world, e.clientX - r.left, e.clientY - r.top)); return; } mm.setPointerCapture(e.pointerId); this.mmDrag = true; mmMove(e); });
+      mm.addEventListener('pointerdown', e => { e.stopPropagation(); if (e.button === 2) { const r = mm.getBoundingClientRect(); this.smart(this.minimap.toWorld(this.world, e.clientX - r.left, e.clientY - r.top)); return; } try { mm.setPointerCapture(e.pointerId); } catch (err) { /* */ } this.mmDrag = true; mmMove(e); });
       mm.addEventListener('pointermove', e => { if (this.mmDrag) mmMove(e); });
       mm.addEventListener('pointerup', () => { this.mmDrag = false; });
       mm.addEventListener('contextmenu', e => e.preventDefault());
@@ -497,6 +523,8 @@
     // ── HUD ─────────────────────────────────────────────────────
     bindHud() {
       $('h-menu').onclick = () => this.openPause();
+      $('guide-next').onclick = () => { E.Settings.guideStep = (E.Settings.guideStep || 0) + 1; E.saveSettings(); this.guideTick(); };
+      $('guide-off').onclick = () => { E.Settings.tips = false; E.saveSettings(); $('guide').hidden = true; E.toast('Tips off. Turn them back on in Settings.'); };
       $('f-army').onclick = () => this.selectArmy();
       $('f-idle').onclick = () => this.selectIdle();
       $('f-home').onclick = () => this.goHome();
@@ -593,6 +621,16 @@
       if (changed) this.sheetSig = '';
       if (this.waiting) $('sh-title').textContent = 'Connecting…';
       this.renderSheet(true);
+      this.guideTick();
+    }
+    guideTick() {
+      const el = $('guide'); if (!el) return;
+      const i = E.Settings.guideStep || 0, me = this.me();
+      if (!E.Settings.tips || i >= GUIDE.length || !me) { el.hidden = true; return; }
+      if (!this.guideStart) this.guideStart = { i, t: this.world.s.t };
+      if (this.guideStart.i !== i) this.guideStart = { i, t: this.world.s.t };
+      if (GUIDE[i].done(this, this.world.s.t - this.guideStart.t)) { E.Settings.guideStep = i + 1; E.saveSettings(); E.Audio.play('select'); return; }
+      el.hidden = false; $('guide-text').textContent = GUIDE[i].text; $('guide-n').textContent = `${i + 1}/${GUIDE.length}`;
     }
 
     // ── command sheet ───────────────────────────────────────────

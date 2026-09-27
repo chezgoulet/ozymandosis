@@ -14,7 +14,7 @@
   function glowStroke(ctx, pts, n, size, hc, ba, activity) {
     strokePath(ctx, pts, n);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = rgba(hc, ba * 0.1); ctx.lineWidth = size * 10 * activity; ctx.stroke();
+    if (!E.LOWQ) { ctx.strokeStyle = rgba(hc, ba * 0.1); ctx.lineWidth = size * 10 * activity; ctx.stroke(); }
     ctx.strokeStyle = rgba(hc, ba * 0.25); ctx.lineWidth = size * 5 * activity; ctx.stroke();
     ctx.strokeStyle = rgba(E.mix(hc, E.WHITE, 0.25), ba * 0.85); ctx.lineWidth = Math.max(1.2, size * 2.2 * activity); ctx.stroke();
   }

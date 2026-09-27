@@ -119,6 +119,7 @@
     // ── frame ───────────────────────────────────────────────────
     frame(view, alpha, t, dt, ui) {
       this.t = t;
+      E.LOWQ = this.quality === 'low';
       const ctx = this.ctx, s = view.s, cam = this.cam, W = this.W, H = this.H, z = cam.z;
       const local = this.local, lp = local >= 0 ? s.players[local] : null;
       this.fogActive = this.fogOn(view);
@@ -310,7 +311,9 @@
         const own = local >= 0 && !view.isEnemy(local, u.o);
         let v = this.vis.get(u.id);
         const st = view.stats(u), design = view.designOf(u.o, u.d);
+        if (!inView(x, y, 400)) { if (v) v.stale = true; continue; }
         if (!v) { v = E.makeVis(x, y, u.a, (E.CHASSIS[design.chassis] || E.CHASSIS.serpent).bodyLen * st.size, u.id); this.vis.set(u.id, v); }
+        if (v.stale) { for (const q of v.trail) { q.x = x - Math.cos(u.a) * 2; q.y = y - Math.sin(u.a) * 2; } v.stale = false; }
         E.advanceVis(v, x, y, dt);
         if (!inView(x, y, 120)) continue;
         if (!own && !this.seen(x, y)) continue;

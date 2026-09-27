@@ -103,7 +103,7 @@
       ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[10].x, pts[10].y); ctx.stroke();
       return;
     }
-    if (o.lod === 0) {
+    if (o.lod === 0 && !E.LOWQ) {
       const tr = v.trail, n = tr.length, ws = Math.max(2, Math.floor(n / 8));
       ctx.fillStyle = E.rgba(hc, ba * 0.035);
       for (let wi = n - 1; wi > 0; wi -= ws) { const f = wi / n; ctx.beginPath(); ctx.arc(tr[wi].x, tr[wi].y, size * (1 + f * 2), 0, TAU); ctx.fill(); }
