@@ -145,7 +145,7 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
   background: linear-gradient(135deg, rgba(8, 40, 40, .95), rgba(6, 22, 30, .95)); border: 1px solid rgba(56, 248, 200, .45); border-radius: 14px; padding: 8px 8px 8px 12px; font-size: .88em; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
 .guide > span:nth-child(2) { flex: 1; }
 .guide .mono { color: var(--verdant); }
-@media (max-width: 700px) { .guide { top: auto; bottom: calc(var(--sheet-h, 190px) + 58px + var(--safe-b)); } }
+@media (max-width: 700px) { .guide { top: auto; bottom: calc(var(--sheet-h, 190px) + 58px + var(--safe-b)); left: calc(8px + var(--safe-l)); right: calc(64px + var(--safe-r)); width: auto; transform: none; } }
 /* bottom sheet */
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; background: linear-gradient(to bottom, rgba(4, 16, 20, .9), rgba(2, 10, 14, .97)); border-top: 1px solid var(--line-2);
   border-radius: 20px 20px 0 0; padding: 6px calc(10px + var(--safe-r)) calc(10px + var(--safe-b)) calc(10px + var(--safe-l)); backdrop-filter: blur(14px); box-shadow: 0 -20px 60px rgba(0, 0, 0, .5); max-height: 52vh; display: flex; flex-direction: column; }
@@ -333,7 +333,7 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
   background: radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--pal-a) 13%, transparent), transparent 70%), rgba(6, 22, 28, .82);
 }
 .cmd:hover { border-color: var(--pal-a); box-shadow: 0 0 16px color-mix(in srgb, var(--pal-a) 30%, transparent); }
-.cmd img.ico { width: 34px; height: 20px; object-fit: contain; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--pal-a) 60%, transparent)); }
+.cmd img.ico { width: 44px; height: 26px; object-fit: contain; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--pal-a) 60%, transparent)); }
 .cmd.active { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold), 0 0 14px rgba(255, 224, 102, .35); }
 .fabs .icon-btn { border-radius: 50%; border-color: color-mix(in srgb, var(--pal-a) 30%, transparent);
   background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--pal-a) 18%, transparent), rgba(3, 14, 18, .85) 70%); }

@@ -92,7 +92,16 @@
     const key = id + cult; let url = iconCache.get(key);
     if (!url) {
       const cv = document.createElement('canvas'); cv.width = 68; cv.height = 40; cv.style.width = '68px'; cv.style.height = '40px';
-      document.body.appendChild(cv); E.drawOrganThumb(cv, id, 6, cult, 0.7); url = cv.toDataURL(); cv.remove();
+      // transparent close-up of the organ, framed on its anchor (head, body or tail)
+      const ctx = cv.getContext('2d'), o = E.ORGANS[id], c = E.CULTURES[cult] || E.CULTURE_LIST[0], pal = E.palette(c, 0.6, 0, 100, false);
+      const pts = []; for (let i = 0; i < 20; i++) pts.push({ x: -i * 2.7, y: Math.sin(i * 0.5) * i * 0.12 });
+      const anchor = id === 'finveil' ? -34 : o.cls === 'flagella' ? pts[19].x - 30 : (o.cls === 'mandible' || o.cls === 'antenna') && id !== 'photophores' ? 4 : -14;
+      ctx.translate(34, 20); ctx.scale(1.45, 1.45); ctx.translate(-anchor, 0);
+      const hc = E.mix(c.colors[0], c.colors[1], 0.35);
+      E.glowStroke(ctx, pts, 20, 0.7, hc, 0.7, 1);
+      o.draw(ctx, pts, 1, { speed: 1, phase: 0.6 }, 0.7, 6, pal, hc);
+      if (o.cls !== 'flagella') o.draw(ctx, pts, -1, { speed: 1, phase: 1.9 }, 0.7, 6, pal, hc);
+      url = cv.toDataURL();
       iconCache.set(key, url);
     }
     return url;
