@@ -1,0 +1,27 @@
+{
+  "appId": "com.chezgoulet.efflorescent",
+  "appName": "Efflorescent",
+  "webDir": "www",
+  "backgroundColor": "#02070a",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "backgroundColor": "#02070a",
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "backgroundColor": "#02070a",
+    "contentInset": "never",
+    "scrollEnabled": false
+  },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#02070a"
+    }
+  }
+}

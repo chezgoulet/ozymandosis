@@ -7,6 +7,7 @@
   class Relay {
     constructor() { this.ws = null; this.handlers = {}; this.id = -1; this.room = ''; }
     static defaultUrl() {
+      if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return 'ws://192.168.1.10:8080/ws'; // placeholder: the app has no origin server; enter your relay
       if (location.protocol === 'http:' || location.protocol === 'https:') return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
       return 'ws://localhost:8080/ws';
     }

@@ -83,6 +83,7 @@
     }
     lockOrientation() {
       const o = E.Settings.orientation || 'auto';
+      if (E.Native && E.Native.is) { E.Native.lock(o); return; }
       try { if (screen.orientation && screen.orientation.lock && o !== 'auto') screen.orientation.lock(o === 'landscape' ? 'landscape' : 'portrait').catch(() => {}); } catch (e) { /* not supported outside fullscreen/installed apps */ }
     }
     stop() {

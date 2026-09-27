@@ -6,13 +6,31 @@
   "scripts": {
     "start": "node server/server.js",
     "test": "node test/sim.test.cjs && node test/content.test.cjs",
-    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/mp.test.cjs"
+    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/mp.test.cjs",
+    "build": "node tools/build-web.cjs",
+    "icons": "node tools/make-icons.cjs",
+    "vendor:three": "node tools/vendor-three.cjs",
+    "cap:sync": "node tools/build-web.cjs && npx cap sync",
+    "android:apk": "node tools/build-web.cjs && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "ios:open": "node tools/build-web.cjs && npx cap sync ios && npx cap open ios",
+    "bench": "node bench/bench.cjs",
+    "test:perf": "node bench/bench.cjs --backends webgl2,canvas2d --units 100,700 --label check --check"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.2.2",
+    "@capacitor/ios": "^6.2.2",
     "esbuild": "^0.25.12",
     "three": "^0.186.1"
+  },
+  "dependencies": {
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/haptics": "^6.0.3",
+    "@capacitor/screen-orientation": "^6.0.4",
+    "@capacitor/status-bar": "^6.0.3"
   }
 }
