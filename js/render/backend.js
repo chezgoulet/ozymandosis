@@ -10,6 +10,11 @@
     try { const c = document.createElement('canvas'); E._gl2 = !!(window.WebGL2RenderingContext && c.getContext('webgl2')); } catch (e) { E._gl2 = false; }
     return E._gl2;
   };
+  E.softwareGL = function () {
+    if (E._sw !== undefined) return E._sw;
+    try { const g = document.createElement('canvas').getContext('webgl2'), x = g && g.getExtension('WEBGL_debug_renderer_info'); E._sw = !!(x && /swiftshader|llvmpipe|software/i.test(g.getParameter(x.UNMASKED_RENDERER_WEBGL))); } catch (e) { E._sw = false; }
+    return E._sw;
+  };
   E.hasWebGPU = () => !!(navigator.gpu && window.THREE_GPU);
   // The WebGPU build of three is ~1 MB and only needed when that backend is chosen,
   // so it is loaded on demand (from the vendored file; works offline and from file://).
@@ -27,6 +32,8 @@
   E.resolveBackend = function (want) {
     if (want === 'canvas2d') return 'canvas2d';
     if (want === 'webgpu' && E.hasWebGPU() && E.GPURenderer) return 'webgpu';
+    // Software GL (SwiftShader/llvmpipe) is far slower than Canvas2D for our full-screen passes; auto picks Canvas2D there.
+    if (want === 'auto' && E.softwareGL()) return 'canvas2d';
     if (window.THREE && E.GLRenderer && E.hasWebGL2()) return 'webgl2';
     return 'canvas2d';
   };
