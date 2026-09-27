@@ -18,9 +18,9 @@
 
   class Game {
     constructor() {
-      this.root = $('game'); this.cv = $('view');
-      this.renderer = new E.Renderer(this.cv);
-      this.minimap = new E.Minimap($('minimap'), this.renderer);
+      this.root = $('game'); this.stage = $('stage'); this.cv = $('view');
+      this.renderer = null;
+      this.minimap = new E.Minimap($('minimap'), null);
       this.tech = new E.TechUI(this);
       this.selection = new Set(); this.groups = {}; this.pings = []; this.alerts = []; this.mode = null;
       this.pointers = new Map(); this.keys = new Set();
@@ -40,8 +40,8 @@
       const w = this.world;
       this.selection.clear(); this.groups = {}; this.pings = []; this.alerts = []; this.mode = null; this.acc = 0; this.snapAcc = 0; this.evBuf = []; this.hudT = 0; this.saveT = 45; this.lastAlert = null;
       this.paused = false; this.ended = false; this.speed = this.netMode === 'local' ? (E.Settings.speed || 1) : 1;
-      this.renderer.quality = E.Settings.quality === 'low' ? 'low' : 'high';
       this.root.hidden = false; E.Screens.hideAll(); $('bg').hidden = true;
+      this.ensureRenderer();
       this.resize();
       this.renderer.reset(w, this.local);
       const me = this.me();
@@ -62,6 +62,21 @@
       E.Audio.play('build');
       if (!o.save && this.netMode !== 'guest') this.notify('The bloom begins. Hatch foragers, gather lumen, evolve.', 'info');
     }
+    // Pick the backend (webgpu → webgl2 → canvas2d). A canvas can only ever hold one
+    // context type, so switching backends swaps in a fresh canvas element.
+    ensureRenderer() {
+      const want = E.Settings.backend || 'auto', kind = E.resolveBackend(want);
+      const tier = E.Settings.quality === 'auto' ? E.Perf.defaultTier() : E.Settings.quality;
+      if (!this.renderer || this.renderer.kind !== kind || this.renderer.lost) {
+        if (this.renderer && this.renderer.dispose) this.renderer.dispose();
+        if (this.renderer) { const nc = document.createElement('canvas'); nc.id = 'view'; nc.setAttribute('aria-label', 'Game field'); this.cv.replaceWith(nc); this.cv = nc; }
+        try { this.renderer = E.createRenderer(this.cv, want, { quality: tier }); }
+        catch (err) { console.error('renderer init failed, falling back to canvas2d', err); const nc = document.createElement('canvas'); nc.id = 'view'; this.cv.replaceWith(nc); this.cv = nc; this.renderer = E.createRenderer(nc, 'canvas2d', { quality: 'high' }); }
+        this.minimap.r = this.renderer;
+      } else if (this.renderer.setTier) this.renderer.setTier(tier);
+      else this.renderer.quality = tier === 'low' ? 'low' : 'high';
+      this.governor = new E.Governor(this.renderer);
+    }
     stop() {
       this.autosave();
       this.running = false; this.root.hidden = true; $('bg').hidden = false;
@@ -74,9 +89,15 @@
       else this.world.command(this.local, cmd);
     }
     resize() {
+      if (!this.renderer) return;
       this.renderer.resize(); this.minimap.resize();
       if (this.world) this.renderer.clampCam(this.world);
       this.measureSheet();
+    }
+    // Autosave during idle time so the stringify never lands inside a busy frame.
+    idleSave() {
+      const run = () => { const t0 = performance.now(); this.autosave(); this.lastSaveMs = performance.now() - t0; };
+      if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 5000 }); else setTimeout(run, 0);
     }
     autosave() {
       if (!this.running || !this.world || this.netMode === 'guest' || this.world.s.over) return;
@@ -149,35 +170,27 @@
       if (this.netMode !== 'guest') {
         if (!this.paused) {
           this.acc += dt * this.speed;
-          let n = 0;
+          let n = 0; const s0 = performance.now();
           while (this.acc >= DT && n < 8) { try { w.step(); } catch (err) { console.error(err); if (!this.simErr) { this.simErr = true; E.toast('A simulation error occurred. The game will try to continue.'); } } this.acc -= DT; n++; const ev = w.drainEvents(); this.handleEvents(ev); if (this.netMode === 'host') this.evBuf.push(...ev); }
           if (n >= 8) this.acc = 0;
+          this.stepMs = performance.now() - s0;
         }
         alpha = this.paused ? 1 : E.clamp(this.acc / DT, 0, 1);
         if (this.netMode === 'host') { this.snapAcc += dt; if (this.snapAcc >= 0.125) { this.snapAcc = 0; this.broadcastSnaps(this.evBuf); this.evBuf = []; } }
-        this.saveT -= dt; if (this.saveT <= 0) { this.saveT = 45; this.autosave(); }
+        this.saveT -= dt; if (this.saveT <= 0) { this.saveT = 45; this.idleSave(); }
       } else alpha = E.clamp((now - this.snapT) / this.snapDt, 0, 1);
       this.updateCamera(dt);
       this.pings = this.pings.filter(p => this.renderer.t - p.t0 < 0.8);
       const ui = { selection: this.selection, box: this.box, ghost: this.ghost, target: this.targetPreview, pings: this.pings, showHp: E.Settings.showHp };
       const f0 = performance.now();
       this.renderer.frame(w, alpha, this.netMode === 'guest' ? w.s.t + alpha * this.snapDt / 1000 : w.s.t + alpha * DT, dt, ui);
-      this.adaptQuality(performance.now() - f0, dt);
+      this.governor.sample(dt * 1000, performance.now() - f0 + (this.stepMs || 0), dt);
       if (!$('mm-wrap').classList.contains('collapsed')) this.minimap.draw(w, dt, this.alerts);
       this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 0.1; this.updateHud(); }
       if (!$('ov-tech').hidden) { this.techT = (this.techT || 0) - dt; if (this.techT <= 0) { this.techT = 0.25; this.tech.update(); } }
       if (this.forge && !$('ov-forge').hidden) this.forge.frame(dt);
       const me = this.me(); if (me) E.Audio.mood(me.energy, me.fever);
       if (w.s.over && !this.ended) this.onOver();
-    }
-    // Settings 'auto': drop to the low-cost path when frames get heavy, recover when light.
-    adaptQuality(ms, dt) {
-      if (E.Settings.quality !== 'auto') return;
-      this.fms = this.fms === undefined ? ms : this.fms * 0.95 + ms * 0.05;
-      const r = this.renderer;
-      if (r.quality === 'high' && this.fms > 22) { this.qT = (this.qT || 0) + dt; if (this.qT > 2) { r.quality = 'low'; this.qT = 0; this.resize(); } }
-      else if (r.quality === 'low' && this.fms < 7) { this.qT = (this.qT || 0) + dt; if (this.qT > 6) { r.quality = 'high'; this.qT = 0; this.resize(); } }
-      else this.qT = 0;
     }
     handleEvents(events) {
       if (!events.length) return;
@@ -336,7 +349,7 @@
 
     // ── input ───────────────────────────────────────────────────
     bindInput() {
-      const cv = this.cv;
+      const cv = this.stage;
       cv.addEventListener('contextmenu', e => e.preventDefault());
       cv.addEventListener('pointerdown', e => {
         E.Audio.init();

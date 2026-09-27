@@ -308,7 +308,7 @@
       vec2 w = uCam.xy + (vS - uRes * 0.5) / uCam.z;
       vec2 uv = w / (uGrid * uCell);
       vec2 f = texture(uFog, uv).rg;
-      float vis = smoothstep(0.25, 0.75, f.r), ex = smoothstep(0.2, 0.8, f.g);
+      float vis = smoothstep(0.05, 0.9, f.r), ex = smoothstep(0.02, 0.6, f.g);
       float a = mix(0.93, 0.58, ex) * (1.0 - vis);
       o = vec4(vec3(0.0, 0.012, 0.02) * a, a);
     }`;

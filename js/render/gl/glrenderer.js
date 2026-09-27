@@ -177,8 +177,8 @@
       // fog texture
       this.fog.visible = this.fogActive;
       if (this.fogActive && this.fogVer !== this.visVer) {
-        const d = this.fogData, g = this.visGrid, ex = this.explored;
-        for (let i = 0, n = g.length; i < n; i++) { d[i * 2] = g[i] ? 255 : 0; d[i * 2 + 1] = ex[i] ? 255 : 0; }
+        const d = this.fogData, g = this.visSoft, ex = this.expSoft;
+        for (let i = 0, n = g.length; i < n; i++) { d[i * 2] = g[i]; d[i * 2 + 1] = ex[i]; }
         this.fogTex.needsUpdate = true; this.fogVer = this.visVer;
       }
       this.glowU.begin(); this.ribbon.begin(); this.sprite.begin(); this.glowT.begin(); this.glowUI.begin(); this.ribbonUI.begin();
@@ -435,6 +435,7 @@
           // rebuild from its own trail rather than whatever was last in the scratch buffer
           buildPts(v, v.tx[v.h], v.ty[v.h], this.t || 0, v.last.size);
           for (let i = 0; i < 20; i++) { pts[i * 2] = PX[i]; pts[i * 2 + 1] = PY[i]; }
+          if (this.corpses.length >= 60) this.corpses.shift();
           this.corpses.push({ pts, o: { hc: v.last.hc, size: v.last.size, alpha: v.last.a }, t0: this.t || 0 });
           v.last = null;
         }

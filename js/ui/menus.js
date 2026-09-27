@@ -12,10 +12,10 @@
   let bgT = 0, bgLast = performance.now();
   function bgFrame(now) {
     requestAnimationFrame(bgFrame);
+    if (bg.hidden || document.hidden || now - bgLast < 32) return; // 30 fps is plenty for a backdrop
     const dt = Math.min(0.05, (now - bgLast) / 1000); bgLast = now;
-    if (bg.hidden || document.hidden) return;
     bgT += dt;
-    const r = bg.getBoundingClientRect(), dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    const r = bg.getBoundingClientRect(), dpr = 1;
     if (bg.width !== Math.round(r.width * dpr)) { bg.width = Math.round(r.width * dpr); bg.height = Math.round(r.height * dpr); }
     bgx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const load = 0.45 + 0.35 * Math.sin(bgT * 0.09) + 0.12 * Math.sin(bgT * 0.31);

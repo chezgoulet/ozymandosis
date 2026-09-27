@@ -9,7 +9,7 @@
   E.LS = LS;
 
   const DEFAULTS = {
-    quality: 'auto', music: 0.5, sfx: 0.7, uiScale: 1, edgePan: true, showHp: true, tapCommand: true,
+    quality: 'auto', backend: 'auto', markers: 'auto', music: 0.5, sfx: 0.7, uiScale: 1, edgePan: true, showHp: true, tapCommand: true,
     rightClick: 'amove', invertZoom: false, tips: true, guideStep: 0, name: '', server: '', lastSetup: null, mmCollapsed: false, speed: 1, haptics: true,
   };
   E.Settings = Object.assign({}, DEFAULTS, LS.get('efl.settings', {}));

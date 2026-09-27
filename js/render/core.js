@@ -18,23 +18,31 @@
       this.cols = Math.ceil(m.w / CELL); this.rows = Math.ceil(m.h / CELL);
       this.explored = new Uint8Array(this.cols * this.rows);
       this.visGrid = new Uint8Array(this.cols * this.rows);
+      // soft channels (0..255) for display only: vision falls off over ~2 cells
+      this.visSoft = new Uint8Array(this.cols * this.rows); this.expSoft = new Uint8Array(this.cols * this.rows);
       this.visT = 0; this.local = local; this.visVer = 0;
     }
     fogOn(view) { return view.s.cfg.map.fog && this.local >= 0 && view.s.players[this.local] && view.s.players[this.local].alive && !(view.s.players[this.local].echoT > 0); }
     updateVision(view) {
       const g = this.visGrid; g.fill(0); this.visVer++;
+      const vs = this.visSoft, es = this.expSoft; vs.fill(0);
       if (this.local < 0) { this.sources = []; return; }
       const src = view.visionSources(this.local);
       const cols = this.cols, rows = this.rows, ex = this.explored;
       for (const s of src) {
         const r = s.r, c0 = Math.max(0, Math.floor((s.x - r) / CELL)), c1 = Math.min(cols - 1, Math.floor((s.x + r) / CELL));
         const r0 = Math.max(0, Math.floor((s.y - r) / CELL)), r1 = Math.min(rows - 1, Math.floor((s.y + r) / CELL));
-        const rr = r * r;
+        const rr = r * r, fall = CELL * 2.2;
         for (let cy = r0; cy <= r1; cy++) {
           const dy = (cy + 0.5) * CELL - s.y, dy2 = dy * dy, row = cy * cols;
           for (let cx = c0; cx <= c1; cx++) {
-            const dx = (cx + 0.5) * CELL - s.x;
-            if (dx * dx + dy2 <= rr) { g[row + cx] = 1; ex[row + cx] = 1; }
+            const dx = (cx + 0.5) * CELL - s.x, d2 = dx * dx + dy2;
+            if (d2 <= rr) {
+              g[row + cx] = 1; ex[row + cx] = 1;
+              const k = Math.min(255, ((r - Math.sqrt(d2)) / fall) * 255 + 40) | 0;
+              if (k > vs[row + cx]) vs[row + cx] = k;
+              if (k > es[row + cx]) es[row + cx] = k;
+            }
           }
         }
       }
@@ -92,9 +100,9 @@
         }
       }
     }
-    burst(x, y, c, r, dur, hot) { this.fx.push({ k: 'burst', x, y, c, r, dur, hot: hot || 1, t0: this.t || 0 }); }
-    ring(x, y, c, r, dur) { this.fx.push({ k: 'ring', x, y, c, r, dur, t0: this.t || 0 }); }
-    text(x, y, s, color) { this.texts.push({ x, y, s, color, t0: this.t || 0 }); }
+    burst(x, y, c, r, dur, hot) { if (this.fx.length >= 400) this.fx.shift(); this.fx.push({ k: 'burst', x, y, c, r, dur, hot: hot || 1, t0: this.t || 0 }); }
+    ring(x, y, c, r, dur) { if (this.fx.length >= 400) this.fx.shift(); this.fx.push({ k: 'ring', x, y, c, r, dur, t0: this.t || 0 }); }
+    text(x, y, s, color) { if (this.texts.length >= 80) this.texts.shift(); this.texts.push({ x, y, s, color, t0: this.t || 0 }); }
 
     // Floating damage numbers from observed hp loss (works for hosts and network guests alike).
     trackDamage(view, dt) {
