@@ -1,0 +1,29 @@
+// Renderer selection. Backends share one interface:
+//   resize(), reset(view, local), frame(view, alpha, t, dt, ui), consume(view, events),
+//   s2w/w2s, cam {x,y,z}, clampCam(view), seen(x,y), explore(x,y), quality, kind
+// 'webgpu' (three WebGPURenderer, where navigator.gpu exists) → 'webgl2' (three
+// WebGLRenderer, instanced batches) → 'canvas2d' (the original immediate-mode renderer).
+(function (E) {
+  'use strict';
+  E.hasWebGL2 = function () {
+    if (E._gl2 !== undefined) return E._gl2;
+    try { const c = document.createElement('canvas'); E._gl2 = !!(window.WebGL2RenderingContext && c.getContext('webgl2')); } catch (e) { E._gl2 = false; }
+    return E._gl2;
+  };
+  E.hasWebGPU = () => !!(navigator.gpu && window.THREE_GPU);
+  E.resolveBackend = function (want) {
+    if (want === 'canvas2d') return 'canvas2d';
+    if (want === 'webgpu' && E.hasWebGPU() && E.GPURenderer) return 'webgpu';
+    if (window.THREE && E.GLRenderer && E.hasWebGL2()) return 'webgl2';
+    return 'canvas2d';
+  };
+  E.createRenderer = function (canvas, want, opts) {
+    const kind = E.resolveBackend(want || 'auto');
+    let r;
+    if (kind === 'webgpu') r = new E.GPURenderer(canvas, opts);
+    else if (kind === 'webgl2') r = new E.GLRenderer(canvas, opts);
+    else { r = new E.Renderer(canvas); r.kind = 'canvas2d'; }
+    if (opts && opts.quality) r.quality = opts.quality;
+    return r;
+  };
+})(window.E);

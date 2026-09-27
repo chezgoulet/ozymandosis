@@ -1,0 +1,89 @@
+{
+ "label": "baseline-canvas2d-gpu",
+ "date": "2026-09-27T19:07:16.461Z",
+ "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+ "cpuMode": false,
+ "viewport": "1440x900@1x",
+ "rows": [
+  {
+   "backend": "canvas2d",
+   "units": 50,
+   "cpu": {
+    "avg": 6.03,
+    "p50": 4.4,
+    "p95": 14.2
+   },
+   "frame": {
+    "avg": 14.66,
+    "p50": 7.4,
+    "p95": 42.3
+   },
+   "fps": 68.2,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 100,
+   "cpu": {
+    "avg": 7.55,
+    "p50": 7.2,
+    "p95": 10.1
+   },
+   "frame": {
+    "avg": 27.79,
+    "p50": 26.9,
+    "p95": 59.8
+   },
+   "fps": 36,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 200,
+   "cpu": {
+    "avg": 15.9,
+    "p50": 12.8,
+    "p95": 41.1
+   },
+   "frame": {
+    "avg": 56.55,
+    "p50": 55.1,
+    "p95": 123.6
+   },
+   "fps": 17.7,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 400,
+   "cpu": {
+    "avg": 38.07,
+    "p50": 29.9,
+    "p95": 81.8
+   },
+   "frame": {
+    "avg": 120.6,
+    "p50": 97.2,
+    "p95": 298.4
+   },
+   "fps": 8.3,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 700,
+   "cpu": {
+    "avg": 118.6,
+    "p50": 106.2,
+    "p95": 276.2
+   },
+   "frame": {
+    "avg": 144.88,
+    "p50": 143.6,
+    "p95": 288.8
+   },
+   "fps": 6.9,
+   "gpu": ""
+  }
+ ]
+}
