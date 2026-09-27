@@ -82,7 +82,11 @@
       const el = $(id); el.innerHTML = '';
       for (const [v, l] of opts) el.appendChild(h('button', { 'aria-pressed': String(setup.map[key] === v), disabled: isGuest || (lobby && lobby.save), onclick: () => { setup.map[key] = v; changed(); } }, l));
     };
-    seg('map-size', Object.entries(E.MAP_SIZES).map(([k, v]) => [k, v.name]), 'size');
+    seg('map-size', Object.entries(E.MAP_SIZES).map(([k, v]) => [k, v.name]).concat([['custom', 'Custom']]), 'size');
+    seg('map-layout', [['ring', 'Ring'], ['scatter', 'Scattered']], 'layout');
+    $('map-custom').hidden = setup.map.size !== 'custom';
+    $('map-w').value = setup.map.w || 4000; $('map-h').value = setup.map.h || 3000;
+    $('map-w').disabled = $('map-h').disabled = isGuest || !!(lobby && lobby.save);
     seg('map-rich', [[0.6, 'Scarce'], [1, 'Normal'], [1.5, 'Lush']], 'richness');
     seg('map-pu', [[0, 'Off'], [1, 'Normal'], [2, 'Frequent']], 'powerups');
     seg('map-start', [[150, '150'], [220, '220'], [500, '500'], [1000, '1000']], 'startLumen');
@@ -121,6 +125,8 @@
       if (setup.slots.length >= 6) return;
       setup.slots.push({ kind: lobby ? 'open' : 'bot', culture: freeCulture(), team: 0, diff: 'normal' }); changed();
     };
+    $('map-w').onchange = () => { setup.map.w = E.clamp(+$('map-w').value || 4000, 1600, 9600); changed(); };
+    $('map-h').onchange = () => { setup.map.h = E.clamp(+$('map-h').value || 3000, 1200, 6400); changed(); };
     $('map-seed').onchange = () => { setup.map.seed = Math.max(1, Math.min(999999, +$('map-seed').value || 1)); changed(); };
     $('map-reseed').onclick = () => { setup.map.seed = 1 + Math.floor(Math.random() * 999998); changed(); };
     $('map-fog').onchange = () => { setup.map.fog = $('map-fog').checked; changed(); };
@@ -241,7 +247,7 @@
       const dots = h('div', { class: 'dots' }, m.players.map(p => h('i', { style: `background:${E.CULTURES[p.c].hex[1]};opacity:${p.a ? 1 : 0.3}`, title: p.n })));
       const humans = m.players.filter(p => p.k === 'remote' || p.k === 'human').length;
       list.appendChild(h('div', { class: 'save-item' },
-        h('div', null, h('b', null, m.name || (m.id === 'auto' ? 'Autosave' : m.id)), h('small', null, `${new Date(m.date).toLocaleString()} · ${E.fmtTime(m.time)} · ${E.MAP_SIZES[m.size] ? E.MAP_SIZES[m.size].name : m.size} · ${m.players.length} cultures`), dots),
+        h('div', null, h('b', null, m.name || (m.id === 'auto' ? 'Autosave' : m.id)), h('small', null, `${new Date(m.date).toLocaleString()} · ${E.fmtTime(m.time)} · ${E.MAP_SIZES[m.size] ? E.MAP_SIZES[m.size].name : 'Custom'} · ${m.players.length} cultures`), dots),
         h('div', { class: 'row', style: 'flex-wrap:nowrap' },
           h('button', { class: 'btn small primary', onclick: () => loadSave(m.id) }, 'Play'),
           humans > 1 ? h('button', { class: 'btn small', onclick: () => { const d = E.Saves.read(m.id); if (d) { E.Screens.show('scr-mp'); hostGame(d); } } }, 'Host') : null,

@@ -13,7 +13,7 @@
 
   // players: [{team}] (only count and team order matter here)
   E.generateMap = function (cfg, players) {
-    const sz = E.MAP_SIZES[cfg.size] || E.MAP_SIZES.m;
+    const sz = cfg.size === 'custom' ? { w: E.clamp(Math.round(cfg.w || 4000), 1600, 9600), h: E.clamp(Math.round(cfg.h || 3000), 1200, 6400) } : (E.MAP_SIZES[cfg.size] || E.MAP_SIZES.m);
     const W = sz.w, H = sz.h, rng = E.RNG(cfg.seed >>> 0 || 1);
     const n = players.length;
     const map = { w: W, h: H, starts: [], pools: [], vents: [], currents: [] };
@@ -22,7 +22,16 @@
     const a0 = rng.next() * TAU;
     const rx = W * 0.39, ry = H * 0.37;
     const starts = new Array(n);
+    if (cfg.layout === 'scatter') {
+      // random starts with generous spacing (falls back to the ring if it can't fit them)
+      const minD = Math.min(W, H) * (n <= 2 ? 0.6 : n <= 4 ? 0.42 : 0.34);
+      for (let tries = 0, k = 0; k < n && tries < 5000; tries++) {
+        const x = W * (0.1 + rng.next() * 0.8), y = H * (0.1 + rng.next() * 0.8);
+        if (starts.slice(0, k).every(s => Math.hypot(s.x - x, s.y - y) > minD)) { starts[order[k]] = { x, y, a: 0 }; k++; }
+      }
+    }
     order.forEach((pi, k) => {
+      if (starts[pi]) return;
       let a = a0 + (k / n) * TAU;
       if (n === 2) a = a0 + k * Math.PI;
       starts[pi] = { x: W / 2 + Math.cos(a) * rx, y: H / 2 + Math.sin(a) * ry, a };

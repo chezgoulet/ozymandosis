@@ -52,3 +52,9 @@ for (const [n, size, seed, diffs] of [[2, 's', 1, ['normal', 'hard']], [2, 'm', 
   });
 }
 process.exitCode = fails ? 1 : 0;
+test('custom and scattered maps', () => {
+  const m = E.generateMap(Object.assign({}, E.DEFAULT_MAP, { size: 'custom', w: 9000, h: 6000, layout: 'scatter', seed: 5 }), Array.from({ length: 6 }, () => ({ team: 0 })));
+  if (m.w !== 9000 || m.h !== 6000 || m.starts.length !== 6) throw new Error('custom map');
+  const w = new E.World({ cfg: { map: { size: 'custom', w: 2000, h: 1400, layout: 'scatter', seed: 2 }, players: [{ culture: 'bloom', kind: 'bot' }, { culture: 'current', kind: 'bot' }] } });
+  for (let i = 0; i < 30 * 60; i++) w.step();
+});
