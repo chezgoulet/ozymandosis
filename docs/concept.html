@@ -1,0 +1,2631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Efflorescent</title>
+<meta name="description" content="Design document and playable vertical slice for Efflorescent, a real-time strategy game set in the Bioluminescent Dreamscape.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,200..700,0..100,0..1;1,9..144,200..700,0..100,0..1&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --abyss:#02070a; --abyss-2:#061218; --abyss-3:#0a1c24;
+  --ink:#d4ece7; --ink-soft:#9dbfb9; --ink-dim:#6b8d88;
+  --lumen:#60f0ff; --verdant:#38f8c8; --gold:#ffe066; --ember:#ff5a5a;
+  --line:rgba(96,240,255,.14); --line-2:rgba(96,240,255,.28);
+  --glass:rgba(8,26,32,.62);
+  --display:"Fraunces", "Iowan Old Style", Georgia, serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"Martian Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--abyss); color:var(--ink);
+  font-family:var(--body); font-size:17px; line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(1200px 700px at 80% 10%, rgba(56,248,200,.05), transparent 60%),
+    radial-gradient(900px 900px at 10% 60%, rgba(120,100,255,.05), transparent 60%),
+    radial-gradient(1000px 800px at 70% 95%, rgba(255,112,192,.035), transparent 60%);
+  background-attachment:fixed;
+}
+a{color:var(--lumen); text-decoration-color:rgba(96,240,255,.35); text-underline-offset:3px}
+a:hover{text-decoration-color:var(--lumen)}
+code, .mono{font-family:var(--mono); font-size:.78em; letter-spacing:-.01em}
+code{color:#9ff6e4; background:rgba(56,248,200,.07); padding:.1em .38em; border-radius:4px}
+h1,h2,h3,h4{font-family:var(--display); font-weight:300; margin:0; line-height:1.08;
+  font-variation-settings:"SOFT" 100, "WONK" 1}
+h2{font-size:clamp(2.1rem, 4.6vw, 3.5rem); font-style:italic; letter-spacing:-.01em}
+h3{font-size:1.55rem; font-weight:400; margin:2.4rem 0 .6rem}
+h4{font-size:1.15rem; font-weight:500; margin:0 0 .35rem}
+p{margin:0 0 1.05em}
+em{color:#e9fbf7}
+strong{font-weight:600; color:#effffb}
+::selection{background:rgba(96,240,255,.3)}
+
+/* ── rail nav ── */
+.rail{position:fixed; left:22px; top:50%; transform:translateY(-50%); z-index:20; display:none}
+.rail a{display:flex; align-items:center; gap:10px; padding:5px 0; color:var(--ink-dim); text-decoration:none;
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; transition:color .3s}
+.rail a i{width:7px; height:7px; border-radius:50%; background:currentColor; opacity:.5; box-shadow:0 0 0 0 currentColor; transition:all .3s}
+.rail a span{opacity:0; transform:translateX(-4px); transition:all .3s}
+.rail:hover a span, .rail a.on span{opacity:1; transform:none}
+.rail a.on{color:var(--lumen)} .rail a.on i{opacity:1; box-shadow:0 0 12px 2px currentColor}
+@media (min-width:1280px){ .rail{display:block} }
+
+/* ── hero ── */
+.hero{position:relative; min-height:100vh; min-height:100svh; display:grid; place-items:center; overflow:hidden; isolation:isolate}
+.hero canvas{position:absolute; inset:0; width:100%; height:100%; z-index:-1}
+.hero::after{content:""; position:absolute; inset:0; z-index:-1;
+  background:radial-gradient(ellipse at center, transparent 30%, rgba(2,7,10,.55) 80%), linear-gradient(to bottom, transparent 70%, var(--abyss))}
+.hero-inner{text-align:center; padding:0 16px; max-width:980px}
+.kicker{font-family:var(--mono); font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:1.6rem}
+.hero h1{font-size:clamp(3.4rem, 13vw, 10.5rem); font-weight:200; font-style:italic; letter-spacing:-.03em;
+  font-variation-settings:"SOFT" 100, "WONK" 1, "opsz" 144;
+  background:linear-gradient(100deg, #bffcf0 0%, #60f0ff 30%, #b090ff 60%, #ffa0d8 85%, #ffe066 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 0 28px rgba(96,240,255,.35)); padding:0 .06em .08em}
+.hero .sub{font-family:var(--display); font-size:clamp(1.1rem, 2.4vw, 1.6rem); font-weight:300; color:var(--ink); margin:.4rem 0 .2rem}
+.hero .tag{color:var(--ink-soft); font-size:.98rem; letter-spacing:.02em}
+.hero-cta{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:2.2rem}
+.defn{font-family:var(--display); font-style:italic; color:var(--ink-dim); font-size:.95rem; margin-top:2.4rem}
+.defn b{font-style:normal; font-weight:500; color:var(--ink-soft)}
+.hero-note{position:absolute; bottom:22px; left:0; right:0; text-align:center; font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); margin:0; padding:0 16px}
+
+.btn{font:500 14px/1 var(--body); letter-spacing:.02em; color:var(--ink); background:rgba(10,30,38,.55); border:1px solid var(--line-2);
+  padding:13px 20px; border-radius:999px; text-decoration:none; cursor:pointer; transition:all .25s; backdrop-filter:blur(6px); display:inline-flex; align-items:center; gap:8px}
+.btn:hover{border-color:var(--lumen); box-shadow:0 0 22px rgba(96,240,255,.25); color:#fff}
+.btn.primary{background:linear-gradient(135deg, rgba(56,248,200,.22), rgba(96,240,255,.16)); border-color:rgba(96,240,255,.55)}
+.btn:disabled{opacity:.35; cursor:not-allowed; box-shadow:none}
+
+/* ── sections ── */
+section{position:relative; padding:clamp(72px, 11vw, 140px) 16px 0}
+.wrap{max-width:1080px; margin:0 auto}
+.narrow{max-width:720px}
+.sec-head{margin-bottom:2.6rem}
+.sec-num{font-family:var(--mono); font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:var(--lumen); display:flex; align-items:center; gap:14px; margin-bottom:1.1rem}
+.sec-num::after{content:""; height:1px; flex:0 0 64px; background:linear-gradient(90deg, var(--line-2), transparent)}
+.lede{font-family:var(--display); font-size:clamp(1.18rem, 2vw, 1.42rem); font-weight:300; line-height:1.5; color:#e4f7f3; max-width:760px; margin-top:1.3rem}
+.cols{display:grid; gap:2.2rem; grid-template-columns:1fr}
+.cols > *{min-width:0}
+@media (min-width:860px){ .cols.two{grid-template-columns:1fr 1fr} .cols.side{grid-template-columns:1.25fr 1fr} }
+.pull{font-family:var(--display); font-style:italic; font-weight:300; font-size:1.35rem; line-height:1.45; color:#bff6ec;
+  border-left:1px solid var(--line-2); padding:.2rem 0 .2rem 1.3rem; margin:2rem 0}
+.aside{font-size:.9rem; color:var(--ink-soft); border:1px dashed var(--line-2); border-radius:12px; padding:14px 16px; margin:1.6rem 0}
+.aside b{font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); font-weight:400; display:block; margin-bottom:4px}
+
+.pillars{display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); margin-top:2.4rem}
+.pillar{background:var(--glass); border:1px solid var(--line); border-radius:18px; padding:22px 20px; position:relative; overflow:hidden}
+.pillar::before{content:""; position:absolute; width:180px; height:180px; right:-70px; top:-70px; border-radius:50%;
+  background:radial-gradient(circle, var(--c, rgba(96,240,255,.22)), transparent 70%)}
+.pillar .n{font-family:var(--mono); font-size:10px; color:var(--ink-dim); letter-spacing:.2em}
+.pillar h4{font-size:1.3rem; margin:.5rem 0 .5rem; font-weight:400; font-style:italic}
+.pillar p{font-size:.93rem; color:var(--ink-soft); margin:0}
+
+/* tables */
+.tbl{width:100%; border-collapse:collapse; font-size:.92rem; margin:1.4rem 0}
+.tbl th{font-family:var(--mono); font-weight:400; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-dim); text-align:left; padding:10px 12px; border-bottom:1px solid var(--line-2)}
+.tbl td{padding:12px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+.tbl td:first-child{white-space:nowrap}
+.tbl tr:hover td{background:rgba(96,240,255,.03)}
+.tbl .becomes{color:#e8fffa}
+.scroll-x{overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -16px; padding:0 16px}
+.scroll-x .tbl{min-width:680px}
+
+/* depths */
+.depths{display:grid; gap:0; border:1px solid var(--line); border-radius:20px; overflow:hidden; margin-top:2rem}
+.depth{padding:22px 24px; display:grid; gap:6px 24px; grid-template-columns:1fr}
+@media (min-width:760px){ .depth{grid-template-columns:200px 1fr} }
+.depth:nth-child(1){background:linear-gradient(90deg, rgba(130,255,240,.09), rgba(130,255,240,.02))}
+.depth:nth-child(2){background:linear-gradient(90deg, rgba(56,160,200,.07), rgba(20,60,80,.02))}
+.depth:nth-child(3){background:linear-gradient(90deg, rgba(10,20,30,.6), rgba(0,0,0,.2))}
+.depth h4{font-style:italic; font-weight:400}
+.depth .m{font-family:var(--mono); font-size:10px; letter-spacing:.14em; color:var(--ink-dim); text-transform:uppercase}
+.depth p{margin:0; font-size:.94rem; color:var(--ink-soft)}
+
+.res{display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); margin-top:1.6rem}
+.res div{border:1px solid var(--line); border-radius:16px; padding:18px; background:var(--glass)}
+.res .dot{width:12px; height:12px; border-radius:50%; display:inline-block; margin-right:8px; vertical-align:middle; box-shadow:0 0 14px 3px currentColor; background:currentColor}
+.res h4{display:inline; font-style:italic; font-weight:400}
+.res p{font-size:.9rem; color:var(--ink-soft); margin:.6rem 0 0}
+.tagpill{font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; border:1px solid var(--line-2); border-radius:999px; padding:2px 8px; color:var(--ink-soft); margin-left:6px; vertical-align:middle; white-space:nowrap}
+.tagpill.demo{color:var(--verdant); border-color:rgba(56,248,200,.45)}
+.tagpill.full{color:#b090ff; border-color:rgba(176,144,255,.4)}
+
+/* cultures */
+.cultures{display:grid; gap:18px; grid-template-columns:repeat(auto-fit, minmax(310px, 1fr)); margin-top:2.4rem}
+.cult{border:1px solid color-mix(in srgb, var(--c0) 30%, transparent); border-radius:22px; overflow:hidden; background:rgba(5,16,20,.7); display:flex; flex-direction:column}
+.cult canvas{width:100%; height:170px; display:block}
+.cult .body{padding:18px 20px 20px; flex:1; display:flex; flex-direction:column}
+.cult .sw{display:flex; gap:6px; margin-bottom:10px}
+.cult .sw i{width:26px; height:8px; border-radius:6px; box-shadow:0 0 12px 1px currentColor}
+.cult h3{margin:0; font-size:1.55rem; font-style:italic; font-weight:400; color:color-mix(in srgb, var(--c1) 70%, white)}
+.cult .ep{font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); margin:.35rem 0 .9rem}
+.cult p{font-size:.92rem; color:var(--ink-soft)}
+.cult dl{display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:.86rem; margin:auto 0 0; padding-top:10px; border-top:1px solid var(--line)}
+.cult dt{font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); padding-top:3px}
+.cult dd{margin:0; color:var(--ink)}
+
+.matrix{border-collapse:separate; border-spacing:4px; margin:1.4rem auto 0; font-size:.8rem}
+.matrix th{font-family:var(--mono); font-weight:400; font-size:9.5px; letter-spacing:.08em; color:var(--ink-dim); padding:4px 6px; text-transform:uppercase}
+.matrix th.row{text-align:right}
+.matrix td{width:46px; height:34px; text-align:center; border-radius:8px; background:rgba(96,240,255,.03); font-size:14px}
+.matrix td.w{background:rgba(56,248,200,.14); color:var(--verdant)}
+.matrix td.l{background:rgba(255,90,90,.1); color:#ff8a8a}
+.matrix td.s{background:transparent}
+
+/* tech tree */
+.tree{display:grid; grid-template-columns:repeat(5, minmax(150px,1fr)); gap:10px; margin-top:2rem; min-width:800px}
+.tree .col-h{padding:10px 4px 6px}
+.tree .col-h h4{font-style:italic; font-weight:400; font-size:1.2rem}
+.tree .col-h span{font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim)}
+.tcell{border:1px solid var(--line); border-radius:14px; background:rgba(4,14,18,.8); overflow:hidden; position:relative}
+.tcell canvas{display:block; width:100%; height:74px}
+.tcell .lbl{padding:6px 10px 9px; display:flex; justify-content:space-between; align-items:baseline; gap:6px}
+.tcell .lbl b{font-weight:500; font-size:.88rem}
+.tcell .lbl span{font-family:var(--mono); font-size:9.5px; color:var(--ink-dim)}
+.tcell .fx{font-size:.76rem; color:var(--ink-soft); padding:0 10px 10px; line-height:1.4}
+.chimera{grid-column:span 1; border:1px dashed rgba(176,144,255,.35); border-radius:14px; padding:12px; font-size:.82rem; color:var(--ink-soft); background:rgba(40,20,70,.15)}
+.chimera b{display:block; font-family:var(--display); font-style:italic; font-weight:400; font-size:1.05rem; color:#d6c8ff}
+.chimera i{font-family:var(--mono); font-style:normal; font-size:9.5px; letter-spacing:.1em; color:#9d8ad8; text-transform:uppercase}
+
+/* interactive panels */
+.panel{border:1px solid var(--line-2); border-radius:24px; overflow:hidden; background:rgba(4,14,18,.85); margin-top:2.2rem;
+  box-shadow:0 30px 80px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(0,0,0,.4) inset}
+.panel-grid{display:grid; grid-template-columns:1fr}
+@media (min-width:900px){ .panel-grid{grid-template-columns:1.35fr 1fr} }
+.panel canvas.tank{display:block; width:100%; height:360px}
+@media (min-width:900px){ .panel canvas.tank{height:100%; min-height:420px} }
+.ctrls{padding:20px 22px; border-top:1px solid var(--line)}
+@media (min-width:900px){ .ctrls{border-top:0; border-left:1px solid var(--line)} }
+.ctrl-h{font-family:var(--mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-dim); margin:0 0 10px}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:18px}
+.chip{border:1px solid var(--line-2); background:transparent; color:var(--ink-soft); border-radius:999px; padding:6px 11px 6px 8px; font:500 12.5px/1 var(--body); cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:all .2s}
+.chip i{width:10px; height:10px; border-radius:50%; background:var(--c); box-shadow:0 0 8px var(--c)}
+.chip:hover{color:#fff; border-color:var(--c, var(--lumen))}
+.chip[aria-pressed="true"]{color:#fff; border-color:var(--c, var(--lumen)); background:color-mix(in srgb, var(--c, #60f0ff) 16%, transparent)}
+.slider{display:grid; grid-template-columns:92px 1fr 44px; align-items:center; gap:10px; margin:8px 0; font-size:.86rem}
+.slider label{color:var(--ink-soft)}
+.slider output{font-family:var(--mono); font-size:10.5px; color:var(--ink); text-align:right}
+input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:18px; background:transparent; cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:3px; border-radius:3px; background:linear-gradient(90deg, rgba(96,240,255,.6), rgba(96,240,255,.12))}
+input[type=range]::-moz-range-track{height:3px; border-radius:3px; background:linear-gradient(90deg, rgba(96,240,255,.6), rgba(96,240,255,.12))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:14px; height:14px; border-radius:50%; margin-top:-5.5px; background:#dffcff; box-shadow:0 0 10px 2px rgba(96,240,255,.7)}
+input[type=range]::-moz-range-thumb{width:14px; height:14px; border:0; border-radius:50%; background:#dffcff; box-shadow:0 0 10px 2px rgba(96,240,255,.7)}
+select{background:rgba(6,20,26,.9); color:var(--ink); border:1px solid var(--line-2); border-radius:8px; padding:6px 8px; font:500 13px var(--body)}
+.toggle{display:flex; align-items:center; gap:8px; font-size:.86rem; color:var(--ink-soft); margin:10px 0 0; cursor:pointer}
+.toggle input{accent-color:#ff5a5a}
+
+.slot{display:grid; grid-template-columns:118px 1fr 92px; gap:10px; align-items:center; margin:7px 0; font-size:.84rem}
+.slot .tn{font-family:var(--mono); font-size:9.5px; color:var(--ink-soft); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.stats{display:grid; gap:6px; margin:16px 0 14px}
+.stat{display:grid; grid-template-columns:70px 1fr 50px; gap:10px; align-items:center; font-size:.8rem}
+.stat span:first-child{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim)}
+.stat .bar{height:6px; border-radius:6px; background:rgba(96,240,255,.08); overflow:hidden}
+.stat .bar i{display:block; height:100%; border-radius:6px; background:linear-gradient(90deg, var(--c0, #38f8c8), var(--c1, #60f0ff)); box-shadow:0 0 10px var(--c1, #60f0ff); transition:width .35s}
+.stat b{font-family:var(--mono); font-weight:400; font-size:10.5px; text-align:right}
+.role{font-family:var(--display); font-style:italic; font-size:1.5rem; font-weight:300; color:#e8fffb; margin:2px 0 2px}
+.role small{display:block; font-family:var(--mono); font-style:normal; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); margin-top:4px}
+
+.map-tbl td:first-child{font-family:var(--mono); font-size:.8rem; color:var(--ink-soft)}
+
+.formula{font-family:var(--mono); font-size:12px; line-height:1.9; background:rgba(2,10,14,.8); border:1px solid var(--line); border-radius:14px; padding:18px 20px; color:#bff4ea; overflow-x:auto; white-space:pre}
+.formula .c{color:var(--ink-dim)}
+.formula .k{color:var(--gold)}
+
+figure{margin:2rem 0 0}
+figcaption{font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); margin-top:10px; text-align:center}
+svg text{font-family:var(--mono)}
+
+/* ── the demo ── */
+#play{padding-left:0; padding-right:0}
+#play .wrap{padding:0 16px}
+.stage-wrap{max-width:1320px; margin:2rem auto 0; padding:0 12px}
+.stage{position:relative; border:1px solid var(--line-2); border-radius:22px 22px 0 0; overflow:hidden; background:#000; aspect-ratio:16/9;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6) inset, 0 40px 120px -40px rgba(56,248,200,.18)}
+.stage canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:crosshair}
+.hud{position:absolute; left:0; right:0; top:0; display:flex; justify-content:space-between; gap:10px; padding:10px 12px; pointer-events:none; font-size:12px}
+.hud .box{background:rgba(2,10,14,.55); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:7px 11px; backdrop-filter:blur(4px); min-width:0}
+.hud .nm{font-family:var(--display); font-style:italic; font-size:14px; white-space:nowrap}
+.hud .row{display:flex; gap:12px; align-items:center; font-family:var(--mono); font-size:10.5px; color:var(--ink-soft); margin-top:3px; flex-wrap:wrap}
+.hud .row b{color:#fff; font-weight:500}
+.meter{width:72px; height:4px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; display:inline-block; vertical-align:middle}
+.meter i{display:block; height:100%; width:0; background:var(--mc, #60f0ff)}
+.hud .right{text-align:right} .hud .right .row{justify-content:flex-end}
+@media (max-width:640px){ .hud{font-size:10px; padding:6px} .hud .box{padding:5px 7px} .meter{width:44px} .hud .hide-sm{display:none} }
+
+.overlay{position:absolute; inset:0; display:grid; place-items:center; background:radial-gradient(ellipse at center, rgba(2,10,14,.72), rgba(0,0,0,.9)); z-index:5; padding:16px; overflow:auto}
+.overlay[hidden]{display:none}
+@media (max-width:700px){ .stage:has(.overlay:not([hidden])){aspect-ratio:auto; min-height:560px} }
+.ov-card{max-width:760px; width:100%; text-align:center}
+.ov-card h3{font-size:clamp(1.6rem, 4vw, 2.6rem); font-style:italic; font-weight:300; margin:0 0 .4rem}
+.ov-card p{color:var(--ink-soft); font-size:.93rem; margin:0 auto 1rem; max-width:560px}
+.pick{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:14px 0}
+@media (max-width:560px){ .pick{grid-template-columns:repeat(2,1fr)} }
+.pick button{border:1px solid color-mix(in srgb, var(--c0) 35%, transparent); background:rgba(4,14,18,.8); color:var(--ink); border-radius:14px; padding:10px 10px 11px; cursor:pointer; text-align:left; font:inherit; transition:all .2s}
+.pick button:hover{border-color:var(--c1)}
+.pick button[aria-pressed="true"]{background:color-mix(in srgb, var(--c0) 16%, rgba(4,14,18,.9)); border-color:var(--c1); box-shadow:0 0 22px -4px var(--c0)}
+.pick b{display:block; font-family:var(--display); font-style:italic; font-weight:400; font-size:1.05rem; color:color-mix(in srgb, var(--c1) 70%, white)}
+.pick span{font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-dim)}
+.ov-row{display:flex; gap:14px; justify-content:center; align-items:center; flex-wrap:wrap; margin:10px 0 18px; font-size:.86rem; color:var(--ink-soft)}
+
+.deck{border:1px solid var(--line-2); border-top:0; border-radius:0 0 22px 22px; background:rgba(3,12,16,.95); padding:14px; display:grid; gap:14px; grid-template-columns:1fr}
+@media (min-width:1000px){ .deck{grid-template-columns:1.1fr 1.5fr .9fr} }
+.deck h5{margin:0 0 8px; font-family:var(--mono); font-weight:400; font-size:9.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-dim)}
+.btns{display:grid; gap:6px; grid-template-columns:repeat(2, 1fr)}
+.btns.five{grid-template-columns:repeat(5, 1fr)}
+@media (max-width:640px){ .btns.five{grid-template-columns:repeat(3,1fr)} }
+.gbtn{position:relative; overflow:hidden; border:1px solid var(--line-2); background:rgba(8,24,30,.8); color:var(--ink); border-radius:12px; padding:8px 9px; text-align:left; cursor:pointer; font:inherit; min-height:52px; transition:border-color .2s}
+.gbtn:hover:not(:disabled){border-color:var(--lumen)}
+.gbtn:disabled{opacity:.38; cursor:not-allowed}
+.gbtn::before{content:""; position:absolute; left:0; top:0; bottom:0; width:calc(var(--p,0) * 100%); background:rgba(96,240,255,.14); pointer-events:none}
+.gbtn b{display:block; font-weight:500; font-size:.84rem; line-height:1.2; position:relative}
+.gbtn span{display:block; font-family:var(--mono); font-size:9.5px; color:var(--ink-soft); position:relative; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.gbtn kbd{position:absolute; right:7px; top:6px; font-family:var(--mono); font-size:9px; color:var(--ink-dim)}
+.pips{display:flex; gap:3px; margin-top:4px; position:relative}
+.pips i{width:10px; height:3px; border-radius:2px; background:rgba(255,255,255,.12)}
+.pips i.on{background:var(--lumen); box-shadow:0 0 6px var(--lumen)}
+.controls-help{font-size:.84rem; color:var(--ink-soft); display:grid; gap:4px 18px; grid-template-columns:repeat(auto-fit, minmax(250px,1fr)); margin:18px auto 0; max-width:1296px; padding:0 14px}
+.controls-help div{display:flex; gap:10px}
+.controls-help kbd{font-family:var(--mono); font-size:10px; color:var(--ink); border:1px solid var(--line-2); border-radius:6px; padding:1px 6px; white-space:nowrap; height:fit-content}
+.toast{position:fixed; left:50%; bottom:24px; transform:translate(-50%, 30px); opacity:0; background:rgba(4,18,22,.95); border:1px solid var(--line-2); border-radius:999px; padding:10px 18px; font-size:.88rem; z-index:50; transition:all .35s; pointer-events:none; max-width:calc(100% - 32px)}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+
+.roadmap{display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); margin-top:1.6rem}
+.phase{border:1px solid var(--line); border-radius:18px; padding:18px; background:var(--glass)}
+.phase .m{font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--lumen)}
+.phase h4{font-style:italic; font-weight:400; font-size:1.3rem; margin:.4rem 0 .5rem}
+.phase ul{margin:0; padding-left:1.1em; font-size:.88rem; color:var(--ink-soft)}
+.phase li{margin:.2em 0}
+.phase.now{border-color:rgba(56,248,200,.5); box-shadow:0 0 30px -10px rgba(56,248,200,.5)}
+
+ul.clean{padding-left:1.1em} ul.clean li{margin:.35em 0}
+.swatches{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:10px; margin-top:1.2rem}
+.swatch{border:1px solid var(--line); border-radius:14px; overflow:hidden; font-size:.8rem}
+.swatch div{height:54px; display:flex}
+.swatch div i{flex:1}
+.swatch p{margin:0; padding:8px 10px; font-family:var(--mono); font-size:9.5px; color:var(--ink-soft); line-height:1.6}
+.type-spec{display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); margin-top:1.4rem}
+.type-spec div{border:1px solid var(--line); border-radius:16px; padding:18px}
+.type-spec .s1{font-family:var(--display); font-style:italic; font-weight:300; font-size:2.4rem; line-height:1; font-variation-settings:"SOFT" 100,"WONK" 1}
+.type-spec .s2{font-family:var(--body); font-size:1.6rem; line-height:1.1}
+.type-spec .s3{font-family:var(--mono); font-size:1.1rem; line-height:1.2}
+.type-spec small{display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); margin-top:10px}
+footer{padding:120px 16px 60px; text-align:center; color:var(--ink-dim); font-size:.85rem}
+footer .glyph{font-family:var(--display); font-style:italic; font-size:2rem; color:var(--ink-soft); font-weight:200}
+
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+<nav class="rail" id="rail" aria-label="Sections"></nav>
+
+<header class="hero" id="top">
+  <canvas id="hero-canvas" aria-hidden="true"></canvas>
+  <div class="hero-inner">
+    <p class="kicker">Design Document &nbsp;·&nbsp; Playable Vertical Slice &nbsp;·&nbsp; v0.1</p>
+    <h1>Efflorescent</h1>
+    <p class="sub">A real-time strategy game set in the Bioluminescent Dreamscape</p>
+    <p class="tag">Grow a culture. Tend its light. Outshine the dark.</p>
+    <div class="hero-cta">
+      <a class="btn primary" href="#play">Enter the Drift: play the demo</a>
+      <a class="btn" href="#prologue">Read the document</a>
+    </div>
+    <p class="defn"><b>ef·flo·res·cent</b> (adj.): coming into flower; blossoming outward, as light blooms through dark water.</p>
+  </div>
+  <p class="hero-note">Behind this title: the original <em>Bioluminescent Dreamscape</em> visualizer, running unmodified</p>
+</header>
+
+<!-- ═══════════════ 01 PROLOGUE ═══════════════ -->
+<section id="prologue" data-rail="Prologue">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 01 · Prologue</div>
+      <h2>A visualizer that learned to breathe</h2>
+      <p class="lede">Efflorescent started as an ambient screen for an Android app that ran local AI models. The job was to show how hard the phone was working without printing a single number. The answer was an ecosystem.</p>
+    </div>
+    <div class="cols side">
+      <div>
+        <p>In <em>Bioluminescent Dreamscape</em>, creatures swam through dark water. When the model was thinking, the water got busier: more swimmers, faster strokes, richer colors, bursts of caustic light. Heat made the creatures swim erratically and shift toward red. A dying battery dimmed everything to a cold, starved blue. You could tell the state of the device from across the room, just by looking.</p>
+        <p>That is already most of what a strategy game needs from its presentation layer. State is carried by <em>living things</em>, and you read it at a glance. Each creature was also assembled from interchangeable organs (legs, flagella, pili, mandibles, antennae), and each organ scales through ten variants. Put those two facts together and it sounds a lot like <em>Spore</em>.</p>
+        <p>So the pitch is this: keep the visual language and let it drive a simulation. Instead of watching a phone think, you tend a <strong>culture</strong>. You harvest light, evolve organs along biological tech trees, build more complex organisms, and send them into the drift against rival cultures.</p>
+      </div>
+      <div>
+        <div class="pull">“The screen was never showing us a phone. It was showing us an ecosystem that happened to be reporting on one. Efflorescent lets that ecosystem report on itself.”</div>
+        <div class="aside"><b>High concept</b>A real-time strategy game of bioluminescent evolution. Six glowing cultures compete for drifting pools of light in an endless abyss. Every organ you evolve changes how your creatures look and what they can do, and your whole colony's health shows up in its color.</div>
+      </div>
+    </div>
+
+    <h3>Design pillars</h3>
+    <div class="pillars">
+      <div class="pillar" style="--c:rgba(56,248,200,.28)"><span class="n">I</span><h4>Legible Light</h4><p>You can read the state of the game from the scene itself. Color shows your colony's condition, motion shows its intensity, and brightness shows health. The HUD is there to back that up; you shouldn't need it.</p></div>
+      <div class="pillar" style="--c:rgba(255,224,102,.22)"><span class="n">II</span><h4>Anatomy is Strategy</h4><p>No abstract upgrades. Every piece of research grows a visible organ, so you can size up an enemy army by looking at its silhouette.</p></div>
+      <div class="pillar" style="--c:rgba(48,184,255,.25)"><span class="n">III</span><h4>Living Terrain</h4><p>Resource pools drift. Front lines move like tides, which means territory is something you keep tending, not something you capture once.</p></div>
+      <div class="pillar" style="--c:rgba(255,90,90,.22)"><span class="n">IV</span><h4>Push, then Burn</h4><p>Fever is a shared lever. Overdrive your culture and it gets faster and deadlier, then it starts consuming itself.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 02 THE SEED ═══════════════ -->
+<section id="seed" data-rail="The Seed">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 02 · The Seed</div>
+      <h2>What the code already knew</h2>
+      <p class="lede">The Dreamscape pack is about 630 lines of Canvas-2D. Almost every system in it maps directly onto an RTS mechanic. This is the inventory the whole design is built on.</p>
+    </div>
+    <div class="scroll-x">
+    <table class="tbl">
+      <thead><tr><th>In the seed</th><th>What it did there</th><th>What it becomes</th></tr></thead>
+      <tbody>
+        <tr><td><code>_BODY_PARTS</code></td><td>Five organ builders × ten variants, used as random decoration</td><td class="becomes"><strong>The tech tree.</strong> Organ type is the role. Variant <code>v</code> is the tier. Researching an organ literally lengthens it on screen.</td></tr>
+        <tr><td><code>_assignParts(rng)</code></td><td>Random 2–5 organ body plans</td><td class="becomes"><strong>The Organism Forge.</strong> Body plans you design deliberately, with costs and derived stats.</td></tr>
+        <tr><td><code>trail</code> → 20-point <code>pts</code></td><td>The body follows the head's real path, so swimming looks natural</td><td class="becomes"><strong>Locomotion and silhouette.</strong> Turn radius, pursuit arcs and swarming behavior all fall out of it.</td></tr>
+        <tr><td><code>_palette(e, healthy, charging, battery, temp)</code></td><td>Device telemetry → scene color</td><td class="becomes"><strong>The Vitality Signature.</strong> Activity, reserves, fever and blight, all readable at a glance.</td></tr>
+        <tr><td><code>panic</code> (temp &gt; 38°)</td><td>Erratic turns, flickering heads, reddening</td><td class="becomes"><strong>Fever.</strong> Speed and bite in exchange for burning your own health.</td></tr>
+        <tr><td><code>_SWIMMER_COLORS</code></td><td>Six two-tone color sets for variety under load</td><td class="becomes"><strong>The six cultures.</strong> One color family per civilization.</td></tr>
+        <tr><td>Caustic patches (12, drifting)</td><td>Ambient light pools</td><td class="becomes"><strong>Lumen pools.</strong> The primary resource. They move.</td></tr>
+        <tr><td>Depth dust (45 motes)</td><td>Parallax depth</td><td class="becomes"><strong>Silt.</strong> A passive trickle income every nucleus filters from the water.</td></tr>
+        <tr><td>Plankton (nano / micro)</td><td>Ambient drifting life</td><td class="becomes"><strong>Spore</strong> <span class="tagpill full">full game</span>, the tertiary resource for chimeric organs.</td></tr>
+        <tr><td>Shimmer bursts</td><td>Pulses of light that come faster as load rises</td><td class="becomes"><strong>The event language.</strong> Hatching, bites, deaths and conversions each bloom as light.</td></tr>
+        <tr><td>Proximity glow + mutual steering</td><td>Nearby swimmers drift toward each other</td><td class="becomes"><strong>Colony bonds.</strong> Allied creatures are visibly linked. Chorus buffs come in the full game.</td></tr>
+        <tr><td><code>age</code>, <code>lifeSpan</code>, <code>fadeAlpha</code></td><td>Birth and death fades, respawns</td><td class="becomes"><strong>Hatching and death</strong>, plus the Bloomtide's short-lived swarm.</td></tr>
+        <tr><td><code>lowPowerMode</code></td><td>Graceful degradation on low battery</td><td class="becomes"><strong>Performance tiers</strong> for mobile hardware.</td></tr>
+        <tr><td>Kotlin parity note</td><td>Every pack mirrors <code>Render()</code> 1:1 for the Android APK</td><td class="becomes"><strong>A native port path</strong> that is already proven.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="aside"><b>Build rule for this document</b>Every creature, pool and pulse below is drawn by the seed's own code. The organ renderers are called directly from <code>BioluminescentDreamscape._BODY_PARTS</code>, with no redrawn art. New code covers the game layer only: steering toward orders, stats, economy, combat and AI. The seed pack is embedded verbatim, and the hero at the top of this page runs it untouched.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ 03 THE DREAMSCAPE ═══════════════ -->
+<section id="world" data-rail="The Dreamscape">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 03 · The Dreamscape</div>
+      <h2>An ocean without walls</h2>
+      <p class="lede">The Dreamscape is a lightless sea where the only light is alive. The seed paints it in stacked layers: abyss gradient, surface shimmer, caustics, dust, swimmers and plankton. In the game, each layer becomes a depth band and each light source becomes something to fight over.</p>
+    </div>
+    <div class="depths">
+      <div class="depth"><div><h4>The Shallows</h4><span class="m">Surface shimmer · photic band</span></div><p>The pale, rippling top of the world. Light arrives here unowned. In the full game, the Shallows are where new Lumen pools condense and drift down, so whoever controls the upper water controls future income.</p></div>
+      <div class="depth"><div><h4>The Drift</h4><span class="m">Caustic layer · the contested middle</span></div><p>Where the caustic pools wander. This is where nearly all fighting happens. Pools orbit slowly and shrink as they're harvested, so the safest pool this minute can be on the front line the next.</p></div>
+      <div class="depth"><div><h4>The Abyss</h4><span class="m">Radial vignette · the dark rim</span></div><p>The black edge of the seed's background gradient. Nuclei take root here, far from the rich center. In the full game, the Abyss hides Spore beds and stealthy Deep Choir outposts.</p></div>
+    </div>
+
+    <h3>Three lights to harvest</h3>
+    <div class="res">
+      <div><span class="dot" style="color:#8ffcff"></span><h4>Lumen</h4><span class="tagpill demo">in demo</span><p>Collected from caustic pools by creatures with pili. Pays for hatching and research. Pools regenerate slowly, shrink as they're drained, and drift on slow orbits. The Great Caustic in the center holds twice as much as any other pool.</p></div>
+      <div><span class="dot" style="color:#9fd8c8"></span><h4>Silt</h4><span class="tagpill demo">in demo</span><p>The seed's depth dust. Every nucleus filters it passively, so income never drops to zero and a culture that loses all its foragers can still slowly recover.</p></div>
+      <div><span class="dot" style="color:#ffe066"></span><h4>Spore</h4><span class="tagpill full">full game</span><p>Harvested from micro-plankton, which leave comet trails and are hard to catch. Spore is required for chimeric organs, and it's the Luminants' signature currency.</p></div>
+    </div>
+    <div class="pull">The Dreamscape has no walls, so the game needs no pathfinding. Open water is a constraint that works in the design's favor: movement is about arcs, pursuit and turn radius, never about chokepoints.</div>
+  </div>
+</section>
+
+<!-- ═══════════════ 04 CULTURES ═══════════════ -->
+<section id="cultures" data-rail="Six Cultures">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 04 · The Six Cultures</div>
+      <h2>Six colors, six ways to live</h2>
+      <p class="lede">Each color set in <code>_SWIMMER_COLORS</code> becomes a civilization, and each civilization specializes in one organ line. That means visual identity and mechanical identity are the same thing: you can tell what a culture does from what color it glows.</p>
+    </div>
+    <div class="cultures" id="culture-cards"></div>
+
+    <h3>The Tide Wheel</h3>
+    <p>Each culture pressures two others and is pressured by two. Warm colors are aggressive, cool colors are patient, and violet is the strange one. The loop follows the palette's own emotional logic. Read the table row by row: ▲ means the row culture has the advantage.</p>
+    <div class="scroll-x"><table class="matrix" id="matrix"></table></div>
+  </div>
+</section>
+
+<!-- ═══════════════ 05 ANATOMY ═══════════════ -->
+<section id="anatomy" data-rail="Anatomy">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 05 · Anatomy</div>
+      <h2>A spine, and what grows from it</h2>
+      <p class="lede">Every organism is a 20-vertebra spine rebuilt each frame from the path its head has traveled. Organs attach at fixed points on that spine, which the seed's renderers already define.</p>
+    </div>
+    <div class="cols two">
+      <div>
+        <p><strong>Legs</strong> attach at vertebrae 2, 4, 6 and 8 and stroke in a walking cycle. <strong>Flagella</strong> extend from the tail as a traveling wave. <strong>Pili</strong> line the flanks as swaying fronds. <strong>Mandibles</strong> open and close behind the head. <strong>Antennae</strong> sweep ahead of it. Each organ attaches to one side, so a second copy of the same organ mirrors to the other side.</p>
+        <p>The seed generates ten variants per organ. Each step adds length, segment count, amplitude and stroke weight. The game groups them into <strong>four research tiers</strong> using variants 0, 3, 6 and 9. The in-between variants are reserved for the full game as <em>strains</em>, small mutations a culture drifts into through use.</p>
+      </div>
+      <div>
+        <table class="tbl">
+          <thead><tr><th>Organ</th><th>Seed geometry per v</th><th>Game stat</th></tr></thead>
+          <tbody>
+            <tr><td>Legs</td><td>len 10 + 2v, 3–5 segs</td><td>+HP, slight speed</td></tr>
+            <tr><td>Flagella</td><td>len 30 + 5v, amp 10 + 2v</td><td>+Speed</td></tr>
+            <tr><td>Pili</td><td>4–7 fronds, h 4 + 0.8v</td><td>+Harvest, +cargo</td></tr>
+            <tr><td>Mandibles</td><td>len 10 + 1.4v</td><td>+Bite, +reach</td></tr>
+            <tr><td>Antennae</td><td>len 15 + 3v</td><td>+Sense radius</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="formula"><span class="c">// Derived stats. Every organ adds to a base chassis; culture modifiers multiply at the end.</span>
+<span class="k">base</span>      hp 40 · speed 46 · bite 1.2/s · reach 10 · sense 110 · cost 18
+<span class="k">legs</span>      hp += 22 + 4v        speed += 4
+<span class="k">flagella</span>  speed += 16 + 2.2v
+<span class="k">pili</span>      harvest += 4 + 0.8v  cargo += 14 + 2.5v
+<span class="k">mandible</span>  bite += 5 + 1.1v     reach = max(reach, 14 + 1.4v)
+<span class="k">antenna</span>   sense += 30 + 6v
+<span class="k">each organ</span> cost += 14 + 2v     hatch time += 0.5s
+</div>
+  </div>
+</section>
+
+<!-- ═══════════════ 06 TECH TREE ═══════════════ -->
+<section id="tree" data-rail="Tech Tree">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 06 · The Tech Tree</div>
+      <h2>Evolution, drawn to scale</h2>
+      <p class="lede">Five organ lines with four tiers each. Every cell below renders that exact organ at that exact variant using the seed's own <code>render()</code>. Research doesn't just add a number; it visibly grows every creature you own.</p>
+    </div>
+    <div class="scroll-x"><div class="tree" id="tech-tree"></div></div>
+    <h3>Chimeric grafts <span class="tagpill full">full game</span></h3>
+    <p>At tier III, two organ lines can be grafted into a chimera, an organ that belongs to both. Chimeras cost Spore and are how the late game breaks out of each culture's specialty.</p>
+    <div class="scroll-x"><div class="tree" id="chimera-row" style="min-width:800px"></div></div>
+  </div>
+</section>
+
+<!-- ═══════════════ 07 FORGE ═══════════════ -->
+<section id="forge" data-rail="Organism Forge">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 07 · The Organism Forge</div>
+      <h2>Design a creature</h2>
+      <p class="lede">The seed's <code>_assignParts</code> rolled random body plans. The Forge lets you choose them. Pick up to five organs, set their variants, and watch the stats and role update. Then send the design to the demo, where it fills hatchery slot 4.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-grid">
+        <canvas class="tank" id="forge-canvas" aria-label="Preview of the organism being designed"></canvas>
+        <div class="ctrls">
+          <p class="ctrl-h">Culture</p>
+          <div class="chips" id="forge-cult"></div>
+          <p class="ctrl-h">Organs · variant 0–9</p>
+          <div id="forge-slots"></div>
+          <div class="stats" id="forge-stats"></div>
+          <div class="role" id="forge-role"></div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px">
+            <button class="btn primary" id="forge-send">Hatch this in the demo →</button>
+            <button class="btn" id="forge-random">Mutate</button>
+          </div>
+          <p style="font-size:.78rem; color:var(--ink-dim); margin:12px 0 0">In the demo, organ tiers come from your colony's research. The Forge shows each organ's full range.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 08 VITALITY ═══════════════ -->
+<section id="vitality" data-rail="Vitality Signature">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 08 · The Vitality Signature</div>
+      <h2>The palette is the HUD</h2>
+      <p class="lede">The seed's <code>_palette()</code> turned five device signals into color. The game generalizes it to all six cultures and feeds it colony signals instead. Move the sliders and watch a colony's mood change.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-grid">
+        <canvas class="tank" id="vital-canvas" aria-label="A colony whose colors respond to the sliders"></canvas>
+        <div class="ctrls">
+          <p class="ctrl-h">Culture</p>
+          <div class="chips" id="vital-cult"></div>
+          <p class="ctrl-h">Colony signals</p>
+          <div class="slider"><label for="v-e">Activity</label><input type="range" id="v-e" min="0" max="100" value="25"><output id="v-e-o">25%</output></div>
+          <div class="slider"><label for="v-f">Fever</label><input type="range" id="v-f" min="0" max="100" value="0"><output id="v-f-o">0%</output></div>
+          <div class="slider"><label for="v-r">Reserves</label><input type="range" id="v-r" min="0" max="100" value="80"><output id="v-r-o">80</output></div>
+          <label class="toggle"><input type="checkbox" id="v-b"> Blight (nucleus critically wounded)</label>
+          <table class="tbl map-tbl" style="margin-top:18px; font-size:.84rem">
+            <thead><tr><th>Seed signal</th><th>Colony signal</th></tr></thead>
+            <tbody>
+              <tr><td>inferenceLoad → e</td><td>Activity: foraging + fighting</td></tr>
+              <tr><td>batteryTemperature</td><td>Fever (33° + 15° × fever)</td></tr>
+              <tr><td>batteryLevel &lt; 20</td><td>Starving: Lumen under 20</td></tr>
+              <tr><td>isHealthy = false</td><td>Blight: nucleus under 35%</td></tr>
+              <tr><td>panic</td><td>Fevered erratic swimming</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:1.6rem">What you see in each state: <em>Calm</em> cultures glow in their base color and swim lazily. <em>Active</em> cultures brighten toward their second tone and speed up. <em>Fevered</em> cultures turn amber and then red, their heads flicker, and their paths jerk; this is the seed's panic code, unchanged. <em>Starving</em> cultures fade to the seed's cold low-battery blue. <em>Blighted</em> cultures pulse red. A glance at the enemy tells you whether they're thriving, overheating or dying.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ 09 FEVER ═══════════════ -->
+<section id="fever" data-rail="Fever">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 09 · Fever</div>
+      <h2>Burn brighter, burn out</h2>
+      <p class="lede">The seed made creatures panic when the phone got hot. The game makes heat a resource you spend. Fever is one shared value per colony, and every rule that touches it follows from the seed's temperature thresholds.</p>
+    </div>
+    <div class="cols two">
+      <div>
+        <ul class="clean">
+          <li><strong>Rises with</strong> hatching (+4% each), your creatures fighting (+0.4%/s per creature), and <strong>Frenzy</strong>, a +30% surge you trigger yourself on a 20-second cooldown.</li>
+          <li><strong>Falls</strong> by 3% per second when you leave it alone.</li>
+          <li><strong>Pays out</strong> as up to +45% speed, +60% bite and faster hatching, scaled linearly.</li>
+          <li><strong>Costs</strong> health above 60%: every creature burns (fever − 0.6) × 6 HP per second. Past that point the colony turns red, which is the seed's 42° threshold.</li>
+          <li><strong>Looks like</strong> the seed's panic: sudden turns, flickering heads, and a heat-shifted palette. Your opponent can see your fever too.</li>
+        </ul>
+      </div>
+      <figure style="margin:0">
+        <svg viewBox="0 0 520 230" width="100%" role="img" aria-label="Fever curve: speed and bite multipliers rise linearly; health burn begins at 60 percent fever">
+          <rect x="316" y="30" width="184" height="160" fill="rgba(255,90,90,.08)"/>
+          <text x="408" y="24" fill="#ff8a8a" font-size="9" text-anchor="middle" letter-spacing="1.5">FEVERED</text>
+          <text x="178" y="24" fill="#6b8d88" font-size="9" text-anchor="middle" letter-spacing="1.5">CALM → FLUSHED</text>
+          <line x1="40" y1="190" x2="500" y2="190" stroke="rgba(96,240,255,.3)"/>
+          <line x1="40" y1="30" x2="40" y2="190" stroke="rgba(96,240,255,.15)"/>
+          <path d="M40,190 L500,40" stroke="#ff70c0" stroke-width="2" fill="none"/>
+          <path d="M40,190 L500,77.5" stroke="#60f0ff" stroke-width="2" fill="none"/>
+          <path d="M40,190 L316,190 L500,94" stroke="#ff5a5a" stroke-width="2" stroke-dasharray="5 4" fill="none"/>
+          <text x="496" y="36" fill="#ff70c0" font-size="10" text-anchor="end">bite ×1.6</text>
+          <text x="496" y="72" fill="#60f0ff" font-size="10" text-anchor="end">speed ×1.45</text>
+          <text x="496" y="112" fill="#ff5a5a" font-size="10" text-anchor="end">burn 2.4 hp/s</text>
+          <text x="40" y="208" fill="#6b8d88" font-size="9">0</text>
+          <text x="316" y="208" fill="#6b8d88" font-size="9" text-anchor="middle">0.6</text>
+          <text x="500" y="208" fill="#6b8d88" font-size="9" text-anchor="end">1.0</text>
+          <text x="270" y="224" fill="#6b8d88" font-size="9" text-anchor="middle" letter-spacing="1.5">FEVER</text>
+        </svg>
+        <figcaption>Fever payout and cost</figcaption>
+      </figure>
+    </div>
+    <div class="pull">Fever is how a losing player takes a risk: a frenzied counter-attack can break a siege, or it can burn out the last of your army. Both outcomes are visible in color before they happen.</div>
+  </div>
+</section>
+
+<!-- ═══════════════ 10 ECONOMY & COMBAT ═══════════════ -->
+<section id="loop" data-rail="Economy & Combat">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 10 · Economy &amp; Combat</div>
+      <h2>The tide loop</h2>
+      <p class="lede">Light turns into bodies, bodies win more light, and fever sits across the whole loop as a throttle.</p>
+    </div>
+    <figure>
+      <svg viewBox="0 0 680 300" width="100%" role="img" aria-label="Economy loop: caustic pools feed foragers, foragers feed the nucleus, the nucleus hatches and researches, organisms contest the drift, which secures pools">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#60f0ff"/></marker>
+          <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff5a5a"/></marker>
+          <radialGradient id="gn"><stop offset="0" stop-color="#60f0ff" stop-opacity=".35"/><stop offset="1" stop-color="#60f0ff" stop-opacity="0"/></radialGradient>
+        </defs>
+        <g fill="none" stroke="#60f0ff" stroke-opacity=".6" stroke-width="1.5" marker-end="url(#ah)">
+          <path d="M120,130 Q150,80 200,72"/>
+          <path d="M300,66 L380,66"/>
+          <path d="M480,72 Q540,85 560,125"/>
+          <path d="M560,180 Q540,222 480,230"/>
+          <path d="M380,236 L300,236"/>
+          <path d="M200,230 Q150,222 120,178"/>
+        </g>
+        <path d="M430,12 L430,40" stroke="#9fd8c8" stroke-dasharray="3 3" stroke-width="1.3" marker-end="url(#ah)"/>
+        <text x="438" y="22" fill="#9fd8c8" font-size="9">silt trickle</text>
+        <path d="M430,210 Q470,150 540,150" stroke="#ff5a5a" stroke-opacity=".7" stroke-dasharray="4 4" fill="none" stroke-width="1.3" marker-end="url(#ahr)"/>
+        <text x="446" y="172" fill="#ff8a8a" font-size="9">fever</text>
+        <g font-size="11" text-anchor="middle" fill="#d4ece7">
+          <circle cx="80" cy="152" r="44" fill="url(#gn)"/><text x="80" y="150">Caustic</text><text x="80" y="164" fill="#6b8d88" font-size="9">lumen pools</text>
+          <circle cx="250" cy="66" r="40" fill="url(#gn)"/><text x="250" y="64">Foragers</text><text x="250" y="78" fill="#6b8d88" font-size="9">pili · cargo</text>
+          <circle cx="430" cy="66" r="44" fill="url(#gn)"/><text x="430" y="64">Nucleus</text><text x="430" y="78" fill="#6b8d88" font-size="9">stores lumen</text>
+          <circle cx="590" cy="152" r="46" fill="url(#gn)"/><text x="590" y="146">Hatch</text><text x="590" y="160">+ Research</text>
+          <circle cx="430" cy="236" r="44" fill="url(#gn)"/><text x="430" y="234">Organisms</text><text x="430" y="248" fill="#6b8d88" font-size="9">organs = stats</text>
+          <circle cx="250" cy="236" r="44" fill="url(#gn)"/><text x="250" y="234">Contest</text><text x="250" y="248" fill="#6b8d88" font-size="9">hold the drift</text>
+        </g>
+      </svg>
+      <figcaption>The tide loop</figcaption>
+    </figure>
+    <div class="cols two" style="margin-top:2.4rem">
+      <div>
+        <h3 style="margin-top:0">Combat by anatomy</h3>
+        <p>There are no attack animations to author. A creature fights by swimming. Once an enemy is inside its <strong>sense</strong> radius (antennae), it turns and pursues (flagella). Inside its <strong>reach</strong> (mandible length) it circles the target and bites continuously (mandible tier). It stays alive through <strong>HP</strong> (legs and body). Because the seed's trail-following steering produces pursuit arcs, a fight looks like a swarm of predators closing on prey.</p>
+        <p>Nuclei defend themselves with a lance of light against the nearest intruder, so an early rush has to commit rather than poke.</p>
+      </div>
+      <div>
+        <div class="formula"><span class="c">// Resolved every frame, per creature</span>
+target  = nearest enemy within sense
+          <span class="c">(Deep Choir unseen beyond 55px)</span>
+if dist &lt; reach + radius:
+  dmg   = bite × (1 + 0.6·fever) × dt
+          × ambush(2× for 1.5s, Choir)
+  circle target at reach
+on kill:
+  Umbral Kin: 35% → convert, not kill
+lifespan: Bloomtide wither at 80s</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 11 RIVAL MINDS ═══════════════ -->
+<section id="ai" data-rail="Rival Minds">
+  <div class="wrap narrow">
+    <div class="sec-head">
+      <div class="sec-num">§ 11 · Rival Minds</div>
+      <h2>How a culture thinks</h2>
+    </div>
+    <p>The demo opponent is deliberately simple: a readable state machine that plays to its culture's strengths.</p>
+    <ul class="clean">
+      <li><strong>Grow.</strong> Keep five foragers working (seven for the Verdant Strain), and replace any that die.</li>
+      <li><strong>Evolve.</strong> Research the culture's home organ first, then bite, legs, flagella, antennae.</li>
+      <li><strong>Mass.</strong> Hatch wardens and signature organisms until the army reaches the current wave size.</li>
+      <li><strong>Surge.</strong> Attack-move to the enemy nucleus, trigger Frenzy near the target, and grow the next wave by two.</li>
+      <li><strong>Recoil.</strong> If enemies come within 280px of home, pull every warrior back to defend.</li>
+    </ul>
+    <p>Difficulty only changes income: <em>Gentle</em> ×0.8, <em>Tidal</em> ×1.0, <em>Abyssal</em> ×1.3. The rival never cheats on information, and it reads the same colors you do.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ 12 PLAY ═══════════════ -->
+<section id="play" data-rail="Play the Demo">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 12 · The Demo</div>
+      <h2>Enter the Drift</h2>
+      <p class="lede">A single-screen skirmish against one rival culture. Harvest the pools, research organs, hatch organisms, and destroy the enemy nucleus. Everything you've read about above is running here.</p>
+    </div>
+  </div>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <canvas id="game-canvas" aria-label="Efflorescent game field"></canvas>
+      <div class="hud" id="hud">
+        <div class="box">
+          <div class="nm" id="hud-p-name">—</div>
+          <div class="row"><span>Lumen <b id="hud-lumen">0</b></span><span>Pop <b id="hud-pop">0</b></span></div>
+          <div class="row"><span>Fever</span><span class="meter"><i id="hud-p-fever" style="--mc:#ff5a5a"></i></span><span class="hide-sm">Nucleus</span><span class="meter hide-sm"><i id="hud-p-hp"></i></span></div>
+        </div>
+        <div class="box right">
+          <div class="nm" id="hud-e-name">—</div>
+          <div class="row"><span class="hide-sm">Pop <b id="hud-e-pop">0</b></span><span>Nucleus</span><span class="meter"><i id="hud-e-hp"></i></span></div>
+          <div class="row"><span>Fever</span><span class="meter"><i id="hud-e-fever" style="--mc:#ff5a5a"></i></span></div>
+        </div>
+      </div>
+      <div class="overlay" id="ov-start">
+        <div class="ov-card">
+          <h3>Choose your culture</h3>
+          <p>Your rival will be one of the other five. Each culture changes one rule of the game.</p>
+          <div class="pick" id="pick-cult"></div>
+          <div class="ov-row">
+            <span>Rival:</span><select id="pick-rival"></select>
+            <span>Difficulty:</span><select id="pick-diff"><option value="0.8">Gentle</option><option value="1" selected>Tidal</option><option value="1.3">Abyssal</option></select>
+          </div>
+          <button class="btn primary" id="btn-begin">Begin the bloom</button>
+        </div>
+      </div>
+      <div class="overlay" id="ov-end" hidden>
+        <div class="ov-card">
+          <h3 id="end-title">—</h3>
+          <p id="end-text">—</p>
+          <button class="btn primary" id="btn-again">Bloom again</button>
+        </div>
+      </div>
+    </div>
+    <div class="deck" id="deck">
+      <div><h5>Hatchery</h5><div class="btns" id="hatch-btns"></div></div>
+      <div><h5>Evolve · research an organ tier</h5><div class="btns five" id="research-btns"></div></div>
+      <div><h5>Commands</h5><div class="btns" id="cmd-btns">
+        <button class="gbtn" id="c-army"><kbd>A</kbd><b>Select warriors</b><span>all non-foragers</span></button>
+        <button class="gbtn" id="c-work"><kbd>H</kbd><b>Back to work</b><span>idle pili → pools</span></button>
+        <button class="gbtn" id="c-frenzy"><kbd>F</kbd><b>Frenzy</b><span id="c-frenzy-s">+30% fever</span></button>
+        <button class="gbtn" id="c-pause"><kbd>␣</kbd><b id="c-pause-b">Pause</b><span>or restart below</span></button>
+      </div></div>
+    </div>
+  </div>
+  <div class="controls-help">
+    <div><kbd>drag</kbd><span>Draw a box to select your creatures. Click one to select just it.</span></div>
+    <div><kbd>right-click / tap</kbd><span>With creatures selected: move there, fighting anything on the way.</span></div>
+    <div><kbd>on a pool</kbd><span>Creatures with pili start harvesting. Everything else moves there.</span></div>
+    <div><kbd>on an enemy</kbd><span>Focus that creature or nucleus.</span></div>
+    <div><kbd>1 – 4</kbd><span>Hatch. Slot 4 is your Forge design.</span></div>
+    <div><kbd>Esc</kbd><span>Deselect. <a href="#" id="c-restart">Restart the skirmish</a>.</span></div>
+  </div>
+</section>
+
+<!-- ═══════════════ 13 SCOPE ═══════════════ -->
+<section id="scope" data-rail="Scope & Roadmap">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">§ 13 · Scope &amp; Roadmap</div>
+      <h2>What this proves, and what it doesn't</h2>
+    </div>
+    <div class="cols two">
+      <div>
+        <h3 style="margin-top:0">The demo demonstrates</h3>
+        <ul class="clean">
+          <li>The seed renderer holds up at RTS unit counts (about 60 organisms at once) in plain Canvas 2D.</li>
+          <li>Organs read as roles at a glance. Mandible-heavy swarms and pili-laden foragers are easy to tell apart.</li>
+          <li>Palette-as-HUD works for both players, so you can see a fevered or starving enemy.</li>
+          <li>Drifting pools create shifting fronts with no terrain authoring.</li>
+          <li>Six cultures become mechanically distinct with one rule each.</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="margin-top:0">Deliberately left out</h3>
+        <ul class="clean">
+          <li>Scrolling camera and large maps (the demo is one screen, 1280×720 units)</li>
+          <li>Fog of war (the “Murk”), chimeric organs, Spore, strains</li>
+          <li>Multiplayer, campaigns, audio</li>
+          <li>Unit collision beyond soft separation; formations</li>
+          <li>Balance. Every number here is a first guess.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="roadmap">
+      <div class="phase now"><span class="m">Phase 0 · now</span><h4>Tidepool</h4><ul><li>This document and slice</li><li>Validate the core loop and readability</li><li>Playtest the six culture rules</li></ul></div>
+      <div class="phase"><span class="m">Phase 1</span><h4>Reef</h4><ul><li>Scrolling map, depth bands, Murk fog</li><li>Spore and chimeric grafts</li><li>Strains: use-driven mutation</li></ul></div>
+      <div class="phase"><span class="m">Phase 2</span><h4>Bloom</h4><ul><li>Deterministic lockstep multiplayer</li><li>Android build via the Kotlin parity path</li><li>Audio: the colony as a chord</li></ul></div>
+      <div class="phase"><span class="m">Phase 3</span><h4>Efflorescence</h4><ul><li>Campaign across six cultures</li><li>2v2 and free-for-all tides</li><li>Forge sharing between players</li></ul></div>
+    </div>
+    <h3>Risks &amp; open questions</h3>
+    <ul class="clean">
+      <li><strong>Violet vs. purple.</strong> The Deep Choir (#7864FF) and the Umbral Kin (#B060FF) sit close together, especially for players with color-vision deficiency. Mitigation: give each culture a distinct nucleus petal count and head glyph, and never let color be the only signal.</li>
+      <li><strong>Gradient cost on mobile.</strong> Every head, pool and shimmer is a radial gradient. The seed's <code>lowPowerMode</code> branch already shows how to degrade: drop shimmers and caustics first.</li>
+      <li><strong>Legibility past 100 units.</strong> The glow bodies add up. Consider capping wake rendering and using additive blending only for heads.</li>
+      <li><strong>Should body length be HP?</strong> It's tempting and very readable, but it couples silhouette to durability in ways that may limit design.</li>
+      <li><strong>Should fever be shared across a colony, or tracked per creature?</strong> Shared fever is readable. Per-creature fever allows more tactical play.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════ APPENDIX ═══════════════ -->
+<section id="appendix" data-rail="Appendix">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-num">Appendix · Palette &amp; Type</div>
+      <h2>The visual grammar</h2>
+    </div>
+    <p>Color values come straight from the seed. Each culture has a primary tone and an accent tone. The seed shifted from the first to the second as activity rose, and the game keeps that behavior.</p>
+    <div class="swatches" id="swatches"></div>
+    <div class="type-spec">
+      <div><div class="s1">Fraunces</div><small>Display · soft, wonky optical serif, like ink blooming in water</small></div>
+      <div><div class="s2">Figtree</div><small>Body · round, open, quiet enough to stay out of the light's way</small></div>
+      <div><div class="s3">Martian Mono</div><small>Data · wide instrumentation mono for readings from the deep</small></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="glyph">Efflorescent</div>
+  <p>Grown from the <em>Bioluminescent Dreamscape</em> visualization pack. Single-file design document and demo.</p>
+</footer>
+<div class="toast" id="toast"></div>
+<script>
+// ── shared helpers ──────────────────────────────────────────────
+function hexToRgb(hex) {
+  const s = hex.replace("#", "");
+  const n = parseInt(s, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgba({ r, g, b }, a) { return `rgba(${r},${g},${b},${a})`; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function lerpRgb(c1, c2, t) {
+  return { r: lerp(c1.r, c2.r, t), g: lerp(c1.g, c2.g, t), b: lerp(c1.b, c2.b, t) };
+}
+function mulberry32(seed) {
+  let a = seed;
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// BIOLUMINESCENT DREAMSCAPE — organic tidepool. Drifting motes
+// of light, swaying kelp-like tendrils, and concentric pulse waves
+// that bloom with device activity. A calm alternative to the
+// existing packs.
+// ════════════════════════════════════════════════════════════════
+const BioluminescentDreamscape = {
+ id: "bioluminescent",
+ name: "Bioluminescent Dreamscape",
+ description: "Free-swimming bioluminescent organisms drift through the abyss, their luminous bodies tracing sinuous paths in the dark. Caustic light shimmers across the depths, shifting with each pulse of device activity.",
+
+ _energy: 0,
+ _shimmers: [],
+_lastShimmer: 0,
+ _lastCascade: 0,
+ _plankton: null,
+ _swimmers: null,
+ _caustics: null,
+ _depthDust: null,
+
+ // Rich color palette — blues, violets, pinks under heavy load
+ _SWIMMER_COLORS: [
+  [{r:0x38,g:0xF8,b:0xC8}, {r:0x60,g:0xF0,b:0xFF}],  // cyan-green
+  [{r:0x22,g:0xE9,b:0xA8}, {r:0xFF,g:0xE0,b:0x66}],  // emerald + gold
+  [{r:0x30,g:0xB8,b:0xFF}, {r:0x80,g:0xD0,b:0xFF}],  // ocean blue
+  [{r:0x78,g:0x64,b:0xFF}, {r:0xB0,g:0x90,b:0xFF}],  // violet
+  [{r:0xB0,g:0x60,b:0xFF}, {r:0xD0,g:0x90,b:0xFF}],  // purple
+  [{r:0xFF,g:0x70,b:0xC0}, {r:0xFF,g:0xA0,b:0xD8}],  // pink
+ ],
+
+ _BODY_PARTS: (function() {
+  const p = [];
+  function leg(v, segs, len, amp, cyc, w) {
+   return {
+    type:'leg',var:v,
+    render(ctx, pts, side, par, t, cr, pal, hc) {
+     const attach = [2,4,6,8];
+     ctx.save(); ctx.lineCap = 'round';
+     for (let ai = 0; ai < attach.length; ai++) {
+      const ai2 = attach[ai];
+      if (ai2 >= pts.length) continue;
+      const pt = pts[ai2];
+      const dirN = Math.min(ai2+1, pts.length-1);
+      const dirP = Math.max(0, ai2-1);
+      const dx = pts[dirN].x - pts[dirP].x;
+      const dy = pts[dirN].y - pts[dirP].y;
+      const dl = Math.hypot(dx,dy)||0.001;
+      const spx = (-dy / dl) * side, spy = (dx / dl) * side;
+      const cycle = Math.sin(t * par.speed * cyc + ai + par.phase);
+      let cx = pt.x + spx * 2, cy2 = pt.y + spy * 2;
+      ctx.strokeStyle = rgba(hc, 0.7); ctx.lineWidth = w;
+      for (let s = 0; s < segs; s++) {
+       const f = (s + 1) / segs;
+       const ang = cycle * amp * (1 - f * 0.5);
+       const dirX = spx * Math.cos(ang) - spy * Math.sin(ang);
+       const dirY = spx * Math.sin(ang) + spy * Math.cos(ang);
+       ctx.beginPath(); ctx.moveTo(cx, cy2);
+       ctx.lineTo(cx + dirX * len / segs, cy2 + dirY * len / segs); ctx.stroke();
+       cx += dirX * len / segs; cy2 += dirY * len / segs;
+      }
+     }
+     ctx.restore();
+    }
+   };
+  }
+  function flagella(v, len, amp, w) {
+   return {
+    type:'flagella',var:v,
+    render(ctx, pts, side, par, t, cr, pal, hc) {
+     if (pts.length < 3) return;
+     const tail = pts[pts.length-1], t2 = pts[Math.max(0,pts.length-3)];
+     const dx = tail.x - t2.x, dy = tail.y - t2.y;
+     const dl = Math.hypot(dx,dy)||0.001, ndx = dx / dl, ndy = dy / dl;
+     const px = -ndy, py = ndx;
+     ctx.save(); ctx.lineCap = 'round';
+     ctx.strokeStyle = rgba(pal.accent, 0.4 + 0.2 * Math.sin(t * 2 + par.phase));
+     ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(tail.x, tail.y);
+     for (let i = 1; i <= 12; i++) {
+      const f = i / 12;
+      const wave = Math.sin(t * par.speed * 2.5 - i * 0.7 + par.phase) * amp * f * f;
+      ctx.lineTo(tail.x + ndx * len * f - px * wave, tail.y + ndy * len * f - py * wave);
+     }
+     ctx.stroke(); ctx.restore();
+    }
+   };
+  }
+  function pili(v, cnt, height, amp, w) {
+   return {
+    type:'pili',var:v,
+    render(ctx, pts, side, par, t, cr, pal, hc) {
+     ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = rgba(hc, 0.25);
+     ctx.lineWidth = w;
+     const step = Math.max(1, Math.floor((pts.length - 2) / cnt));
+     for (let i = 1; i < pts.length - 1; i += step) {
+      const pt = pts[i];
+      const dx = pts[Math.min(i+1, pts.length-1)].x - pts[Math.max(0, i-1)].x;
+      const dy = pts[Math.min(i+1, pts.length-1)].y - pts[Math.max(0, i-1)].y;
+      const dl = Math.hypot(dx,dy)||0.001;
+      const spx = (-dy / dl) * side, spy = (dx / dl) * side;
+      const wave = Math.sin(t * par.speed * 2 + i * 0.5 + par.phase) * amp;
+      const h = height + wave;
+      ctx.beginPath(); ctx.moveTo(pt.x, pt.y);
+      ctx.quadraticCurveTo(pt.x + spx * h * 0.7, pt.y + spy * h * 0.7, pt.x + spx * h, pt.y + spy * h);
+      ctx.stroke();
+     }
+     ctx.restore();
+    }
+   };
+  }
+  function mandible(v, len, w) {
+   return {
+    type:'mandible',var:v,
+    render(ctx, pts, side, par, t, cr, pal, hc) {
+     if (pts.length < 3) return;
+     const pt = pts[1], head = pts[0];
+     const hdx = head.x - pt.x, hdy = head.y - pt.y;
+     const hdl = Math.hypot(hdx,hdy)||0.001, fdx = hdx / hdl, fdy = hdy / hdl;
+     const px = -fdy, py = fdx;
+     const open = Math.sin(t * par.speed * 4 + par.phase) * 0.4 + 0.3;
+     ctx.save(); ctx.lineCap = 'round';
+     ctx.strokeStyle = rgba(hc, 0.8); ctx.lineWidth = w;
+     ctx.beginPath(); ctx.moveTo(pt.x, pt.y);
+     ctx.quadraticCurveTo(pt.x + px * side * len * 0.6, pt.y + py * side * len * 0.6,
+      pt.x + px * side * len * open + fdx * len * 0.3, pt.y + py * side * len * open + fdy * len * 0.3);
+     ctx.stroke();
+     ctx.strokeStyle = rgba(pal.accent, 0.55); ctx.lineWidth = w * 0.5;
+     ctx.beginPath(); ctx.moveTo(pt.x + fdx * 2, pt.y + fdy * 2);
+     ctx.quadraticCurveTo(pt.x + px * side * len * 0.2 + fdx * len * 0.2, pt.y + py * side * len * 0.2 + fdy * len * 0.2,
+      pt.x * 0.3 + (pt.x + px * side * len * open + fdx * len * 0.3) * 0.7 + fdx * 2,
+      pt.y * 0.3 + (pt.y + py * side * len * open + fdy * len * 0.3) * 0.7 + fdy * 2);
+     ctx.stroke(); ctx.restore();
+    }
+   };
+  }
+  function antenna(v, len, amp, w) {
+   return {
+    type:'antenna',var:v,
+    render(ctx, pts, side, par, t, cr, pal, hc) {
+     if (pts.length < 2) return;
+     const head = pts[0], p2 = pts[Math.min(1, pts.length-1)];
+     const baseAngle = Math.atan2(head.y - p2.y, head.x - p2.x);
+     const sweep = Math.sin(t * par.speed * 2 + par.phase) * amp;
+     ctx.save(); ctx.lineCap = 'round';
+     ctx.strokeStyle = rgba(lerpRgb(hc, pal.accent, 0.3), 0.7);
+     ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(head.x, head.y);
+     for (let i = 1; i <= 8; i++) {
+      const f = i / 8;
+      const angle = baseAngle + sweep + f * 0.8 * side;
+      ctx.lineTo(head.x + Math.cos(angle) * f * len, head.y + Math.sin(angle) * f * len);
+     }
+     ctx.stroke(); ctx.restore();
+    }
+   };
+  }
+  for (let v = 0; v < 10; v++) p.push(leg(v, 3 + Math.floor(v/4), 10 + v * 2, 0.4 + v * 0.1, 2.5 + v * 0.15, 0.8 + v * 0.07));
+  for (let v = 0; v < 10; v++) p.push(flagella(v, 30 + v * 5, 10 + v * 2, 0.5 + v * 0.14));
+  for (let v = 0; v < 10; v++) p.push(pili(v, 4 + Math.floor(v/3), 4 + v * 0.8, 1 + v * 0.3, 0.3 + v * 0.05));
+  for (let v = 0; v < 10; v++) p.push(mandible(v, 10 + v * 1.4, 0.8 + v * 0.12));
+  for (let v = 0; v < 10; v++) p.push(antenna(v, 15 + v * 3, 0.3 + v * 0.1, 0.5 + v * 0.1));
+  return p;
+})(),
+
+_assignParts(rng) {
+  const pool = this._BODY_PARTS;
+  const count = 2 + Math.floor(rng() * 4);
+  const used = new Set();
+  const parts = [];
+  for (let i = 0; i < count; i++) {
+   let tries = 0, defIdx;
+   do {
+    defIdx = Math.floor(rng() * pool.length);
+    tries++;
+   } while (tries < 10 && used.has(pool[defIdx].type) && rng() < 0.5);
+   used.add(pool[defIdx].type);
+   parts.push({ defIdx, side: rng() < 0.5 ? -1 : 1, speed: 0.8 + rng() * 0.4, phase: rng() * Math.PI * 2 });
+  }
+  return parts;
+},
+
+ reset() {
+  this._energy = 0; this._shimmers = [];this._lastShimmer = 0; this._lastCascade = 0;
+  this._plankton = null; this._swimmers = null;
+  this._caustics = null; this._depthDust = null;
+ },
+
+ render(ctx, W, H, s, t, dt) {
+      const lowPower = s.lowPowerMode;
+  const target = lowPower ? 0 : (
+   (s.isProcessing ? 0.35 : 0) +
+   s.inferenceLoad * 0.55 +
+   clamp(s.queueDepth / 15, 0, 1) * 0.2
+  );
+  const k = 1 - Math.pow(0.001, Math.min(dt, 0.05));
+  this._energy += (target - this._energy) * k;
+  const e = this._energy;
+  const cx = W / 2, cy = H / 2, rMax = Math.hypot(W, H);
+
+  // ── Palette ──
+  const pal = this._palette(e, s.isHealthy, s.isCharging,
+   s.batteryLevel, s.batteryTemperature);
+  const panic = s.batteryTemperature > 38 ? clamp((s.batteryTemperature - 38) / 10, 0, 1) : 0;
+
+  // ═══ LAYER 1: THE ABYSS ═══
+  const bgGrad = ctx.createRadialGradient(cx, cy * 0.9, 0, cx, cy * 0.9, rMax * 0.8);
+  const toRgba = (c, a) => rgba({r: Math.round(c.r), g: Math.round(c.g), b: Math.round(c.b)}, a);
+  bgGrad.addColorStop(0, toRgba(pal.bgCenter, 1));
+  bgGrad.addColorStop(0.5, toRgba(pal.bg, 1));
+  bgGrad.addColorStop(0.85, toRgba(pal.bg, 0.7));
+  bgGrad.addColorStop(1, 'rgba(0,0,0,1)');
+  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+  // Surface shimmer
+  if (!lowPower) {
+   const sfGrad = ctx.createLinearGradient(0, 0, 0, H * 0.35);
+   sfGrad.addColorStop(0, toRgba(lerpRgb(pal.primary, {r:0x82,g:0xFF,b:0xF0}, 0.3),
+    0.03 + 0.03 * (0.5 + 0.5 * Math.sin(t * 0.7))));
+   sfGrad.addColorStop(0.5, toRgba(pal.bgCenter, 0.02));
+   sfGrad.addColorStop(1, 'rgba(0,0,0,0)');
+   ctx.fillStyle = sfGrad; ctx.fillRect(0, 0, W, H * 0.35);
+  }
+  // Caustic patches (12, drifting)
+  if (!this._caustics) {
+   const rng = mulberry32(133); const c = [];
+   for (let i = 0; i < 12; i++) {
+    c.push({
+     x: rng() * W, y: 0.1 + rng() * 0.7 * H,
+     phase: rng() * 6.28, speed: 0.3 + rng() * 0.5,
+     sz: 0.15 + rng() * 0.25,
+     driftAngle: rng() * 6.28, driftSpeed: 0.2 + rng() * 0.4,
+     wobble: rng() * 6.28, wobbleSpeed: 0.2 + rng() * 0.4,
+    });
+   }
+   this._caustics = c;
+  }
+  if (!lowPower) {
+   const margin = W * 0.2;
+   for (const c of this._caustics) {
+    c.x += Math.cos(c.driftAngle) * c.driftSpeed * 60 * dt;
+    c.y += Math.sin(c.driftAngle) * c.driftSpeed * 60 * dt;
+    if (c.x < -margin) c.x = W + margin; if (c.x > W + margin) c.x = -margin;
+    if (c.y < -margin) c.y = H + margin; if (c.y > H + margin) c.y = -margin;
+    const cx2 = c.x + Math.sin(t * c.speed * 0.15 + c.phase) * W * 0.1;
+    const cy2 = c.y + Math.sin(t * c.speed * 0.1 + c.phase * 1.3) * H * 0.08;
+    const r = rMax * c.sz * (1 + 0.12 * Math.sin(t * c.wobbleSpeed + c.wobble));
+    const cGrad = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, r);
+    cGrad.addColorStop(0, toRgba(lerpRgb(pal.primary, {r:0xC8,g:0xFF,b:0xFF}, 0.5),
+     0.045 * (0.5 + 0.5 * e)));
+    cGrad.addColorStop(0.5, toRgba(pal.primary, 0.025 * (0.5 + 0.5 * e)));
+    cGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = cGrad; ctx.beginPath(); ctx.arc(cx2, cy2, r, 0, Math.PI * 2); ctx.fill();
+   }
+  }
+  // Depth dust
+  if (!this._depthDust) {
+   const rng = mulberry32(211); const d = [];
+   for (let i = 0; i < 45; i++) {
+    d.push({
+     x: rng() * W, y: rng() * H, phase: rng() * 6.28,
+     sz: 0.6 + rng() * 1.3, depth: rng(),
+     dx: rng() * W * 0.08, dy: rng() * H * 0.06,
+    });
+   }
+   this._depthDust = d;
+  }
+  for (const d of this._depthDust) {
+   const dx = d.x + Math.sin(t * (0.12 + d.depth * 0.2) + d.phase * 1.1) * d.dx;
+   const dy = d.y + Math.sin(t * (0.1 + d.depth * 0.15) + d.phase * 0.8) * d.dy;
+   const a = (0.2 + 0.3 * (1 - d.depth));
+   ctx.fillStyle = rgba(pal.primary, a); ctx.beginPath();
+   ctx.arc(dx, dy, d.sz, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ═══ LAYER 2: FREE-SWIMMERS — trail-based natural slithering ═══
+  const MAX_TRAIL = 120;
+  const maxSwimmers = lowPower ? 2 : 3 + Math.round(e * 8); // 3-8 depending on load
+  if (!this._swimmers) {
+   const rng = mulberry32(88);
+   this._swimmers = [];
+   for (let i = 0; i < 14; i++) {
+    const sx = rng() * W, sy = rng() * H, sa = rng() * 6.28;
+    const sSpeed = 0.2 + rng() * 0.3, sBodyLen = 50 + rng() * 20;
+    const trail = [];
+    for (let j = 0; j < MAX_TRAIL; j++) {
+     trail.push({
+      x: sx - Math.cos(sa) * j * (sSpeed * 60 / MAX_TRAIL),
+      y: sy - Math.sin(sa) * j * (sSpeed * 60 / MAX_TRAIL),
+     });
+    }
+    const hueOff = rng();
+    const swimParts = this._assignParts(rng);
+    this._swimmers.push({
+     x: sx, y: sy, angle: sa, phase: rng() * 6.28, driftPhase: rng() * 6.28,
+     size: 0.7 + rng() * 0.6, speed: sSpeed, swimFreq: 3 + rng() * 3,
+     bodyLen: sBodyLen, hueOff: hueOff, colorIdx: Math.min(Math.floor(hueOff * 6), 5),
+     targetX: rng() * W, targetY: rng() * H, turnTimer: 2 + rng() * 4,
+     trail: trail, active: true, age: 0, lifeSpan: 15 + rng() * 15, fadeAlpha: 1,
+     parts: swimParts,
+    });
+   }
+  }
+
+  const swimmers = this._swimmers;
+  const swimCount = Math.min(maxSwimmers, swimmers.length);
+
+  // Update — lifecycle, navigation, trail
+  for (let i = 0; i < swimCount; i++) {
+   const cr = swimmers[i];
+   cr.age += dt;
+   cr.fadeAlpha = 1;
+   if (cr.age < 2) cr.fadeAlpha = cr.age / 2;
+   const lifeRemaining = cr.lifeSpan - cr.age;
+   if (lifeRemaining < 3 && lifeRemaining > 0) cr.fadeAlpha = lifeRemaining / 3;
+   if (lifeRemaining <= 0) {
+    const rng2 = mulberry32(Math.floor(t * 1000 + i * 7));
+    cr.x = rng2() * W; cr.y = rng2() * H;
+    cr.angle = rng2() * 6.28;
+    cr.targetX = rng2() * W; cr.targetY = rng2() * H;
+    cr.age = 0; cr.lifeSpan = 15 + rng2() * 15; cr.fadeAlpha = 0;
+    cr.hueOff = rng2(); cr.colorIdx = Math.min(Math.floor(cr.hueOff * 6), 5);
+     cr.parts = this._assignParts(rng2);
+    for (let j = 0; j < MAX_TRAIL; j++) {
+     cr.trail[j] = {
+      x: cr.x - Math.cos(cr.angle) * j * (cr.speed * 60 / MAX_TRAIL),
+      y: cr.y - Math.sin(cr.angle) * j * (cr.speed * 60 / MAX_TRAIL),
+     };
+    }
+    continue;
+   }
+
+   // Wander toward target
+   const tdx = cr.targetX - cr.x, tdy = cr.targetY - cr.y;
+   const tDist = Math.hypot(tdx, tdy);
+   cr.turnTimer -= dt;
+   if (panic > 0) cr.turnTimer -= panic * dt * 2;
+   if (cr.turnTimer <= 0 || tDist < 40) {
+    cr.targetX = cx + (Math.random() * 2 - 1) * W * 0.38;
+    cr.targetY = cy + (Math.random() * 2 - 1) * H * 0.38;
+    cr.turnTimer = 2.5 + Math.random() * 3;
+   }
+   const tAngle = Math.atan2(tdy, tdx);
+   let angleDiff = tAngle - cr.angle;
+   while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+   while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+   const turnRate = (1.8 + e * 2 + panic * 3) * dt;
+   cr.angle += clamp(angleDiff, -turnRate, turnRate);
+   if (panic > 0 && Math.random() < 0.02) cr.angle += (Math.random() - 0.5) * panic * 0.5;
+   const speedMul = lowPower ? 0.4 : lerp(0.6, 3.0, e) * (1 + panic * Math.random() * 0.3);
+   cr.x += Math.cos(cr.angle) * cr.speed * speedMul * dt * 60;
+   cr.y += Math.sin(cr.angle) * cr.speed * speedMul * dt * 60;
+   cr.driftPhase += dt * 0.3;
+
+   const m = cr.bodyLen * 0.5;
+   if (cr.x < -m) cr.x = W + m; if (cr.x > W + m) cr.x = -m;
+   if (cr.y < -m) cr.y = H + m; if (cr.y > H + m) cr.y = -m;
+
+   cr.trail.unshift({x: cr.x, y: cr.y});
+   if (cr.trail.length > MAX_TRAIL) cr.trail.pop();
+  }
+
+  // Interaction: proximity glow + mutual steering
+  for (let i = 0; i < swimCount; i++) {
+   for (let j = i + 1; j < swimCount; j++) {
+    const a = swimmers[i], b = swimmers[j];
+    const dx = a.x - b.x, dy = a.y - b.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 140) {
+     const prox = 1 - dist / 140;
+     const nearGlow = prox * (0.12 + prox * 0.2) * (0.5 + 0.5 * e);
+     // Connection line
+     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+     ctx.strokeStyle = rgba(pal.accent, nearGlow * 0.3);
+     ctx.lineWidth = 1.5 + prox * 3; ctx.stroke();
+     // Midpoint glow
+     const amidX = (a.x + b.x) / 2, amidY = (a.y + b.y) / 2;
+     const connGrad = ctx.createRadialGradient(amidX, amidY, 0, amidX, amidY, 20 + prox * 20);
+     connGrad.addColorStop(0, toRgba(pal.accent, nearGlow));
+     connGrad.addColorStop(1, 'rgba(0,0,0,0)');
+     ctx.fillStyle = connGrad; ctx.beginPath();
+     ctx.arc(amidX, amidY, 20 + prox * 20, 0, Math.PI * 2); ctx.fill();
+     // Mutual steering
+     const steerA = Math.atan2(b.y - a.y, b.x - a.x);
+     let diffA = steerA - a.angle;
+     while (diffA > Math.PI) diffA -= Math.PI * 2;
+     while (diffA < -Math.PI) diffA += Math.PI * 2;
+     a.angle += diffA * dt * 0.7 * prox;
+     const steerB = Math.atan2(a.y - b.y, a.x - b.x);
+     let diffB = steerB - b.angle;
+     while (diffB > Math.PI) diffB -= Math.PI * 2;
+     while (diffB < -Math.PI) diffB += Math.PI * 2;
+     b.angle += diffB * dt * 0.7 * prox;
+    }
+   }
+  }
+
+  // Render swimmers
+  const numColors = e > 0.5 ? 6 : 3;
+  for (let i = 0; i < swimCount; i++) {
+   const cr = swimmers[i];
+   const fade = cr.fadeAlpha;
+   const trail = cr.trail;
+   const trailLen = trail.length;
+   if (trailLen < 3) continue;
+
+   // Color: richer palette under heavy load
+   const colorSet = this._SWIMMER_COLORS[cr.colorIdx % numColors];
+   const activityCol = lerpRgb(colorSet[0], colorSet[1], e * 0.4);
+   const vibrancy = e > 0.5 ? clamp((e - 0.5) * 2, 0, 1) : 0;
+   const vividCol = lerpRgb(activityCol,
+    lerpRgb({r:0xFF,g:0x80,b:0xFF}, {r:0xFF,g:0x60,b:0x80}, Math.sin(cr.phase + t * 0.3) * 0.5 + 0.5),
+    vibrancy * 0.4);
+   const heatShift = panic > 0
+    ? {r: Math.round(vividCol.r + (255 - vividCol.r) * panic * 0.3),
+       g: Math.round(vividCol.g * (1 - panic * 0.4)),
+       b: Math.round(vividCol.b * (1 - panic * 0.4))}
+    : vividCol;
+
+   // Build body from trail — the trail captures the ACTUAL path the head traveled,
+   // so the body follows naturally with zero mechanical pivot
+   const segs = 20;
+   const pts = [];
+   const step = Math.max(1, (trailLen - 1) / (segs - 1));
+   for (let si = 0; si < segs; si++) {
+    const idx = Math.round(si * step);
+    const safeIdx = Math.min(idx, trailLen - 1);
+    const pt = trail[safeIdx];
+    // Perpendicular to local trail direction for sine undulation
+    const prevIdx = Math.max(0, safeIdx - 1);
+    const nextIdx = Math.min(trailLen - 1, safeIdx + 1);
+    const dirX = trail[nextIdx].x - trail[prevIdx].x;
+    const dirY = trail[nextIdx].y - trail[prevIdx].y;
+    const dirLen = Math.hypot(dirX, dirY) || 0.001;
+    const perpX = -dirY / dirLen;
+    const perpY = dirX / dirLen;
+    // Traveling sine wave increases toward tail
+    const waveAmp = cr.size * 5 * cr.speed * (si / (segs - 1));
+    const wave = Math.sin(t * cr.swimFreq * 3 - si * 0.7 + cr.phase + cr.driftPhase * 2) * waveAmp;
+    pts.push({x: pt.x + perpX * wave, y: pt.y + perpY * wave});
+   }
+
+   // ── Wake (fading trail glow) ──
+   const wakeStep = Math.max(1, Math.floor(trailLen / 30));
+   for (let wi = trailLen - 1; wi >= 0; wi -= wakeStep) {
+    const f = wi / trailLen;
+    const wakeA = fade * (1 - f) * 0.04 * (0.5 + 0.5 * e);
+    if (wakeA < 0.001) continue;
+    const wakeR = cr.size * lerp(0.5, 1.5, f) * (0.5 + 0.5 * e);
+    ctx.fillStyle = rgba(heatShift, wakeA);
+    ctx.beginPath(); ctx.arc(trail[wi].x, trail[wi].y, wakeR, 0, Math.PI * 2); ctx.fill();
+   }
+
+   // ── Body: smooth bezier path ──
+   ctx.beginPath();
+   ctx.moveTo(pts[0].x, pts[0].y);
+   for (let k = 1; k < pts.length; k++) {
+    const p0 = pts[k - 1], p1 = pts[k];
+    ctx.quadraticCurveTo(p0.x, p0.y, (p0.x + p1.x) / 2, (p0.y + p1.y) / 2);
+   }
+   ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+   const panicFlicker = panic > 0 ? (0.7 + 0.3 * Math.sin(t * 12 + i * 3)) : 1;
+   const bodyAlpha = fade * lerp(0.5, 0.9, e) * (0.6 + 0.4 * (1 - e * s.inferenceLoad)) * panicFlicker;
+   const activity = s.isProcessing ? (1 + e * 0.5) : 1;
+
+   // 3-layer glow body
+   ctx.save(); ctx.strokeStyle = rgba(heatShift, bodyAlpha * 0.1);
+   ctx.lineWidth = cr.size * 10 * activity; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore();
+   ctx.save(); ctx.strokeStyle = rgba(heatShift, bodyAlpha * 0.25);
+   ctx.lineWidth = cr.size * 5 * activity; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore();
+   ctx.save(); ctx.strokeStyle = rgba(lerpRgb(heatShift, {r:0xFF,g:0xFF,b:0xFF}, 0.25), bodyAlpha * 0.85);
+   ctx.lineWidth = Math.max(1.2, cr.size * 2.2 * activity); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore();
+
+   
+   // ── Body parts (legs, flagella, pili, mandibles, antennae) ──
+   if (cr.parts) {
+    for (let pi = 0; pi < cr.parts.length; pi++) {
+     const pDef = cr.parts[pi];
+     const def = this._BODY_PARTS[pDef.defIdx];
+     if (def) def.render(ctx, pts, pDef.side, pDef, t, cr, pal, heatShift);
+    }
+   }
+
+   // Head glow
+   const headSz = 3.5 * cr.size * activity;
+   const headGrad = ctx.createRadialGradient(pts[0].x, pts[0].y, 0, pts[0].x, pts[0].y, headSz * 4);
+   headGrad.addColorStop(0, toRgba(lerpRgb(pal.accent, {r:0xFF,g:0xFF,b:0xFF}, 0.5), bodyAlpha * 0.9 * fade * (panic > 0 ? (0.7 + 0.3 * Math.sin(t * 12 + i * 3)) : 1)));
+   headGrad.addColorStop(0.5, toRgba(pal.accent, bodyAlpha * 0.2 * fade));
+   headGrad.addColorStop(1, 'rgba(0,0,0,0)');
+   ctx.fillStyle = headGrad; ctx.beginPath();
+   ctx.arc(pts[0].x, pts[0].y, headSz * 4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ═══ LAYER 3: PLANKTON (nano + micro) ═══
+  if (!this._plankton) {
+   const rng = mulberry32(42); const p = [];
+   for (let i = 0; i < 25; i++) {
+    p.push({type:'nano', ax:rng()*W, ay:rng()*H, phase:rng()*6.28,
+     sz:0.7+rng()*1, depth:0.1+rng()*0.2, driftX:(rng()-0.5)*0.4, driftY:(rng()-0.5)*0.3});
+   }
+   for (let i = 0; i < 16; i++) {
+    p.push({type:'micro', ax:rng()*W, ay:rng()*H, phase:rng()*6.28,
+     sz:1.5+rng()*2.5, depth:0.3+rng()*0.3, driftX:(rng()-0.3)*0.5, driftY:(rng()-0.5)*0.4,
+     trailLen:0.3+rng()*0.4});
+   }
+   this._plankton = p;
+  }
+  const plankSpeed = lowPower ? 0.2 : lerp(0.3, 1.2, e);
+  const curDX = 0.3, curDY = -0.05;
+  const plankPos = this._plankton.map(p => ({
+   x: p.ax + Math.sin(t * plankSpeed * 0.4 + p.phase * 1.3) * p.driftX * W * 0.1 + t * curDX * W * 0.04,
+   y: p.ay + Math.sin(t * plankSpeed * 0.35 + p.phase * 0.9) * p.driftY * H * 0.1 + t * curDY * H * 0.02,
+  }));
+  for (let i = 0; i < this._plankton.length; i++) {
+   const p = this._plankton[i], pos = plankPos[i];
+   const breathe = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 1.5 + p.phase));
+   if (p.type === 'nano') {
+    ctx.fillStyle = rgba(pal.primary, 0.06 * breathe * (1 + e * 0.5));
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, p.sz, 0, Math.PI * 2); ctx.fill();
+   } else if (p.type === 'micro') {
+    const ma = clamp(0.4 * breathe * (0.4 + e * 0.6), 0, 0.8);
+    const szM = p.sz * (1 + e * 0.3);
+    const tDirX = Math.cos(t * plankSpeed * 0.4 + p.phase * 1.3) * p.driftX;
+    const tDirY = Math.cos(t * plankSpeed * 0.35 + p.phase * 0.9) * p.driftY;
+    const tailLen2 = p.trailLen * 30;
+    // Comet trail
+    const tailGrad = ctx.createRadialGradient(
+     pos.x - tDirX * tailLen2 * 2, pos.y - tDirY * tailLen2 * 2, 0,
+     pos.x - tDirX * tailLen2 * 2, pos.y - tDirY * tailLen2 * 2, szM * 0.8);
+    tailGrad.addColorStop(0, toRgba(pal.primary, ma * 0.3));
+    tailGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = tailGrad; ctx.beginPath();
+    ctx.arc(pos.x - tDirX * tailLen2 * 2, pos.y - tDirY * tailLen2 * 2, szM * 0.8, 0, Math.PI * 2); ctx.fill();
+    // Outer glow
+    const glowGrad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, szM * 3.5);
+    glowGrad.addColorStop(0, toRgba(pal.primary, ma * 0.25));
+    glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glowGrad; ctx.beginPath(); ctx.arc(pos.x, pos.y, szM * 3.5, 0, Math.PI * 2); ctx.fill();
+    // Core
+    ctx.fillStyle = rgba(lerpRgb(pal.primary, {r:0xC8,g:0xFF,b:0xF0}, 0.3), ma * 0.8);
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, szM, 0, Math.PI * 2); ctx.fill();
+   }
+  }
+
+  // ═══ LAYER 4: CAUSTIC SHIMMER BURSTS ═══
+  if (!lowPower) {
+   const emitGap = e > 0.7 ? lerp(0.6, 0.3, 1) :
+    e > 0.3 ? lerp(3, 1.5, (e - 0.3) / 0.4) :
+    s.isProcessing ? lerp(5, 3, e * 3) : 8;
+   if (t - this._lastShimmer > emitGap) {
+    const burstCount = 2 + Math.round(e * 3);
+    for (let i = 0; i < burstCount; i++) {
+     this._shimmers.push({born: t,
+      x: (0.1 + Math.random() * 0.8) * W, y: (0.1 + Math.random() * 0.7) * H,
+      hot: e * (0.6 + Math.random() * 0.4), phase: Math.random() * 6.28});
+    }
+    this._lastShimmer = t;
+    if (e > 0.6 && t - this._lastCascade > 0.5) {
+     for (let i = 0; i < 2; i++) {
+      this._shimmers.push({born: t,
+       x: (0.1 + Math.random() * 0.8) * W, y: (0.1 + Math.random() * 0.5) * H,
+       hot: e * 0.5, phase: Math.random() * 6.28});
+     }
+     this._lastCascade = t;
+    }
+   }
+   while (this._shimmers.length && t - this._shimmers[0].born >= 1.2) this._shimmers.shift();
+   for (const s of this._shimmers) {
+    const age = (t - s.born) / 1.2;
+    const rad = lerp(W * 0.03, W * 0.25, age) * (0.7 + s.hot * 0.3);
+    const alpha = (1 - age) * 0.15 * s.hot;
+    const shGrad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rad);
+    shGrad.addColorStop(0, toRgba(lerpRgb(pal.accent, {r:0xFF,g:0xF8,b:0xF0}, 0.5), alpha));
+    shGrad.addColorStop(0.5, toRgba(pal.primary, alpha * 0.4));
+    shGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shGrad; ctx.beginPath(); ctx.arc(s.x, s.y, rad, 0, Math.PI * 2); ctx.fill();
+    // Secondary caustic lens
+    const offX = Math.cos(s.phase + t * 0.6) * rad * 0.25;
+    const offY = Math.sin(s.phase + t * 1.2) * rad * 0.2;
+    const shGrad2 = ctx.createRadialGradient(s.x + offX, s.y + offY, 0, s.x + offX, s.y + offY, rad * 0.4);
+    shGrad2.addColorStop(0, toRgba(pal.accent, alpha * 0.35));
+    shGrad2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shGrad2; ctx.beginPath();
+    ctx.arc(s.x + offX, s.y + offY, rad * 0.4, 0, Math.PI * 2); ctx.fill();
+   }
+   // Deep queue shimmer field
+   if (s.queueDepth > 10) {
+    const qbAlpha = clamp(s.queueDepth / 20, 0, 1) * 0.06;
+    const qbGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rMax * 0.35);
+    qbGrad.addColorStop(0, toRgba(pal.accent, qbAlpha));
+    qbGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = qbGrad; ctx.beginPath(); ctx.arc(cx, cy, rMax * 0.35, 0, Math.PI * 2); ctx.fill();
+   }
+  }
+
+  // ═══ LAYER 6: OVERLAYS ═══
+  if (s.isCharging && !lowPower) {
+   const chgA = 0.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 2));
+   const chgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rMax * 0.9);
+   chgGrad.addColorStop(0, 'rgba(34,197,94,0)');
+   chgGrad.addColorStop(1, rgba({r:0x22,g:0xC5,b:0x5E}, chgA));
+   ctx.fillStyle = chgGrad; ctx.fillRect(0, 0, W, H);
+  }
+  if (!s.isHealthy) {
+   const pulseAlpha = 0.08 + 0.12 * (0.5 + 0.5 * Math.sin(t * 3));
+   ctx.fillStyle = rgba({ r: 255, g: 70, b: 70 }, pulseAlpha);
+   ctx.fillRect(0, 0, W, H);
+  }
+ },
+
+ _palette(e, isHealthy, isCharging, batteryLevel, batteryTemperature) {
+  const idleP = {r:0x38,g:0xF8,b:0xC8}; const idleA = {r:0x60,g:0xF0,b:0xFF}; const idleBgC = {r:0x0A,g:0x18,b:0x20}; const idleBg = {r:0x04,g:0x0B,b:0x0F};
+  const hotP = {r:0x22,g:0xE9,b:0xA8}; const hotA = {r:0xFF,g:0xE0,b:0x66}; const hotBgC = {r:0x0F,g:0x1E,b:0x1A}; const hotBg = {r:0x09,g:0x15,b:0x14};
+  const tempT = clamp((batteryTemperature - 35) / 10, 0, 1);
+  const warmP = lerpRgb(idleP, {r:0xEA,g:0xB3,b:0x08}, tempT);
+  const warmA = lerpRgb(idleA, {r:0xFF,g:0x5A,b:0x5A}, tempT);
+  const realP = batteryTemperature > 42 ? lerpRgb(warmP, {r:0xEF,g:0x44,b:0x44}, clamp((batteryTemperature - 42) / 6, 0, 1)) : warmP;
+  const realA = batteryTemperature > 42 ? lerpRgb(warmA, {r:0xEF,g:0x44,b:0x44}, clamp((batteryTemperature - 42) / 6, 0, 1)) : warmA;
+  const dim = 1 - (20 - batteryLevel) / 20 * 0.7;
+  let battP = realP, battA = realA, battBg = hotBg, battBgC = hotBgC;
+  if (batteryLevel < 20 && !isCharging) {
+   battP = {r:Math.round(0x1A*dim),g:Math.round(0x4C*dim),b:Math.round(0x78*dim)};
+   battA = {r:Math.round(0x1A*dim),g:Math.round(0x3A*dim),b:Math.round(0x5C*dim)};
+   battBg = {r:0x02,g:0x06,b:0x08}; battBgC = {r:0x04,g:0x08,b:0x10};
+  }
+  if (!isHealthy) {
+   return { primary: lerpRgb(battP, {r:0xEF,g:0x44,b:0x44}, 0.6),
+    accent: {r:0xEF,g:0x44,b:0x44}, bgCenter: {r:0x14,g:0x06,b:0x08}, bg: {r:0x0A,g:0x03,b:0x04} };
+  }
+  return { primary: lerpRgb(battP, hotP, e), accent: lerpRgb(battA, hotA, e),
+   bgCenter: lerpRgb(battBgC, hotBgC, e), bg: battBg };
+ },
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  EFFLORESCENT — game layer grown on top of the seed above.
+//  Everything visual routes back through the seed: organ renderers
+//  come from BioluminescentDreamscape._BODY_PARTS, colors from
+//  _SWIMMER_COLORS, and the culture palette generalizes _palette().
+// ════════════════════════════════════════════════════════════════
+const TAU = Math.PI * 2;
+const SEED = BioluminescentDreamscape;
+const WHITE = { r: 255, g: 255, b: 255 };
+const RED = { r: 0xEF, g: 0x44, b: 0x44 };
+const rand = Math.random;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const angWrap = a => { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; };
+const toHex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+const $ = id => document.getElementById(id);
+
+// ── Organs & tiers ──────────────────────────────────────────────
+const PART_TYPES = ['leg', 'flagella', 'pili', 'mandible', 'antenna'];
+const ORGANS = {
+  leg:      { name: 'Legs',      verb: 'Stride',  glyph: 'L', role: 'Armor · grip',
+              tiers: ['Cilia-feet', 'Striders', 'Grapplers', 'Bastion Limbs'],
+              fx: ['+22 HP', '+34 HP, sturdier stroke', '+46 HP, 4-seg limbs', '+58 HP, 5-seg limbs'] },
+  flagella: { name: 'Flagella',  verb: 'Current', glyph: 'F', role: 'Speed · pursuit',
+              tiers: ['Whiptail', 'Undulant', 'Longwhip', 'Riptail'],
+              fx: ['+16 speed', '+23 speed', '+29 speed', '+36 speed'] },
+  pili:     { name: 'Pili',      verb: 'Grasp',   glyph: 'P', role: 'Harvest · cargo',
+              tiers: ['Fuzz', 'Combs', 'Siphon-fronds', 'Lumen Weave'],
+              fx: ['4 lumen/s, 14 cargo', '6.4/s, 21 cargo', '8.8/s, 29 cargo', '11/s, 36 cargo'] },
+  mandible: { name: 'Mandibles', verb: 'Bite',    glyph: 'M', role: 'Damage · reach',
+              tiers: ['Nippers', 'Shears', 'Crushers', 'Maw of Ends'],
+              fx: ['5 bite/s, reach 14', '8.3/s, reach 18', '11.6/s, reach 22', '14.9/s, reach 27'] },
+  antenna:  { name: 'Antennae',  verb: 'Sense',   glyph: 'A', role: 'Detection · range',
+              tiers: ['Feelers', 'Whisper-stalks', 'Resonants', 'Choir-horns'],
+              fx: ['+30 sense', '+48 sense', '+66 sense', '+84 sense'] },
+};
+const TIER_V = [0, 3, 6, 9];
+const RESEARCH_COST = [60, 120, 200];
+const RESEARCH_TIME = [8, 12, 18];
+function partDef(type, v) { return SEED._BODY_PARTS[PART_TYPES.indexOf(type) * 10 + clamp(Math.round(v), 0, 9)]; }
+function tierOfV(v) { return Math.min(3, Math.floor(v / 3)); }
+
+const CHIMERAS = [
+  { name: 'Leech-grip', from: 'Pili + Mandibles', text: 'Bites drain lumen into the attacker’s cargo. Umbral Kin favorite.' },
+  { name: 'Echo-sprint', from: 'Flagella + Antennae', text: 'Burst of speed toward the last thing sensed. Ambush closer.' },
+  { name: 'Tidal Anchor', from: 'Legs + Flagella', text: 'Holds position in currents; immune to knockback and drift.' },
+  { name: 'Siege-maw', from: 'Legs + Mandibles', text: 'Triple damage against nuclei, slow and ponderous.' },
+  { name: 'Deep Tap', from: 'Antennae + Pili', text: 'Reveals Spore beds and enemy pool yields through the Murk.' },
+];
+
+// ── The six cultures (colors straight from _SWIMMER_COLORS) ─────
+const T_FORAGER = { name: 'Forager', role: 'harvest', parts: ['pili', 'flagella'] };
+const T_WARDEN  = { name: 'Warden', parts: ['mandible', 'leg'] };
+const BASE_MODS = { hp: 1, speed: 1, attack: 1, harvest: 1, sense: 1, cost: 1, hatch: 1, research: 1 };
+const CULTURES = [
+  { id: 'verdant', name: 'The Verdant Strain', epithet: 'Gardeners of the Drift', spec: 'Economy',
+    blurb: 'Patient tenders of the light. Their creatures are furred in pili and drink from caustic pools faster than anyone else, but they fight badly. They win through tempo and territory: out-grow, out-research, then drown the enemy in bodies.',
+    rule: 'Harvest ×1.5 · Pili start at tier II · Bite ×0.8', mods: { harvest: 1.5, attack: 0.8 }, affinity: 'pili',
+    signature: { name: 'Tender', role: 'harvest', parts: ['pili', 'pili', 'leg', 'flagella'] }, pressures: ['umbral', 'choir'] },
+  { id: 'luminant', name: 'The Luminants', epithet: 'Keepers of the Gold Spore', spec: 'Generalist · Tech',
+    blurb: 'The emerald-and-gold culture with no glaring weakness. The gold accent is their signature: in the full game it marks Spore, the currency of chimeras. Here it shows as a gift for evolution.',
+    rule: 'Research ×0.6 cost and time', mods: { research: 0.6 }, affinity: null,
+    signature: { name: 'Lantern', parts: ['mandible', 'antenna', 'leg', 'flagella'] }, pressures: ['current', 'choir'] },
+  { id: 'current', name: 'The Current-born', epithet: 'Riders of the Long Water', spec: 'Mobility · Raids',
+    blurb: 'Ocean-blue whips of motion. They are fast, fragile and never where you left them. Current-born punish greedy economies by raiding foragers, but they lose any fight they are forced to stand in.',
+    rule: 'Speed ×1.4 · Flagella start at tier II · HP ×0.8', mods: { speed: 1.4, hp: 0.8 }, affinity: 'flagella',
+    signature: { name: 'Lancer', parts: ['flagella', 'mandible', 'flagella'] }, pressures: ['verdant', 'umbral'] },
+  { id: 'choir', name: 'The Deep Choir', epithet: 'Listeners in the Dark', spec: 'Sensing · Ambush',
+    blurb: 'Violet singers with long antennae that hear everything. Enemies cannot see a Choir creature until it comes within 55px, and its first bites from hiding land twice as hard.',
+    rule: 'Sense ×1.6 · Unseen beyond 55px · Ambush 2× bite', mods: { sense: 1.6 }, affinity: 'antenna', stealth: true,
+    signature: { name: 'Cantor', parts: ['antenna', 'antenna', 'mandible'] }, pressures: ['current', 'bloom'] },
+  { id: 'umbral', name: 'The Umbral Kin', epithet: 'The Tethered Hunger', spec: 'Parasitism · Conversion',
+    blurb: 'A deep purple parasite culture. They don’t so much kill their enemies as recruit them: an Umbral bite leaves a tether, and a creature that dies tethered often gets back up in purple.',
+    rule: '35% of kills convert to Umbral · Pili start at tier II', mods: { harvest: 0.9 }, affinity: 'pili', convert: 0.35,
+    signature: { name: 'Tether', parts: ['pili', 'mandible', 'antenna'] }, pressures: ['bloom', 'luminant'] },
+  { id: 'bloom', name: 'The Bloomtide', epithet: 'The Brief and Burning', spec: 'Aggression · Swarm',
+    blurb: 'Pink, fast-hatching and short-lived. Bloomtide organisms are cheap, vicious and gone within eighty seconds. The seed’s own lifespan fade becomes their clock. They have to win early or not at all.',
+    rule: 'Cost ×0.6 · Hatch ×0.6 · Bite ×1.25 · Live 80s', mods: { cost: 0.6, hatch: 0.6, attack: 1.25 }, affinity: 'mandible', lifespan: 80, cap: 32,
+    signature: { name: 'Petalmaw', parts: ['mandible', 'mandible', 'leg'] }, pressures: ['verdant', 'luminant'] },
+];
+CULTURES.forEach((c, i) => {
+  c.idx = i;
+  c.colors = SEED._SWIMMER_COLORS[i];
+  c.mods = Object.assign({}, BASE_MODS, c.mods);
+  c.templates = [T_FORAGER, T_WARDEN, c.signature];
+  c.hex = c.colors.map(toHex);
+});
+const cultById = id => CULTURES.find(c => c.id === id);
+
+// ── Stats from anatomy ──────────────────────────────────────────
+// parts: [{type, v}]
+function computeStats(parts, cult) {
+  const m = cult ? cult.mods : BASE_MODS;
+  const s = { hp: 40, speed: 46, dps: 1.2, range: 10, harvest: 0, cargo: 0, sense: 110, cost: 18, hatch: 2.2, size: 0.75 };
+  for (const p of parts) {
+    const v = p.v;
+    if (p.type === 'leg') { s.hp += 22 + v * 4; s.speed += 4; s.size += 0.05; }
+    else if (p.type === 'flagella') s.speed += 16 + v * 2.2;
+    else if (p.type === 'pili') { s.harvest += 4 + v * 0.8; s.cargo += 14 + v * 2.5; }
+    else if (p.type === 'mandible') { s.dps += 5 + v * 1.1; s.range = Math.max(s.range, 14 + v * 1.4); }
+    else if (p.type === 'antenna') s.sense += 30 + v * 6;
+    s.cost += 14 + v * 2; s.hatch += 0.5; s.size += 0.06;
+  }
+  s.hp *= m.hp; s.speed *= m.speed; s.dps *= m.attack; s.harvest *= m.harvest; s.sense *= m.sense;
+  s.cost = Math.round(s.cost * m.cost); s.hatch *= m.hatch;
+  s.lifespan = cult && cult.lifespan || 0;
+  return s;
+}
+function roleOf(parts, s) {
+  const count = t => parts.filter(p => p.type === t).length;
+  if (count('pili') && s.harvest >= 6 && count('mandible') === 0) return ['Harvester', 'gathers lumen'];
+  const scores = [
+    ['Brawler', 'bites hard', (s.dps - 1.2) / 8],
+    ['Bulwark', 'holds the line', (s.hp - 40) / 60],
+    ['Skirmisher', 'strikes and runs', (s.speed - 46) / 34],
+    ['Seeker', 'finds the hidden', (s.sense - 110) / 70],
+    ['Harvester', 'gathers lumen', s.harvest / 7],
+  ].sort((a, b) => b[2] - a[2]);
+  if (scores[0][2] <= 0) return ['Drifter', 'a bare spine'];
+  if (scores[1][2] > scores[0][2] * 0.8 && scores[1][2] > 0.3) return [scores[0][0] + '-' + scores[1][0].toLowerCase(), 'a hybrid body plan'];
+  return [scores[0][0], scores[0][1]];
+}
+function sidesFor(types) {
+  const seen = {};
+  return types.map(t => { seen[t] = (seen[t] || 0) + 1; return seen[t] % 2 ? 1 : -1; });
+}
+function makeParts(types, vs) {
+  const sides = sidesFor(types);
+  return types.map((type, i) => ({ type, side: sides[i], v: vs ? vs[i] : 0, speed: 0.8 + rand() * 0.4, phase: rand() * TAU }));
+}
+
+// ── Palette: _palette() generalized to any culture ─────────────
+const feverToTemp = f => 33 + f * 15;
+function culturePalette(cult, e, fever, reserves, blighted) {
+  const [c0, c1] = cult.colors;
+  const idleP = c0, idleA = c1;
+  const hotP = lerpRgb(c0, c1, 0.3), hotA = lerpRgb(c1, WHITE, 0.3);
+  const temp = feverToTemp(fever);
+  const tempT = clamp((temp - 35) / 10, 0, 1);
+  let P = lerpRgb(lerpRgb(idleP, hotP, e), { r: 0xEA, g: 0xB3, b: 0x08 }, tempT);
+  let A = lerpRgb(lerpRgb(idleA, hotA, e), { r: 0xFF, g: 0x5A, b: 0x5A }, tempT);
+  if (temp > 42) { const k = clamp((temp - 42) / 6, 0, 1); P = lerpRgb(P, RED, k); A = lerpRgb(A, RED, k); }
+  let bgC = lerpRgb({ r: 0x06, g: 0x12, b: 0x18 }, c0, 0.06 + 0.03 * e);
+  let bg = lerpRgb({ r: 0x03, g: 0x08, b: 0x0B }, c0, 0.025);
+  const starve = clamp((20 - reserves) / 20, 0, 1);
+  if (starve > 0) {
+    const dim = 1 - starve * 0.7;
+    P = lerpRgb(P, { r: 0x1A * dim, g: 0x4C * dim, b: 0x78 * dim }, starve);
+    A = lerpRgb(A, { r: 0x1A * dim, g: 0x3A * dim, b: 0x5C * dim }, starve);
+    bg = lerpRgb(bg, { r: 2, g: 6, b: 8 }, starve); bgC = lerpRgb(bgC, { r: 4, g: 8, b: 16 }, starve);
+  }
+  if (blighted) { P = lerpRgb(P, RED, 0.6); A = RED; bgC = lerpRgb(bgC, { r: 0x14, g: 6, b: 8 }, 0.7); bg = lerpRgb(bg, { r: 0x0A, g: 3, b: 4 }, 0.7); }
+  const panic = temp > 38 ? clamp((temp - 38) / 10, 0, 1) : 0;
+  return { primary: P, accent: A, bgCenter: bgC, bg, panic, starve, blighted, e };
+}
+// Per-creature body color, following the seed's swimmer color pipeline
+function creatureColor(cult, pal, indiv, phase, t) {
+  const [c0, c1] = cult.colors;
+  const e = pal.e;
+  let c = lerpRgb(c0, c1, e * 0.4 + indiv * 0.25);
+  const vibrancy = e > 0.5 ? clamp((e - 0.5) * 2, 0, 1) : 0;
+  if (vibrancy > 0) c = lerpRgb(c, lerpRgb({ r: 0xFF, g: 0x80, b: 0xFF }, { r: 0xFF, g: 0x60, b: 0x80 }, Math.sin(phase + t * 0.3) * 0.5 + 0.5), vibrancy * 0.15);
+  const panic = pal.panic;
+  if (panic > 0) c = { r: c.r + (255 - c.r) * panic * 0.3, g: c.g * (1 - panic * 0.4), b: c.b * (1 - panic * 0.4) };
+  if (pal.starve > 0) c = lerpRgb(c, pal.primary, pal.starve * 0.8);
+  if (pal.blighted) c = lerpRgb(c, RED, 0.45);
+  return c;
+}
+
+// ── Creatures: the seed's trail-body, sampled by distance ──────
+function makeCreature(x, y, angle, o) {
+  const spacing = 2;
+  const n = Math.max(12, Math.round((o.bodyLen || 50) / spacing));
+  const trail = [];
+  for (let j = 0; j < n; j++) trail.push({ x: x - Math.cos(angle) * j * spacing, y: y - Math.sin(angle) * j * spacing });
+  return { x, y, angle, trail, spacing, size: o.size || 1, parts: o.parts || [],
+    phase: rand() * TAU, driftPhase: rand() * TAU, swimFreq: 3 + rand() * 3, undul: 0.3 + rand() * 0.15,
+    indiv: rand(), targetX: x, targetY: y, turnTimer: rand() * 3, fade: 1 };
+}
+function advanceTrail(cr) {
+  const tr = cr.trail;
+  let h = tr[0], dx = cr.x - h.x, dy = cr.y - h.y, d = Math.hypot(dx, dy);
+  if (d > 200) { for (const p of tr) { p.x = cr.x; p.y = cr.y; } return; }
+  while (d >= cr.spacing) {
+    const f = cr.spacing / d;
+    h = { x: h.x + dx * f, y: h.y + dy * f };
+    tr.unshift(h); tr.pop();
+    dx = cr.x - h.x; dy = cr.y - h.y; d = Math.hypot(dx, dy);
+  }
+}
+function buildPts(cr, t) {
+  const tr = cr.trail, n = tr.length, segs = 20, pts = [];
+  const step = (n - 1) / (segs - 1);
+  for (let si = 0; si < segs; si++) {
+    const idx = Math.min(n - 1, Math.round(si * step));
+    const pt = tr[idx];
+    const pv = tr[Math.max(0, idx - 1)], nx = tr[Math.min(n - 1, idx + 1)];
+    const dx = nx.x - pv.x, dy = nx.y - pv.y, dl = Math.hypot(dx, dy) || 0.001;
+    const waveAmp = cr.size * 5 * cr.undul * (si / (segs - 1));
+    const wave = Math.sin(t * cr.swimFreq * 3 - si * 0.7 + cr.phase + cr.driftPhase * 2) * waveAmp;
+    pts.push({ x: pt.x + (-dy / dl) * wave, y: pt.y + (dx / dl) * wave });
+  }
+  return pts;
+}
+// Mirrors the seed's per-swimmer draw: wake → 3-layer glow body → organs → head glow.
+function drawCreature(ctx, cr, pts, o) {
+  const { hc, pal, t, vOf } = o;
+  const alpha = o.alpha, activity = o.activity || 1, flicker = o.flicker || 1;
+  const tr = cr.trail, n = tr.length, ws = Math.max(1, Math.floor(n / 12));
+  for (let wi = n - 1; wi >= 0; wi -= ws) {
+    const f = wi / n, a = alpha * (1 - f) * 0.05;
+    ctx.fillStyle = rgba(hc, a); ctx.beginPath();
+    ctx.arc(tr[wi].x, tr[wi].y, cr.size * lerp(0.5, 1.5, f) * 1.4, 0, TAU); ctx.fill();
+  }
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for (let k = 1; k < pts.length; k++) {
+    const p0 = pts[k - 1], p1 = pts[k];
+    ctx.quadraticCurveTo(p0.x, p0.y, (p0.x + p1.x) / 2, (p0.y + p1.y) / 2);
+  }
+  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+  const ba = alpha * flicker;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = rgba(hc, ba * 0.1); ctx.lineWidth = cr.size * 10 * activity; ctx.stroke();
+  ctx.strokeStyle = rgba(hc, ba * 0.25); ctx.lineWidth = cr.size * 5 * activity; ctx.stroke();
+  ctx.strokeStyle = rgba(lerpRgb(hc, WHITE, 0.25), ba * 0.85); ctx.lineWidth = Math.max(1.2, cr.size * 2.2 * activity); ctx.stroke();
+  const ga = ctx.globalAlpha;
+  ctx.globalAlpha = ga * clamp(alpha * 1.15, 0, 1);
+  for (const p of cr.parts) {
+    const def = partDef(p.type, vOf ? vOf(p) : p.v);
+    if (def) def.render(ctx, pts, p.side, p, t, cr, pal, hc);
+  }
+  ctx.globalAlpha = ga;
+  const headSz = 3.5 * cr.size * activity;
+  const hg = ctx.createRadialGradient(pts[0].x, pts[0].y, 0, pts[0].x, pts[0].y, headSz * 4);
+  hg.addColorStop(0, rgba(lerpRgb(pal.accent, WHITE, 0.5), ba * 0.9));
+  hg.addColorStop(0.5, rgba(pal.accent, ba * 0.2));
+  hg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, headSz * 4, 0, TAU); ctx.fill();
+}
+function drawAbyss(ctx, W, H, pal, t) {
+  const cx = W / 2, cy = H / 2, rMax = Math.hypot(W, H);
+  const g = ctx.createRadialGradient(cx, cy * 0.9, 0, cx, cy * 0.9, rMax * 0.8);
+  g.addColorStop(0, rgba(pal.bgCenter, 1)); g.addColorStop(0.5, rgba(pal.bg, 1));
+  g.addColorStop(0.85, rgba(pal.bg, 0.7)); g.addColorStop(1, 'rgba(0,0,0,1)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const sf = ctx.createLinearGradient(0, 0, 0, H * 0.35);
+  sf.addColorStop(0, rgba(lerpRgb(pal.primary, { r: 0x82, g: 0xFF, b: 0xF0 }, 0.3), 0.03 + 0.03 * (0.5 + 0.5 * Math.sin(t * 0.7))));
+  sf.addColorStop(0.5, rgba(pal.bgCenter, 0.02)); sf.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sf; ctx.fillRect(0, 0, W, H * 0.35);
+}
+function makeDust(W, H, n, seed) {
+  const rng = mulberry32(seed), d = [];
+  for (let i = 0; i < n; i++) d.push({ x: rng() * W, y: rng() * H, phase: rng() * 6.28, sz: 0.6 + rng() * 1.3, depth: rng(), dx: rng() * W * 0.05, dy: rng() * H * 0.05 });
+  return d;
+}
+function drawDust(ctx, dust, pal, t) {
+  for (const d of dust) {
+    const x = d.x + Math.sin(t * (0.12 + d.depth * 0.2) + d.phase * 1.1) * d.dx;
+    const y = d.y + Math.sin(t * (0.1 + d.depth * 0.15) + d.phase * 0.8) * d.dy;
+    ctx.fillStyle = rgba(pal.primary, 0.2 + 0.3 * (1 - d.depth)); ctx.beginPath(); ctx.arc(x, y, d.sz, 0, TAU); ctx.fill();
+  }
+}
+// Proximity glow between swimmers, as in the seed's interaction pass
+function drawBond(ctx, a, b, pal, d, maxD, e) {
+  const prox = 1 - d / maxD, g = prox * (0.12 + prox * 0.2) * (0.5 + 0.5 * e);
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+  ctx.strokeStyle = rgba(pal.accent, g * 0.3); ctx.lineWidth = 1.5 + prox * 3; ctx.stroke();
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, r = 14 + prox * 14;
+  const cg = ctx.createRadialGradient(mx, my, 0, mx, my, r);
+  cg.addColorStop(0, rgba(pal.accent, g)); cg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(mx, my, r, 0, TAU); ctx.fill();
+}
+
+// ── Canvas plumbing & a single animation loop ─────────────────
+const DPR = () => Math.min(2, window.devicePixelRatio || 1);
+function fitCanvas(cv) {
+  const r = cv.getBoundingClientRect(), dpr = DPR();
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  return { w: r.width, h: r.height, dpr };
+}
+const visible = new WeakMap();
+const io = new IntersectionObserver(es => es.forEach(en => visible.set(en.target, en.isIntersecting)), { rootMargin: '80px' });
+function watch(el) { visible.set(el, false); io.observe(el); }
+const isVis = el => visible.get(el);
+
+// ── Tank: a small aquarium for document illustrations ─────────
+class Tank {
+  constructor(cv, o) {
+    this.cv = cv; this.ctx = cv.getContext('2d'); this.o = o; this.zoom = o.zoom || 1;
+    this.creatures = []; this.dust = null; this.pools = null; this.W = 0; this.H = 0;
+    watch(cv); this.resize();
+  }
+  resize() {
+    const f = fitCanvas(this.cv); this.dpr = f.dpr;
+    const W = f.w / this.zoom, H = f.h / this.zoom;
+    if (Math.abs(W - this.W) > 2 || Math.abs(H - this.H) > 2) {
+      this.W = W; this.H = H; this.dust = makeDust(W, H, 30, 211);
+      const rng = mulberry32(133); this.pools = [];
+      for (let i = 0; i < 4; i++) this.pools.push({ x: rng() * W, y: rng() * H, r: 60 + rng() * 80, ph: rng() * TAU });
+      for (const c of this.creatures) { c.x = clamp(c.x, 0, W); c.y = clamp(c.y, 0, H); }
+    }
+  }
+  add(types, vs, cult, extra) {
+    const W = this.W || 300, H = this.H || 200;
+    const cr = makeCreature(W * (0.2 + rand() * 0.6), H * (0.2 + rand() * 0.6), rand() * TAU,
+      Object.assign({ bodyLen: 44 + types.length * 5, size: 0.8 + types.length * 0.06, parts: makeParts(types, vs) }, extra));
+    cr.cult = cult; cr.baseSpeed = 22 + rand() * 14;
+    this.creatures.push(cr); return cr;
+  }
+  step(dt, t) {
+    const st = this.o.state(), W = this.W, H = this.H, e = st.pal.e, panic = st.pal.panic;
+    for (const cr of this.creatures) {
+      cr.turnTimer -= dt * (1 + panic * 2);
+      const tdx = cr.targetX - cr.x, tdy = cr.targetY - cr.y;
+      if (cr.turnTimer <= 0 || Math.hypot(tdx, tdy) < 30) {
+        const m = this.o.margin || 0.3;
+        cr.targetX = W / 2 + (rand() * 2 - 1) * W * m; cr.targetY = H / 2 + (rand() * 2 - 1) * H * m;
+        cr.turnTimer = 2.5 + rand() * 3;
+      }
+      const out = cr.x < 16 || cr.x > W - 16 || cr.y < 16 || cr.y > H - 16;
+      if (out) { cr.targetX = W / 2; cr.targetY = H / 2; }
+      const diff = angWrap(Math.atan2(cr.targetY - cr.y, cr.targetX - cr.x) - cr.angle), tr = (1.8 + e * 2 + panic * 3) * dt * (out ? 2.5 : 1);
+      cr.angle += clamp(diff, -tr, tr);
+      if (panic > 0 && rand() < 0.02) cr.angle += (rand() - 0.5) * panic * 0.5;
+      const sp = cr.baseSpeed * lerp(0.7, 2.4, e) * (1 + panic * rand() * 0.3) * (st.pal.starve ? 1 - st.pal.starve * 0.5 : 1);
+      cr.x += Math.cos(cr.angle) * sp * dt; cr.y += Math.sin(cr.angle) * sp * dt;
+      cr.driftPhase += dt * 0.3;
+      advanceTrail(cr);
+    }
+  }
+  draw(t) {
+    const ctx = this.ctx, st = this.o.state(), pal = st.pal, W = this.W, H = this.H;
+    ctx.setTransform(this.dpr * this.zoom, 0, 0, this.dpr * this.zoom, 0, 0);
+    drawAbyss(ctx, W, H, pal, t);
+    for (const p of this.pools) {
+      const x = p.x + Math.sin(t * 0.05 + p.ph) * 30, y = p.y + Math.cos(t * 0.04 + p.ph) * 20, r = p.r * (1 + 0.12 * Math.sin(t * 0.3 + p.ph));
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, rgba(lerpRgb(pal.primary, { r: 0xC8, g: 0xFF, b: 0xFF }, 0.5), 0.05 * (0.5 + 0.5 * pal.e)));
+      g.addColorStop(0.5, rgba(pal.primary, 0.028)); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+    drawDust(ctx, this.dust, pal, t);
+    const cs = this.creatures;
+    for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
+      const d = dist(cs[i], cs[j]); if (d < 110) drawBond(ctx, cs[i], cs[j], pal, d, 110, pal.e);
+    }
+    for (const cr of cs) {
+      const cult = cr.cult || st.cult;
+      const cpal = st.palFor ? st.palFor(cult) : pal;
+      const hc = creatureColor(cult, cpal, cr.indiv, cr.phase, t);
+      const flicker = cpal.panic > 0 ? 0.7 + 0.3 * Math.sin(t * 12 + cr.phase * 3) : 1;
+      drawCreature(ctx, cr, buildPts(cr, t), { hc, pal: cpal, t, alpha: lerp(0.6, 0.92, cpal.e) * (1 - cpal.starve * 0.35), activity: 1 + cpal.e * 0.3, flicker });
+    }
+    if (pal.blighted) { ctx.fillStyle = rgba({ r: 255, g: 70, b: 70 }, 0.06 + 0.1 * (0.5 + 0.5 * Math.sin(t * 3))); ctx.fillRect(0, 0, W, H); }
+  }
+}
+
+// ── Hero: the seed, unmodified ─────────────────────────────────
+const hero = { cv: $('hero-canvas') };
+hero.ctx = hero.cv.getContext('2d'); watch(hero.cv);
+function heroFrame(t, dt) {
+  const f = fitCanvas(hero.cv);
+  hero.ctx.setTransform(f.dpr, 0, 0, f.dpr, 0, 0);
+  const load = 0.45 + 0.35 * Math.sin(t * 0.09) + 0.12 * Math.sin(t * 0.31);
+  const s = { lowPowerMode: false, isProcessing: load > 0.4, inferenceLoad: clamp(load, 0, 1), queueDepth: Math.max(0, load * 14),
+    isHealthy: true, isCharging: false, batteryLevel: 82, batteryTemperature: 33 };
+  SEED.render(hero.ctx, f.w, f.h, s, t, dt);
+}
+
+// ── Culture cards ──────────────────────────────────────────────
+const tanks = [];
+(function buildCultureCards() {
+  const host = $('culture-cards');
+  CULTURES.forEach(c => {
+    const el = document.createElement('article');
+    el.className = 'cult'; el.style.setProperty('--c0', c.hex[0]); el.style.setProperty('--c1', c.hex[1]);
+    el.innerHTML = `<canvas aria-label="${c.name} organisms swimming"></canvas><div class="body">
+      <div class="sw"><i style="background:${c.hex[0]};color:${c.hex[0]}"></i><i style="background:${c.hex[1]};color:${c.hex[1]}"></i></div>
+      <h3>${c.name}</h3><div class="ep">${c.epithet} · ${c.spec}</div><p>${c.blurb}</p>
+      <dl><dt>Rule</dt><dd>${c.rule}</dd><dt>Signature</dt><dd>${c.signature.name}: ${c.signature.parts.map(p => ORGANS[p].name.toLowerCase()).join(', ')}</dd>
+      <dt>Pressures</dt><dd>${c.pressures.map(id => cultById(id).name.replace('The ', '')).join(', ')}</dd></dl></div>`;
+    host.appendChild(el);
+    const e = 0.2 + c.idx * 0.03;
+    const pal = culturePalette(c, e, 0, 100, false);
+    const tank = new Tank(el.querySelector('canvas'), { state: () => ({ pal, cult: c }), margin: 0.32 });
+    c.templates.forEach(tp => { const vs = tp.parts.map(p => (p === c.affinity ? 3 : 1) + Math.floor(rand() * 2)); tank.add(tp.parts, vs, c); });
+    tank.add(c.signature.parts, c.signature.parts.map(() => 5), c);
+    tanks.push(tank);
+  });
+  // Tide Wheel matrix
+  const m = $('matrix');
+  let html = '<tr><th></th>' + CULTURES.map(c => `<th style="color:${c.hex[1]}">${c.name.replace('The ', '').split(' ')[0]}</th>`).join('') + '</tr>';
+  CULTURES.forEach(r => {
+    html += `<tr><th class="row" style="color:${r.hex[1]}">${r.name.replace('The ', '')}</th>`;
+    CULTURES.forEach(c => {
+      if (r === c) html += '<td class="s">·</td>';
+      else if (r.pressures.includes(c.id)) html += '<td class="w" title="advantage">▲</td>';
+      else if (c.pressures.includes(r.id)) html += '<td class="l" title="disadvantage">▼</td>';
+      else html += '<td>—</td>';
+    });
+    html += '</tr>';
+  });
+  m.innerHTML = html;
+  // Palette swatches
+  $('swatches').innerHTML = CULTURES.map(c => `<div class="swatch"><div><i style="background:${c.hex[0]}"></i><i style="background:${c.hex[1]}"></i></div>
+    <p><b style="color:${c.hex[1]}">${c.name.replace('The ', '')}</b><br>${c.hex[0]} · ${c.hex[1]}</p></div>`).join('');
+})();
+
+// ── Tech tree: every cell renders the seed organ at its tier ──
+const treeCells = [];
+(function buildTree() {
+  const host = $('tech-tree');
+  const tcult = CULTURES[0];
+  PART_TYPES.forEach((type, col) => {
+    const h = document.createElement('div'); h.className = 'col-h'; h.style.gridColumn = col + 1; h.style.gridRow = 1;
+    h.innerHTML = `<h4>${ORGANS[type].name}</h4><span>${ORGANS[type].verb} · ${ORGANS[type].role}</span>`;
+    host.appendChild(h);
+    for (let tier = 0; tier < 4; tier++) {
+      const cell = document.createElement('div'); cell.className = 'tcell'; cell.style.gridColumn = col + 1; cell.style.gridRow = tier + 2;
+      cell.innerHTML = `<canvas></canvas><div class="lbl"><b>${ORGANS[type].tiers[tier]}</b><span>${['I', 'II', 'III', 'IV'][tier]} · v${TIER_V[tier]}</span></div><div class="fx">${ORGANS[type].fx[tier]}${tier ? ' · ' + RESEARCH_COST[tier - 1] + ' lumen' : ' · innate'}</div>`;
+      host.appendChild(cell);
+      const cv = cell.querySelector('canvas'); watch(cv);
+      treeCells.push({ cv, ctx: cv.getContext('2d'), type, v: TIER_V[tier], cult: CULTURES[[0, 2, 0, 5, 3][col]], ph: rand() * TAU });
+    }
+  });
+  $('chimera-row').innerHTML = CHIMERAS.map(c => `<div class="chimera"><i>${c.from}</i><b>${c.name}</b>${c.text}</div>`).join('');
+})();
+function drawTreeCell(c, t) {
+  const f = fitCanvas(c.cv), ctx = c.ctx, W = f.w, H = f.h;
+  ctx.setTransform(f.dpr, 0, 0, f.dpr, 0, 0);
+  ctx.fillStyle = '#040e12'; ctx.fillRect(0, 0, W, H);
+  const pal = culturePalette(c.cult, 0.45, 0, 100, false);
+  const g = ctx.createRadialGradient(W * 0.55, H / 2, 0, W * 0.55, H / 2, W * 0.6);
+  g.addColorStop(0, rgba(pal.primary, 0.08)); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const pts = [], headX = c.type === 'flagella' ? W * 0.9 : W * 0.72, sp = c.type === 'flagella' ? 2.2 : 2.8;
+  for (let i = 0; i < 20; i++) pts.push({ x: headX - i * sp, y: H / 2 + Math.sin(t * 3 - i * 0.55 + c.ph) * i * 0.18 });
+  const hc = lerpRgb(c.cult.colors[0], c.cult.colors[1], 0.3);
+  const cr = { size: 1 };
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for (let k = 1; k < 20; k++) ctx.quadraticCurveTo(pts[k - 1].x, pts[k - 1].y, (pts[k - 1].x + pts[k].x) / 2, (pts[k - 1].y + pts[k].y) / 2);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = rgba(hc, 0.1); ctx.lineWidth = 10; ctx.stroke();
+  ctx.strokeStyle = rgba(hc, 0.3); ctx.lineWidth = 5; ctx.stroke();
+  ctx.strokeStyle = rgba(lerpRgb(hc, WHITE, 0.3), 0.9); ctx.lineWidth = 2.2; ctx.stroke();
+  const def = partDef(c.type, c.v);
+  const par = { speed: 1, phase: c.ph };
+  def.render(ctx, pts, 1, par, t, cr, pal, hc);
+  if (c.type !== 'flagella') def.render(ctx, pts, -1, { speed: 1, phase: c.ph + 1.3 }, t, cr, pal, hc);
+  const hg = ctx.createRadialGradient(pts[0].x, pts[0].y, 0, pts[0].x, pts[0].y, 12);
+  hg.addColorStop(0, rgba(lerpRgb(pal.accent, WHITE, 0.5), 0.9)); hg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, 12, 0, TAU); ctx.fill();
+}
+
+// ── Organism Forge ─────────────────────────────────────────────
+const forge = { cult: CULTURES[0], slots: [{ type: 'mandible', v: 4 }, { type: 'flagella', v: 5 }, { type: 'antenna', v: 3 }, { type: '', v: 0 }, { type: '', v: 0 }] };
+forge.tank = new Tank($('forge-canvas'), { zoom: 1.8, margin: 0.22, state: () => ({ pal: culturePalette(forge.cult, 0.35, 0, 100, false), cult: forge.cult }) });
+function forgeParts() { return forge.slots.filter(s => s.type); }
+function chipRow(host, onPick, getSel) {
+  host.innerHTML = '';
+  CULTURES.forEach(c => {
+    const b = document.createElement('button'); b.className = 'chip'; b.style.setProperty('--c', c.hex[0]);
+    b.innerHTML = `<i></i>${c.name.replace('The ', '')}`; b.setAttribute('aria-pressed', getSel() === c);
+    b.onclick = () => { onPick(c); host.querySelectorAll('.chip').forEach((x, i) => x.setAttribute('aria-pressed', CULTURES[i] === c)); };
+    host.appendChild(b);
+  });
+}
+function forgeRebuild() {
+  const ps = forgeParts();
+  forge.tank.creatures = [];
+  const cr = forge.tank.add(ps.map(p => p.type), ps.map(p => p.v), forge.cult, { bodyLen: 56, size: 1 });
+  cr.baseSpeed = 26;
+  forgeStats();
+}
+function forgeStats() {
+  const ps = forgeParts();
+  const s = computeStats(ps, forge.cult);
+  const rows = [['HP', s.hp, 180], ['Speed', s.speed, 140], ['Bite', s.dps, 32], ['Reach', s.range, 40], ['Harvest', s.harvest, 26], ['Sense', s.sense, 380]];
+  const host = $('forge-stats');
+  host.style.setProperty('--c0', forge.cult.hex[0]); host.style.setProperty('--c1', forge.cult.hex[1]);
+  host.innerHTML = rows.map(([k, v, max]) => `<div class="stat"><span>${k}</span><span class="bar"><i style="width:${clamp(v / max, 0, 1) * 100}%"></i></span><b>${v.toFixed(v < 20 ? 1 : 0)}</b></div>`).join('') +
+    `<div class="stat"><span>Cost</span><span style="font-size:.8rem;color:var(--ink-soft)">${s.cost} lumen · hatch ${s.hatch.toFixed(1)}s</span><b></b></div>`;
+  const [role, sub] = roleOf(ps, s);
+  $('forge-role').innerHTML = `${role}<small>${sub} · ${ps.length} organ${ps.length === 1 ? '' : 's'}</small>`;
+  forge.role = role;
+}
+(function buildForge() {
+  chipRow($('forge-cult'), c => { forge.cult = c; forgeRebuild(); }, () => forge.cult);
+  const host = $('forge-slots');
+  forge.slots.forEach((sl, i) => {
+    const row = document.createElement('div'); row.className = 'slot';
+    row.innerHTML = `<select aria-label="Organ ${i + 1}"><option value="">— empty —</option>${PART_TYPES.map(t => `<option value="${t}">${ORGANS[t].name}</option>`).join('')}</select>
+      <input type="range" min="0" max="9" step="1" aria-label="Variant for organ ${i + 1}"><span class="tn"></span>`;
+    const sel = row.querySelector('select'), rng = row.querySelector('input'), tn = row.querySelector('.tn');
+    const sync = () => {
+      sel.value = sl.type; rng.value = sl.v; rng.disabled = !sl.type;
+      tn.textContent = sl.type ? `${ORGANS[sl.type].tiers[tierOfV(sl.v)]} v${sl.v}` : '';
+    };
+    sel.onchange = () => { sl.type = sel.value; sync(); forgeRebuild(); };
+    rng.oninput = () => { sl.v = +rng.value; sync(); const cr = forge.tank.creatures[0]; const ps = forgeParts(); if (cr) cr.parts.forEach((p, k) => p.v = ps[k].v); forgeStats(); };
+    sl.sync = sync; sync(); host.appendChild(row);
+  });
+  $('forge-random').onclick = () => {
+    const n = 2 + Math.floor(rand() * 4);
+    forge.slots.forEach((sl, i) => { sl.type = i < n ? PART_TYPES[Math.floor(rand() * 5)] : ''; sl.v = Math.floor(rand() * 10); sl.sync(); });
+    forgeRebuild();
+  };
+  $('forge-send').onclick = () => {
+    const ps = forgeParts();
+    if (!ps.length) { toast('Give it at least one organ first.'); return; }
+    G.forgeDesign = { name: forge.role, parts: ps.map(p => p.type), forged: true };
+    buildHatchButtons();
+    toast(`“${forge.role}” is now in hatchery slot 4 of the demo.`);
+  };
+})();
+
+// ── Vitality Signature ─────────────────────────────────────────
+const vital = { cult: CULTURES[0], e: 0.25, f: 0, r: 80, b: false };
+vital.tank = new Tank($('vital-canvas'), { margin: 0.34, state: () => ({ pal: culturePalette(vital.cult, vital.e, vital.f, vital.r, vital.b), cult: vital.cult }) });
+(function buildVital() {
+  const fill = () => {
+    vital.tank.creatures = [];
+    for (let i = 0; i < 7; i++) {
+      const n = 2 + Math.floor(rand() * 3), types = [];
+      for (let k = 0; k < n; k++) types.push(PART_TYPES[Math.floor(rand() * 5)]);
+      vital.tank.add(types, types.map(() => Math.floor(rand() * 7)), null);
+    }
+  };
+  chipRow($('vital-cult'), c => { vital.cult = c; }, () => vital.cult);
+  const bind = (id, key, fmt) => { const el = $(id), o = $(id + '-o'); el.oninput = () => { vital[key] = key === 'r' ? +el.value : el.value / 100; o.textContent = fmt(+el.value); }; };
+  bind('v-e', 'e', v => v + '%'); bind('v-f', 'f', v => v + '%'); bind('v-r', 'r', v => v);
+  $('v-b').onchange = e => vital.b = e.target.checked;
+  vital.fill = fill;
+})();
+
+// ════════════════════════════════════════════════════════════════
+//  THE DEMO
+// ════════════════════════════════════════════════════════════════
+const G = {
+  W: 1280, H: 720, cv: $('game-canvas'), running: false, paused: false, over: false, t: 0,
+  units: [], corpses: [], nodes: [], shimmers: [], pings: [], lances: [], colonies: [],
+  player: null, ai: null, selection: new Set(), drag: null, forgeDesign: null, pickCult: CULTURES[0], rivalId: 'random',
+};
+G.ctx = G.cv.getContext('2d'); watch(G.cv);
+
+class Colony {
+  constructor(cult, isPlayer, x, y, incomeMul) {
+    this.cult = cult; this.isPlayer = isPlayer; this.incomeMul = incomeMul;
+    this.lumen = 150; this.fever = 0; this.energy = 0; this.frenzyCd = 0;
+    this.research = { leg: 0, flagella: 0, pili: 0, mandible: 0, antenna: 0 };
+    if (cult.affinity) this.research[cult.affinity] = 1;
+    this.researching = null; this.queue = []; this.cap = cult.cap || 24;
+    this.nucleus = { x, y, r: 34, hp: 1600, max: 1600, isNucleus: true, col: this, lanceT: 0 };
+    const toC = Math.atan2(G.H / 2 - y, G.W / 2 - x);
+    this.rally = { x: x + Math.cos(toC) * 110, y: y + Math.sin(toC) * 110 };
+    this.aiMode = 'build'; this.waveSize = 5; this.wave = 0; this.aiT = 0;
+    this.updatePal();
+  }
+  tierV(type) { return TIER_V[this.research[type]]; }
+  partsFor(types) { return types.map(t => ({ type: t, v: this.tierV(t) })); }
+  statsFor(tpl) { return computeStats(this.partsFor(tpl.parts), this.cult); }
+  researchCost(type) { const l = this.research[type]; return l >= 3 ? Infinity : Math.round(RESEARCH_COST[l] * this.cult.mods.research); }
+  get units() { return G.units.filter(u => u.col === this); }
+  updatePal() { this.pal = culturePalette(this.cult, this.energy, this.fever, this.lumen, this.nucleus.hp < this.nucleus.max * 0.35); }
+}
+
+function templatesFor(col) {
+  const t = col.cult.templates.slice();
+  t.push(G.forgeDesign);
+  return t;
+}
+
+function setupGame(pc, rc, diff) {
+  G.units = []; G.corpses = []; G.shimmers = []; G.pings = []; G.lances = []; G.selection.clear();
+  G.t = 0; G.over = false; G.paused = false;
+  G.player = new Colony(pc, true, 150, 590, 1);
+  G.ai = new Colony(rc, false, G.W - 150, G.H - 590, diff);
+  G.colonies = [G.player, G.ai];
+  // Caustic pools: four anchors mirrored through the center, plus the Great Caustic
+  const anchors = [{ x: 340, y: 460, r: 50, max: 800 }, { x: 170, y: 330, r: 44, max: 700 }, { x: 470, y: 650, r: 44, max: 700 }, { x: 540, y: 330, r: 48, max: 800 }];
+  G.nodes = [];
+  const mk = (a, x, y, ph) => ({ ax: x, ay: y, x, y, r: a.r, amount: a.max, max: a.max, ph, orbit: 26 + (a.r % 7) * 4, spd: TAU / (90 + a.r) });
+  anchors.forEach((a, i) => { G.nodes.push(mk(a, a.x, a.y, i)); G.nodes.push(mk(a, G.W - a.x, G.H - a.y, i + Math.PI)); });
+  G.nodes.push(Object.assign(mk({ r: 76, max: 1600 }, G.W / 2, G.H / 2, 0), { orbit: 40, great: true }));
+  G.dust = makeDust(G.W, G.H, 45, 211);
+  const rng = mulberry32(42); G.plankton = [];
+  for (let i = 0; i < 30; i++) G.plankton.push({ ax: rng() * G.W, ay: rng() * G.H, ph: rng() * TAU, sz: i < 18 ? 0.7 + rng() : 1.5 + rng() * 2, micro: i >= 18, dx: (rng() - 0.5) * 0.4, dy: (rng() - 0.5) * 0.3 });
+  for (const col of G.colonies) {
+    const [forager, warden] = col.cult.templates;
+    for (let i = 0; i < 3; i++) spawnUnit(col, forager, true);
+    spawnUnit(col, warden, true);
+  }
+  G.running = true;
+  $('hud-p-name').textContent = pc.name; $('hud-p-name').style.color = pc.hex[1];
+  $('hud-e-name').textContent = rc.name; $('hud-e-name').style.color = rc.hex[1];
+  buildHatchButtons(); buildResearchButtons();
+}
+
+function spawnUnit(col, tpl, instant) {
+  const N = col.nucleus, a = Math.atan2(G.H / 2 - N.y, G.W / 2 - N.x) + (rand() - 0.5) * 1.6;
+  const types = tpl.parts;
+  const parts = makeParts(types);
+  const stats = col.statsFor(tpl);
+  const x = N.x + Math.cos(a) * (instant ? 50 + rand() * 30 : 10), y = N.y + Math.sin(a) * (instant ? 50 + rand() * 30 : 10);
+  const u = makeCreature(x, y, a, { bodyLen: 30 + types.length * 6, size: stats.size, parts });
+  Object.assign(u, { col, tpl, stats, hp: stats.hp, cargo: 0, age: 0, fade: instant ? 1 : 0, role: tpl.role === 'harvest' ? 'harvest' : 'army',
+    order: { type: 'idle', x: col.rally.x + (rand() - 0.5) * 60, y: col.rally.y + (rand() - 0.5) * 60 }, acqT: 0, target: null, revealT: 0, ambushT: 0, lastHitT: -9, id: Math.random() });
+  if (u.role === 'harvest') u.order = { type: 'harvest', node: nearestNode(u, col) };
+  G.units.push(u);
+  return u;
+}
+function refreshStats(col) {
+  for (const u of G.units) if (u.col === col) {
+    const frac = u.hp / u.stats.hp; u.stats = col.statsFor(u.tpl); u.hp = frac * u.stats.hp;
+  }
+}
+function nearestNode(u, col) {
+  let best = null, bd = Infinity;
+  for (const n of G.nodes) {
+    if (n.amount < 25) continue;
+    const d = dist(u, n) + dist(n, col.nucleus) * 0.6;
+    if (d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+function enemyOf(col) { return col === G.player ? G.ai : G.player; }
+function canSee(viewer, target) {
+  if (target.isNucleus) return true;
+  if (!target.col.cult.stealth || target.revealT > 0) return true;
+  return dist(viewer, target) < 55;
+}
+function acquire(u) {
+  const en = enemyOf(u.col); let best = null, bd = u.stats.sense;
+  for (const v of G.units) {
+    if (v.col !== en || v.hp <= 0) continue;
+    const d = dist(u, v);
+    if (d < bd && canSee(u, v)) { bd = d; best = v; }
+  }
+  if (!best) { const N = en.nucleus; if (dist(u, N) < u.stats.sense + N.r) best = N; }
+  return best;
+}
+function alive(x) { return x && x.hp > 0 && (x.isNucleus || G.units.includes(x)); }
+
+function queueHatch(col, idx) {
+  const tpl = templatesFor(col)[idx]; if (!tpl || !tpl.parts.length) return false;
+  const s = col.statsFor(tpl);
+  if (col.lumen < s.cost || col.queue.length >= 5 || col.units.length + col.queue.length >= col.cap) return false;
+  col.lumen -= s.cost; col.queue.push({ tpl, t: 0, dur: s.hatch });
+  return true;
+}
+function startResearch(col, type) {
+  const cost = col.researchCost(type);
+  if (col.researching || col.lumen < cost) return false;
+  col.lumen -= cost; col.researching = { type, t: 0, dur: RESEARCH_TIME[col.research[type]] * col.cult.mods.research };
+  return true;
+}
+function frenzy(col) {
+  if (col.frenzyCd > 0) return false;
+  col.fever = Math.min(1, col.fever + 0.3); col.frenzyCd = 20;
+  shimmer(col.nucleus.x, col.nucleus.y, { r: 255, g: 90, b: 90 }, 1, 160);
+  return true;
+}
+function shimmer(x, y, col, hot, rad, dur) { G.shimmers.push({ x, y, col, hot, rad: rad || 60, born: G.t, dur: dur || 1.1, ph: rand() * TAU }); }
+
+// ── Simulation ─────────────────────────────────────────────────
+function updateGame(dt) {
+  G.t += dt;
+  const t = G.t;
+  for (const n of G.nodes) {
+    n.x = n.ax + Math.cos(t * n.spd + n.ph) * n.orbit; n.y = n.ay + Math.sin(t * n.spd * 1.3 + n.ph) * n.orbit * 0.7;
+    n.amount = Math.min(n.max, n.amount + 1.2 * dt);
+  }
+  for (const col of G.colonies) {
+    col.lumen += 1.2 * col.incomeMul * dt;
+    col.fever = Math.max(0, col.fever - 0.03 * dt);
+    col.frenzyCd = Math.max(0, col.frenzyCd - dt);
+    if (col.researching) {
+      col.researching.t += dt;
+      if (col.researching.t >= col.researching.dur) {
+        const ty = col.researching.type; col.research[ty]++; col.researching = null; refreshStats(col);
+        shimmer(col.nucleus.x, col.nucleus.y, col.cult.colors[1], 1, 140, 1.5);
+        if (col.isPlayer) { toast(`${ORGANS[ty].tiers[col.research[ty]]} evolved: every ${ORGANS[ty].name.toLowerCase()} in your colony grows.`); buildResearchButtons(); }
+      }
+    }
+    const q = col.queue[0];
+    if (q && col.units.length < col.cap) {
+      q.t += dt * (1 + 0.5 * col.fever);
+      if (q.t >= q.dur) {
+        col.queue.shift(); const u = spawnUnit(col, q.tpl, false);
+        col.fever = Math.min(1, col.fever + 0.04);
+        shimmer(u.x, u.y, col.cult.colors[0], 0.8, 50);
+      }
+    }
+    // Nucleus lance
+    const N = col.nucleus, en = enemyOf(col); let tgt = null, bd = 125;
+    for (const v of G.units) if (v.col === en) { const d = dist(N, v); if (d < bd && canSee(N, v)) { bd = d; tgt = v; } }
+    N.lance = tgt;
+    if (tgt) { tgt.hp -= 7 * dt; tgt.lastHitBy = col; tgt.lastHitT = t; }
+  }
+  // Units
+  const counts = new Map(G.colonies.map(c => [c, { busy: 0, n: 0, fighting: 0 }]));
+  for (const u of G.units) { updateUnit(u, dt); const c = counts.get(u.col); c.n++; if (u.engaged || u.harvesting) c.busy++; if (u.engaged) c.fighting++; }
+  // Soft separation
+  const us = G.units;
+  for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) {
+    const a = us[i], b = us[j], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+    if (d2 < 196 && d2 > 0.01) { const d = Math.sqrt(d2), p = (14 - d) * 0.5 * dt * 4 / d; a.x += dx * p; a.y += dy * p; b.x -= dx * p; b.y -= dy * p; }
+  }
+  // Deaths & conversions
+  for (let i = G.units.length - 1; i >= 0; i--) {
+    const u = G.units[i];
+    const withered = u.stats.lifespan && u.age >= u.stats.lifespan;
+    if (u.hp > 0 && !withered) continue;
+    const k = u.lastHitBy;
+    if (!withered && k && k !== u.col && k.cult.convert && t - u.lastHitT < 1 && rand() < k.cult.convert) {
+      u.col = k; u.stats = k.statsFor(u.tpl); u.stats.lifespan = 0; u.hp = u.stats.hp * 0.5; u.age = 0;
+      u.role = 'army'; u.order = { type: 'idle', x: u.x, y: u.y }; u.target = null; u.lastHitBy = null;
+      G.selection.delete(u); shimmer(u.x, u.y, k.cult.colors[1], 1, 70, 1.4);
+      continue;
+    }
+    G.units.splice(i, 1); G.selection.delete(u);
+    G.corpses.push({ u, pts: buildPts(u, t), born: t, hc: creatureColor(u.col.cult, u.col.pal, u.indiv, u.phase, t), pal: u.col.pal });
+    if (!withered) shimmer(u.x, u.y, u.col.cult.colors[1], 0.7, 45, 0.9);
+  }
+  G.corpses = G.corpses.filter(c => t - c.born < 1.6);
+  for (const col of G.colonies) {
+    const c = counts.get(col), target = (c.n ? c.busy / c.n : 0) * 0.8 + col.fever * 0.2;
+    col.energy += (target - col.energy) * Math.min(1, dt * 1.5);
+    col.fever = Math.min(1, col.fever + 0.004 * dt * c.fighting);
+    col.updatePal();
+  }
+  // Rival mind
+  G.ai.aiT -= dt; if (G.ai.aiT <= 0) { G.ai.aiT = 0.8; aiTick(G.ai, G.player); }
+  // Victory
+  for (const col of G.colonies) if (col.nucleus.hp <= 0 && !G.over) endGame(col !== G.player);
+}
+
+function updateUnit(u, dt) {
+  const col = u.col, st = u.stats, f = col.fever, t = G.t, o = u.order;
+  u.age += dt; u.fade = Math.min(1, u.fade + dt * 1.2);
+  if (st.lifespan) { const rem = st.lifespan - u.age; if (rem < 3) u.fade = Math.min(u.fade, Math.max(0, rem / 3)); }
+  if (f > 0.6) u.hp -= (f - 0.6) * 6 * dt;
+  u.revealT = Math.max(0, u.revealT - dt); u.ambushT = Math.max(0, u.ambushT - dt);
+  u.engaged = false; u.harvesting = false;
+  let tx = u.x + Math.cos(u.angle) * 20, ty = u.y + Math.sin(u.angle) * 20, speedK = 1;
+  if (o.type === 'harvest') {
+    if (u.cargo >= st.cargo - 0.01 || !st.cargo) {
+      const N = col.nucleus; tx = N.x; ty = N.y;
+      if (dist(u, N) < N.r + 12) { col.lumen += u.cargo; u.cargo = 0; if (!st.cargo) u.order = { type: 'idle', x: col.rally.x, y: col.rally.y }; }
+    } else {
+      let n = o.node;
+      if (!n || n.amount < 3) n = o.node = nearestNode(u, col);
+      if (!n) { u.order = { type: 'idle', x: col.rally.x, y: col.rally.y }; }
+      else if (dist(u, n) < n.r * 0.85) {
+        u.harvesting = true;
+        const take = Math.min(st.harvest * col.incomeMul * dt, n.amount, st.cargo - u.cargo);
+        u.cargo += take; n.amount -= take;
+        if (!u.wp || Math.hypot(u.wp.x - u.x, u.wp.y - u.y) < 10 || dist(u.wp, n) > n.r) { const a = rand() * TAU, r = rand() * n.r * 0.55; u.wp = { x: n.x + Math.cos(a) * r, y: n.y + Math.sin(a) * r }; }
+        tx = u.wp.x; ty = u.wp.y; speedK = 0.55;
+      } else { tx = n.x; ty = n.y; }
+    }
+  } else {
+    let target = null;
+    if (o.type === 'target') { target = o.target; if (!alive(target)) { u.order = { type: 'idle', x: u.x, y: u.y }; target = null; } }
+    if (!target) {
+      u.acqT -= dt;
+      if (u.acqT <= 0) { u.target = acquire(u); u.acqT = 0.2 + rand() * 0.1; }
+      if (u.target && (!alive(u.target) || dist(u, u.target) > st.sense * 1.4)) u.target = null;
+      target = u.target;
+    }
+    if (target) {
+      const tr = target.isNucleus ? target.r : 6, d = dist(u, target);
+      tx = target.x; ty = target.y;
+      if (d < st.range + tr + 6) {
+        u.engaged = true; speedK = 0.6;
+        const a = u.phase + t * 1.6;
+        tx = target.x + Math.cos(a) * (tr + st.range * 0.6); ty = target.y + Math.sin(a) * (tr + st.range * 0.6);
+        if (col.cult.stealth && u.revealT <= 0) u.ambushT = 1.5;
+        let dmg = st.dps * (1 + 0.6 * f) * dt * (u.ambushT > 0 ? 2 : 1);
+        if (target.isNucleus) dmg *= 1; else { target.lastHitBy = col; target.lastHitT = t; }
+        target.hp -= dmg; u.revealT = 2;
+        if (rand() < dt * 2.5) shimmer(target.x, target.y, col.pal.accent, 0.6, 26, 0.6);
+      }
+    } else {
+      const d = Math.hypot(o.x - u.x, o.y - u.y);
+      tx = o.x; ty = o.y;
+      if (d < 45) {
+        if (o.type !== 'idle') u.order = { type: 'idle', x: o.x, y: o.y };
+        if (!u.wp || Math.hypot(u.wp.x - u.x, u.wp.y - u.y) < 12 || Math.hypot(u.wp.x - o.x, u.wp.y - o.y) > 60) u.wp = { x: o.x + (rand() * 2 - 1) * 40, y: o.y + (rand() * 2 - 1) * 40 };
+        tx = u.wp.x; ty = u.wp.y; speedK = 0.45;
+      }
+    }
+  }
+  // Steering: the seed's turn-rate + panic jitter
+  const panic = col.pal.panic;
+  const diff = angWrap(Math.atan2(ty - u.y, tx - u.x) - u.angle), tr = (2.6 + panic * 3) * dt;
+  u.angle += clamp(diff, -tr, tr);
+  if (panic > 0 && rand() < 0.02) u.angle += (rand() - 0.5) * panic * 0.5;
+  const spd = st.speed * speedK * (1 + 0.45 * f) * (1 + panic * rand() * 0.3) * (u.fade < 1 ? 0.5 + u.fade * 0.5 : 1);
+  u.x += Math.cos(u.angle) * spd * dt; u.y += Math.sin(u.angle) * spd * dt;
+  if (u.x < 8 || u.x > G.W - 8) { u.angle = Math.PI - u.angle; u.x = clamp(u.x, 8, G.W - 8); }
+  if (u.y < 8 || u.y > G.H - 8) { u.angle = -u.angle; u.y = clamp(u.y, 8, G.H - 8); }
+  u.driftPhase += dt * 0.3;
+  advanceTrail(u);
+}
+
+// ── Rival mind ─────────────────────────────────────────────────
+function aiTick(col, en) {
+  const mine = col.units, foragers = mine.filter(u => u.role === 'harvest'), army = mine.filter(u => u.role !== 'harvest');
+  const want = col.cult.id === 'verdant' ? 7 : 5;
+  const qF = col.queue.filter(q => q.tpl.role === 'harvest').length;
+  if (col.queue.length < 2) {
+    if (foragers.length + qF < want) queueHatch(col, 0);
+    else if (!col.researching && rand() < 0.4) {
+      const order = [col.cult.affinity, 'mandible', 'leg', 'flagella', 'antenna', 'pili'].filter(Boolean);
+      const ty = order.find(tp => col.research[tp] < 3 && col.lumen > col.researchCost(tp) * 1.2);
+      if (ty) startResearch(col, ty); else queueHatch(col, rand() < 0.55 ? 2 : 1);
+    } else queueHatch(col, rand() < 0.55 ? 2 : 1);
+  }
+  const N = col.nucleus;
+  const threats = G.units.filter(u => u.col === en && dist(u, N) < 280 && canSee(N, u));
+  if (threats.length) {
+    for (const u of army) if (u.order.type !== 'target') u.order = { type: 'attack', x: threats[0].x, y: threats[0].y };
+    return;
+  }
+  const EN = en.nucleus;
+  if (col.aiMode === 'attack') {
+    if (army.length <= 2) { col.aiMode = 'build'; for (const u of army) u.order = { type: 'idle', x: col.rally.x, y: col.rally.y }; }
+    else {
+      for (const u of army) if (u.order.type === 'idle') u.order = { type: 'attack', x: EN.x + (rand() - 0.5) * 60, y: EN.y + (rand() - 0.5) * 60 };
+      const near = army.filter(u => dist(u, EN) < 260).length;
+      if (near >= 4 && col.fever < 0.35) frenzy(col);
+    }
+  } else {
+    if (army.length && army.some(u => u.order.type === 'attack' && dist(u, N) > 320)) for (const u of army) u.order = { type: 'idle', x: col.rally.x, y: col.rally.y };
+    if (army.length >= col.waveSize && G.t > 70) {
+      col.aiMode = 'attack'; col.wave++; col.waveSize = Math.min(16, col.waveSize + 2);
+      for (const u of army) u.order = { type: 'attack', x: EN.x + (rand() - 0.5) * 60, y: EN.y + (rand() - 0.5) * 60 };
+    }
+  }
+}
+
+// ── Rendering ──────────────────────────────────────────────────
+function renderGame(t) {
+  const f = fitCanvas(G.cv), ctx = G.ctx, k = f.w / G.W;
+  G.scale = k;
+  ctx.setTransform(f.dpr * k, 0, 0, f.dpr * k, 0, 0);
+  const pal = G.player ? G.player.pal : culturePalette(G.pickCult, 0.2, 0, 100, false);
+  drawAbyss(ctx, G.W, G.H, pal, t);
+  // Caustic pools (Lumen)
+  for (const n of G.nodes) {
+    const fr = n.amount / n.max, r = n.r * (0.5 + 0.5 * fr) * (1 + 0.08 * Math.sin(t * 0.4 + n.ph));
+    const cc = lerpRgb({ r: 0x60, g: 0xF0, b: 0xFF }, { r: 0xC8, g: 0xFF, b: 0xFF }, 0.5);
+    const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 1.6);
+    g.addColorStop(0, rgba(cc, 0.2 * (0.25 + 0.75 * fr))); g.addColorStop(0.45, rgba(cc, 0.07 * (0.3 + 0.7 * fr))); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, r * 1.6, 0, TAU); ctx.fill();
+    const motes = Math.round(4 + 14 * fr);
+    for (let i = 0; i < motes; i++) {
+      const a = i / motes * TAU + t * 0.25 * (i % 2 ? 1 : -1) + n.ph, rr = r * (0.45 + 0.35 * Math.sin(t * 0.7 + i * 1.7));
+      ctx.fillStyle = rgba(WHITE, 0.35 + 0.3 * Math.sin(t * 2 + i)); ctx.beginPath(); ctx.arc(n.x + Math.cos(a) * rr, n.y + Math.sin(a) * rr, 1.1, 0, TAU); ctx.fill();
+    }
+    ctx.strokeStyle = rgba(cc, 0.07 + 0.05 * fr); ctx.lineWidth = 1; ctx.setLineDash([2, 6]);
+    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  }
+  drawDust(ctx, G.dust || [], pal, t);
+  for (const col of G.colonies) drawNucleus(ctx, col, t);
+  // Colony bonds
+  const us = G.units;
+  for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) {
+    const a = us[i], b = us[j]; if (a.col !== b.col) continue;
+    const d = dist(a, b); if (d < 70) drawBond(ctx, a, b, a.col.pal, d, 70, a.col.energy);
+  }
+  // Corpses fading
+  for (const c of G.corpses) {
+    const a = 1 - (t - c.born) / 1.6;
+    ctx.globalAlpha = Math.max(0, a) * 0.8;
+    drawCreature(ctx, c.u, c.pts, { hc: c.hc, pal: c.pal, t, alpha: 0.5, vOf: p => c.u.col.tierV(p.type) });
+    ctx.globalAlpha = 1;
+  }
+  // Organisms
+  for (const u of us) {
+    const col = u.col, cpal = col.pal;
+    const hidden = col !== G.player && col.cult.stealth && u.revealT <= 0 && !G.units.some(v => v.col === G.player && dist(u, v) < 55);
+    const pts = buildPts(u, t), hc = creatureColor(col.cult, cpal, u.indiv, u.phase, t);
+    const hpF = clamp(u.hp / u.stats.hp, 0, 1);
+    ctx.globalAlpha = u.fade * (hidden ? 0.22 : 1);
+    drawCreature(ctx, u, pts, { hc, pal: cpal, t, vOf: p => col.tierV(p.type), alpha: lerp(0.35, 0.95, hpF) * (1 - cpal.starve * 0.3),
+      activity: u.engaged ? 1.35 : 1, flicker: cpal.panic > 0 ? 0.7 + 0.3 * Math.sin(t * 12 + u.phase * 3) : 1 });
+    if (u.cargo > 0) {
+      const p = pts[4], cr = 1.5 + 3 * u.cargo / u.stats.cargo;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, cr * 2.5);
+      g.addColorStop(0, 'rgba(220,255,255,.9)'); g.addColorStop(1, 'rgba(96,240,255,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, cr * 2.5, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (G.selection.has(u)) {
+      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(u.x, u.y, 13, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = rgba(hpF > 0.35 ? cpal.accent : RED, 0.9); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(u.x, u.y, 13, -Math.PI / 2, -Math.PI / 2 + TAU * hpF); ctx.stroke();
+    }
+  }
+  // Plankton
+  for (const p of G.plankton || []) {
+    const x = (p.ax + Math.sin(t * 0.3 + p.ph * 1.3) * p.dx * 120 + t * 12) % (G.W + 40) - 20, y = p.ay + Math.sin(t * 0.26 + p.ph) * p.dy * 80;
+    const br = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 1.5 + p.ph));
+    ctx.fillStyle = rgba(pal.primary, (p.micro ? 0.3 : 0.07) * br); ctx.beginPath(); ctx.arc(x, y, p.sz, 0, TAU); ctx.fill();
+  }
+  // Nucleus lances
+  for (const col of G.colonies) {
+    const L = col.nucleus.lance; if (!L) continue;
+    const N = col.nucleus;
+    ctx.strokeStyle = rgba(col.pal.accent, 0.35 + 0.25 * Math.sin(t * 30)); ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(N.x, N.y);
+    const mx = (N.x + L.x) / 2 + Math.sin(t * 17) * 8, my = (N.y + L.y) / 2 + Math.cos(t * 13) * 8;
+    ctx.quadraticCurveTo(mx, my, L.x, L.y); ctx.stroke();
+  }
+  // Shimmer bursts
+  G.shimmers = G.shimmers.filter(s => t - s.born < s.dur);
+  for (const s of G.shimmers) {
+    const age = (t - s.born) / s.dur, rad = lerp(s.rad * 0.15, s.rad, age), a = (1 - age) * 0.35 * s.hot;
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rad);
+    g.addColorStop(0, rgba(lerpRgb(s.col, { r: 0xFF, g: 0xF8, b: 0xF0 }, 0.5), a)); g.addColorStop(0.5, rgba(s.col, a * 0.4)); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x, s.y, rad, 0, TAU); ctx.fill();
+  }
+  // Command pings
+  G.pings = G.pings.filter(p => t - p.born < 0.7);
+  for (const p of G.pings) {
+    const a = (t - p.born) / 0.7;
+    ctx.strokeStyle = rgba(p.col, 0.8 * (1 - a)); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 6 + a * 22, 0, TAU); ctx.stroke();
+  }
+  if (G.drag && G.drag.box) {
+    const d = G.drag;
+    ctx.fillStyle = 'rgba(96,240,255,.06)'; ctx.strokeStyle = 'rgba(96,240,255,.6)'; ctx.lineWidth = 1;
+    ctx.fillRect(d.x0, d.y0, d.x1 - d.x0, d.y1 - d.y0); ctx.strokeRect(d.x0, d.y0, d.x1 - d.x0, d.y1 - d.y0);
+  }
+  if (G.player && pal.blighted) { ctx.fillStyle = rgba({ r: 255, g: 70, b: 70 }, 0.04 + 0.06 * (0.5 + 0.5 * Math.sin(t * 3))); ctx.fillRect(0, 0, G.W, G.H); }
+}
+function drawNucleus(ctx, col, t) {
+  const N = col.nucleus, pal = col.pal, [c0, c1] = col.cult.colors;
+  if (N.hp <= 0) return;
+  const beat = 0.5 + 0.5 * Math.sin(t * (1.4 + col.energy * 3 + col.fever * 4));
+  const R = N.r;
+  const g = ctx.createRadialGradient(N.x, N.y, 0, N.x, N.y, R * 3.4);
+  g.addColorStop(0, rgba(pal.accent, 0.16 + 0.08 * beat)); g.addColorStop(0.4, rgba(pal.primary, 0.05)); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(N.x, N.y, R * 3.4, 0, TAU); ctx.fill();
+  // Petal count differs per culture so identity never depends on color alone
+  const petals = 5 + col.cult.idx;
+  for (let k = 0; k < petals; k++) {
+    const a = k / petals * TAU + t * 0.12 * (col.isPlayer ? 1 : -1), L = R * (1.25 + 0.1 * Math.sin(t * 1.8 + k)) * (0.96 + 0.08 * beat);
+    const w = 0.42;
+    const tipX = N.x + Math.cos(a) * L, tipY = N.y + Math.sin(a) * L;
+    ctx.beginPath(); ctx.moveTo(N.x, N.y);
+    ctx.quadraticCurveTo(N.x + Math.cos(a - w) * L * 0.8, N.y + Math.sin(a - w) * L * 0.8, tipX, tipY);
+    ctx.quadraticCurveTo(N.x + Math.cos(a + w) * L * 0.8, N.y + Math.sin(a + w) * L * 0.8, N.x, N.y);
+    ctx.fillStyle = rgba(lerpRgb(c0, pal.primary, 0.5), 0.13); ctx.fill();
+    ctx.strokeStyle = rgba(lerpRgb(c1, pal.accent, 0.5), 0.45); ctx.lineWidth = 1; ctx.stroke();
+  }
+  const cg = ctx.createRadialGradient(N.x, N.y, 0, N.x, N.y, R * 0.7);
+  cg.addColorStop(0, rgba(WHITE, 0.85)); cg.addColorStop(0.35, rgba(lerpRgb(pal.accent, WHITE, 0.3), 0.6)); cg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(N.x, N.y, R * 0.7 * (0.9 + 0.15 * beat), 0, TAU); ctx.fill();
+  const hpF = N.hp / N.max;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,.07)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(N.x, N.y, R * 1.55, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = rgba(pal.blighted ? RED : pal.accent, 0.8); ctx.beginPath(); ctx.arc(N.x, N.y, R * 1.55, -Math.PI / 2, -Math.PI / 2 + TAU * hpF); ctx.stroke();
+  const q = col.queue[0];
+  if (q) { ctx.strokeStyle = rgba(WHITE, 0.5); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(N.x, N.y, R * 0.95, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(q.t / q.dur, 0, 1)); ctx.stroke(); }
+  if (pal.blighted) { ctx.strokeStyle = rgba(RED, 0.3 * beat); ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(N.x, N.y, R * 2 + beat * 10, 0, TAU); ctx.stroke(); }
+}
+
+// ── Input ──────────────────────────────────────────────────────
+function toWorld(e) { const r = G.cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * G.W, y: (e.clientY - r.top) / r.height * G.H }; }
+function unitAt(p, col, maxD) {
+  let best = null, bd = maxD || 18;
+  for (const u of G.units) {
+    if (col && u.col !== col) continue;
+    if (!col && u.col === G.player) continue;
+    if (u.col !== G.player && u.col.cult.stealth && u.revealT <= 0 && !G.units.some(v => v.col === G.player && dist(u, v) < 55)) continue;
+    const mid = u.trail[Math.floor(u.trail.length / 2)];
+    const d = Math.min(dist(p, u), dist(p, mid));
+    if (d < bd) { bd = d; best = u; }
+  }
+  return best;
+}
+function command(p) {
+  const sel = [...G.selection]; if (!sel.length) return false;
+  const en = G.ai;
+  const eu = unitAt(p, en, 20);
+  const onNuc = dist(p, en.nucleus) < en.nucleus.r + 14;
+  const node = G.nodes.find(n => dist(p, n) < n.r);
+  let pingCol = G.player.cult.colors[1];
+  if (eu || onNuc) {
+    const tg = eu || en.nucleus;
+    sel.forEach(u => { u.role = 'army'; u.order = { type: 'target', target: tg }; });
+    pingCol = { r: 255, g: 110, b: 110 };
+  } else if (node) {
+    sel.forEach((u, i) => {
+      if (u.stats.harvest > 0) { u.role = 'harvest'; u.order = { type: 'harvest', node }; }
+      else { u.role = 'army'; u.order = { type: 'attack', x: node.x + Math.cos(i * 2.4) * Math.sqrt(i) * 12, y: node.y + Math.sin(i * 2.4) * Math.sqrt(i) * 12 }; }
+    });
+    pingCol = { r: 200, g: 255, b: 255 };
+  } else {
+    sel.forEach((u, i) => { u.role = 'army'; u.order = { type: 'attack', x: p.x + Math.cos(i * 2.4) * Math.sqrt(i) * 13, y: p.y + Math.sin(i * 2.4) * Math.sqrt(i) * 13 }; u.target = null; u.acqT = 0.4; });
+  }
+  G.pings.push({ x: p.x, y: p.y, born: G.t, col: pingCol });
+  return true;
+}
+G.cv.addEventListener('contextmenu', e => { e.preventDefault(); if (G.running && !G.over) command(toWorld(e)); });
+G.cv.addEventListener('pointerdown', e => {
+  if (!G.running || G.over || e.button !== 0) return;
+  G.cv.setPointerCapture(e.pointerId);
+  const p = toWorld(e); G.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, box: false, shift: e.shiftKey };
+});
+G.cv.addEventListener('pointermove', e => {
+  if (!G.drag) return;
+  const p = toWorld(e); G.drag.x1 = p.x; G.drag.y1 = p.y;
+  if (Math.hypot(p.x - G.drag.x0, p.y - G.drag.y0) > 8) G.drag.box = true;
+});
+G.cv.addEventListener('pointerup', e => {
+  const d = G.drag; G.drag = null; if (!d) return;
+  if (d.box) {
+    const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
+    if (!d.shift) G.selection.clear();
+    for (const u of G.units) if (u.col === G.player && u.x >= x0 && u.x <= x1 && u.y >= y0 && u.y <= y1) G.selection.add(u);
+    return;
+  }
+  const p = { x: d.x0, y: d.y0 };
+  const own = unitAt(p, G.player, 16);
+  if (own) { if (!d.shift) G.selection.clear(); G.selection.add(own); return; }
+  if (G.selection.size) command(p);
+});
+function selectArmy() { G.selection.clear(); for (const u of G.units) if (u.col === G.player && u.role !== 'harvest') G.selection.add(u); }
+function backToWork() {
+  let n = 0;
+  for (const u of G.units) if (u.col === G.player && u.stats.harvest > 0 && u.order.type !== 'harvest') { u.role = 'harvest'; u.order = { type: 'harvest', node: nearestNode(u, G.player) }; n++; }
+  toast(n ? `${n} creature${n > 1 ? 's' : ''} returning to the pools.` : 'No idle pili to send.');
+}
+function togglePause() { if (!G.running || G.over) return; G.paused = !G.paused; $('c-pause-b').textContent = G.paused ? 'Resume' : 'Pause'; }
+window.addEventListener('keydown', e => {
+  if (!G.running || G.over || !isVis(G.cv)) return;
+  if (e.target.matches('input, select, textarea')) return;
+  const k = e.key.toLowerCase();
+  if (k >= '1' && k <= '4') { if (!queueHatch(G.player, +k - 1)) toast('Not enough lumen, or the hatchery is full.'); }
+  else if (k === 'a') selectArmy();
+  else if (k === 'h') backToWork();
+  else if (k === 'f') { if (!frenzy(G.player)) toast('Frenzy is still cooling.'); }
+  else if (k === ' ') { e.preventDefault(); togglePause(); }
+  else if (k === 'escape') G.selection.clear();
+  else return;
+});
+
+// ── Deck UI ────────────────────────────────────────────────────
+function buildHatchButtons() {
+  const host = $('hatch-btns'); host.innerHTML = '';
+  const live = G.player && G.running;
+  const col = live ? G.player : { statsFor: tp => computeStats(tp.parts.map(t => ({ type: t, v: 0 })), G.pickCult), cult: G.pickCult };
+  const tpls = live ? templatesFor(G.player) : G.pickCult.templates.concat([G.forgeDesign]);
+  tpls.forEach((tp, i) => {
+    const s = col.statsFor(tp);
+    const b = document.createElement('button'); b.className = 'gbtn';
+    b.innerHTML = `<kbd>${i + 1}</kbd><b>${i === 3 ? '✦ ' : ''}${tp.name}</b><span>${s.cost} lumen · ${tp.parts.map(p => ORGANS[p].glyph).join('')}</span>`;
+    b.title = tp.parts.map(p => ORGANS[p].name).join(', ');
+    b.onclick = () => { if (G.running && !queueHatch(G.player, i)) toast('Not enough lumen, or the hatchery is full.'); };
+    host.appendChild(b);
+  });
+}
+function buildResearchButtons() {
+  const host = $('research-btns'); host.innerHTML = '';
+  PART_TYPES.forEach(tp => {
+    const b = document.createElement('button'); b.className = 'gbtn'; b.dataset.type = tp;
+    host.appendChild(b);
+    b.onclick = () => { if (G.running && !startResearch(G.player, tp)) toast(G.player.researching ? 'Already evolving an organ.' : 'Not enough lumen.'); };
+  });
+  syncDeck(true);
+}
+function syncDeck(full) {
+  const P = G.player; if (!P) return;
+  document.querySelectorAll('#research-btns .gbtn').forEach(b => {
+    const tp = b.dataset.type, lvl = P.research[tp], cost = P.researchCost(tp), active = P.researching && P.researching.type === tp;
+    const html = `<b>${ORGANS[tp].name}</b><span>${lvl >= 3 ? 'fully evolved' : ORGANS[tp].tiers[lvl + 1] + ' · ' + cost}</span><div class="pips">${[0, 1, 2, 3].map(i => `<i class="${i <= lvl ? 'on' : ''}"></i>`).join('')}</div>`;
+    if (full || b._h !== html) { b.innerHTML = html; b._h = html; }
+    b.disabled = lvl >= 3 || (!!P.researching && !active) || (!active && P.lumen < cost);
+    b.style.setProperty('--p', active ? P.researching.t / P.researching.dur : 0);
+  });
+  const tpls = templatesFor(P);
+  document.querySelectorAll('#hatch-btns .gbtn').forEach((b, i) => {
+    const s = P.statsFor(tpls[i]);
+    b.disabled = P.lumen < s.cost || P.queue.length >= 5 || P.units.length + P.queue.length >= P.cap;
+    const q = P.queue[0];
+    b.style.setProperty('--p', q && q.tpl === tpls[i] ? q.t / q.dur : 0);
+  });
+  $('c-frenzy').disabled = P.frenzyCd > 0;
+  $('c-frenzy-s').textContent = P.frenzyCd > 0 ? `cooling ${Math.ceil(P.frenzyCd)}s` : '+30% fever';
+  const E = G.ai;
+  $('hud-lumen').textContent = Math.floor(P.lumen);
+  $('hud-pop').textContent = `${P.units.length}/${P.cap}${P.queue.length ? ' +' + P.queue.length : ''}`;
+  $('hud-e-pop').textContent = E.units.length;
+  $('hud-p-fever').style.width = P.fever * 100 + '%'; $('hud-e-fever').style.width = E.fever * 100 + '%';
+  $('hud-p-hp').style.width = P.nucleus.hp / P.nucleus.max * 100 + '%'; $('hud-e-hp').style.width = Math.max(0, E.nucleus.hp / E.nucleus.max * 100) + '%';
+  $('hud-p-hp').style.background = P.cult.hex[1]; $('hud-e-hp').style.background = E.cult.hex[1];
+}
+$('c-army').onclick = selectArmy; $('c-work').onclick = () => G.running && backToWork();
+$('c-frenzy').onclick = () => G.running && frenzy(G.player); $('c-pause').onclick = togglePause;
+$('c-restart').onclick = e => { e.preventDefault(); showStart(); };
+
+function showStart() {
+  G.running = false; $('ov-end').hidden = true; $('ov-start').hidden = false;
+  const host = $('pick-cult'); host.innerHTML = '';
+  CULTURES.forEach(c => {
+    const b = document.createElement('button');
+    b.style.setProperty('--c0', c.hex[0]); b.style.setProperty('--c1', c.hex[1]);
+    b.innerHTML = `<b>${c.name.replace('The ', '')}</b><span>${c.spec}</span>`;
+    b.setAttribute('aria-pressed', G.pickCult === c);
+    b.onclick = () => { G.pickCult = c; showStart(); };
+    host.appendChild(b);
+  });
+  const rs = $('pick-rival');
+  rs.innerHTML = '<option value="random">Random</option>' + CULTURES.filter(c => c !== G.pickCult).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  rs.value = G.rivalId !== G.pickCult.id && [...rs.options].some(o => o.value === G.rivalId) ? G.rivalId : 'random';
+  rs.onchange = () => G.rivalId = rs.value;
+  buildHatchButtons();
+}
+$('btn-begin').onclick = () => {
+  const others = CULTURES.filter(c => c !== G.pickCult);
+  const rc = G.rivalId === 'random' || G.rivalId === G.pickCult.id ? others[Math.floor(rand() * others.length)] : cultById(G.rivalId);
+  $('ov-start').hidden = true;
+  setupGame(G.pickCult, rc, +$('pick-diff').value);
+};
+$('btn-again').onclick = showStart;
+function endGame(won) {
+  G.over = true;
+  const P = G.player, E = G.ai;
+  $('end-title').textContent = won ? 'Efflorescence' : 'Your light goes out';
+  $('end-title').style.color = won ? P.cult.hex[1] : '#ff8a8a';
+  const m = Math.floor(G.t / 60), s = Math.floor(G.t % 60);
+  $('end-text').textContent = won
+    ? `${P.cult.name} bloom across the Drift. The ${E.cult.name.replace('The ', '')} nucleus has gone dark after ${m}:${String(s).padStart(2, '0')}.`
+    : `${E.cult.name} now glow where you used to. You lasted ${m}:${String(s).padStart(2, '0')}. Try a different culture, or push your fever harder.`;
+  setTimeout(() => { $('ov-end').hidden = false; }, 1400);
+}
+
+// ── Toast ──────────────────────────────────────────────────────
+let toastT = 0;
+function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2600); }
+
+// ── Rail nav ───────────────────────────────────────────────────
+(function rail() {
+  const nav = $('rail'), secs = [...document.querySelectorAll('section[data-rail]')];
+  nav.innerHTML = secs.map(s => `<a href="#${s.id}"><i></i><span>${s.dataset.rail}</span></a>`).join('');
+  const links = [...nav.querySelectorAll('a')];
+  const ro = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) links.forEach((l, i) => l.classList.toggle('on', secs[i] === en.target)); }), { rootMargin: '-45% 0px -50% 0px' });
+  secs.forEach(s => ro.observe(s));
+})();
+
+// ── The one loop ───────────────────────────────────────────────
+let last = performance.now(), T = 0, deckT = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+  if (isVis(hero.cv)) heroFrame(T, dt);
+  for (const tk of [...tanks, forge.tank, vital.tank]) if (isVis(tk.cv)) { tk.step(dt, T); tk.draw(T); }
+  for (const c of treeCells) if (isVis(c.cv)) drawTreeCell(c, T);
+  if (isVis(G.cv)) {
+    if (G.running && !G.paused && !G.over) updateGame(dt);
+    renderGame(G.running ? G.t : T);
+    deckT -= dt; if (deckT <= 0 && G.player) { deckT = 0.1; syncDeck(false); }
+  }
+  requestAnimationFrame(frame);
+}
+window.addEventListener('resize', () => { for (const tk of [...tanks, forge.tank, vital.tank]) tk.resize(); });
+requestAnimationFrame(() => {
+  for (const tk of [...tanks, forge.tank, vital.tank]) tk.resize();
+  forgeRebuild(); vital.fill();
+  G.forgeDesign = { name: forge.role, parts: forgeParts().map(p => p.type), forged: true };
+  // Idle backdrop for the stage before a game starts
+  G.dust = makeDust(G.W, G.H, 45, 211);
+  showStart();
+  requestAnimationFrame(frame);
+});
+</script>
+</body></html>
