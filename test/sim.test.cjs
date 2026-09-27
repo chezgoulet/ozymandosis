@@ -58,3 +58,38 @@ test('custom and scattered maps', () => {
   const w = new E.World({ cfg: { map: { size: 'custom', w: 2000, h: 1400, layout: 'scatter', seed: 2 }, players: [{ culture: 'bloom', kind: 'bot' }, { culture: 'current', kind: 'bot' }] } });
   for (let i = 0; i < 30 * 60; i++) w.step();
 });
+test('queued waypoints, patrol and undo restore', () => {
+  const w = new E.World({ cfg: { map: { size: 's', seed: 4, currents: false }, players: [{ culture: 'verdant', kind: 'human' }, { culture: 'bloom', kind: 'human' }] } });
+  const u = w.s.units.find(u => u.o === 0 && u.d === 'warden');
+  w.command(0, { c: 'move', ids: [u.id], x: u.x + 200, y: u.y });
+  w.command(0, { c: 'move', ids: [u.id], x: u.x + 200, y: u.y + 200, queue: true });
+  w.command(0, { c: 'amove', ids: [u.id], x: u.x, y: u.y + 200, queue: true });
+  w.step();
+  if (u.q.length !== 2) throw new Error('queue ' + u.q.length);
+  for (let i = 0; i < 30 * 30 && u.q.length; i++) w.step();
+  if (u.q.length) throw new Error('queue not consumed');
+  const before = JSON.parse(JSON.stringify({ order: u.order, q: u.q }));
+  w.command(0, { c: 'patrol', ids: [u.id], x: u.x + 300, y: u.y }); w.step();
+  if (u.order.t !== 'patrol') throw new Error('no patrol');
+  const x0 = u.order.x; for (let i = 0; i < 30 * 20; i++) w.step();
+  if (u.order.t !== 'patrol') throw new Error('patrol ended');
+  w.command(0, { c: 'restore', orders: [{ id: u.id, order: before.order, q: before.q }] }); w.step();
+  if (u.order.t !== before.order.t) throw new Error('restore failed');
+});
+test('win conditions: heartfall, tide, luminance', () => {
+  for (const mode of ['regicide', 'tide', 'bloom']) {
+    const w = new E.World({ cfg: { map: { size: 's', seed: 8, mode, goal: mode === 'tide' ? 60 : mode === 'bloom' ? 2500 : undefined }, players: [{ culture: 'verdant', kind: 'bot', diff: 'hard' }, { culture: 'current', kind: 'bot' }] } });
+    while (!w.s.over && w.s.t < 1200) w.step();
+    console.log(`     ${mode}: over=${w.s.over} winner=${w.s.winner} t=${E.fmtTime(w.s.t)} score=${JSON.stringify(w.s.obj && w.s.obj.score)}`);
+    if (!w.s.over) throw new Error(mode + ' never ended');
+  }
+});
+test('culture counters and personas are deterministic', () => {
+  const w = new E.World({ cfg: { map: { size: 's', seed: 2 }, players: [{ culture: 'bloom', kind: 'bot' }, { culture: 'verdant', kind: 'bot' }] } });
+  if (w.counterMul(0, 1) !== 1.12 || w.counterMul(1, 0) !== 0.92) throw new Error('counter');
+  for (const persona of Object.keys(E.PERSONAS)) {
+    const mk = () => new E.World({ cfg: { map: { size: 's', seed: 3 }, players: [{ culture: 'luminant', kind: 'bot', persona }, { culture: 'choir', kind: 'bot', persona }] } });
+    const a = mk(), b = mk(); for (let i = 0; i < 30 * 120; i++) { a.step(); b.step(); }
+    if (a.serialize() !== b.serialize()) throw new Error('persona nondeterministic ' + persona);
+  }
+});

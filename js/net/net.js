@@ -50,12 +50,12 @@
         players: s.players.map(p => { const c = Object.assign({}, p); delete c.ai; return c; }),
         structs: s.structs.map(b => Object.assign({}, b, { x: r1(b.x), y: r1(b.y), hp: Math.round(b.hp) })),
         pools: s.pools.map(r => [r.id, r1(r.x), r1(r.y), Math.round(r.amt)]),
-        pickups: s.pickups, clouds: s.clouds,
+        pickups: s.pickups, clouds: s.clouds, obj: s.obj,
         shots: s.shots.map(h => [r1(h.x), r1(h.y), Math.round(h.vx), Math.round(h.vy), h.o]),
         units: s.units.map(u => [u.id, u.o, u.d, r1(u.x), r1(u.y), r2(u.a), Math.round(u.hp * 10) / 10,
           (u.engaged ? 1 : 0) | (u.harvesting ? 2 : 0) | (u.elite ? 4 : 0) | (u.revealT > 0 ? 8 : 0) | (u.temp ? 16 : 0) | (u.apex ? 32 : 0) | (u.ct === 's' ? 64 : 0) | (u.free ? 128 : 0),
           r1(u.cargo), u.rank, u.buffs.length ? u.buffs.map(b => [b.k, r2(b.v), r1(b.t)]) : 0, r2(u.fade),
-          u.o === slot ? [u.order, u.cds] : 0]),
+          u.o === slot ? [u.order, u.cds, u.q || []] : 0]),
         ev: events,
       };
     },
@@ -73,7 +73,7 @@
     apply(w, m) {
       const s = w.s;
       s.t = m.t; s.tick = m.tick; s.over = m.over; s.winner = m.winner;
-      s.players = m.players; s.structs = m.structs; s.pickups = m.pickups; s.clouds = m.clouds;
+      s.players = m.players; s.structs = m.structs; s.pickups = m.pickups; s.clouds = m.clouds; s.obj = m.obj;
       for (const [id, x, y, amt] of m.pools) { const p = w.poolById.get(id); if (p) { p.x = x; p.y = y; p.amt = amt; } }
       s.shots = m.shots.map(a => ({ x: a[0], y: a[1], vx: a[2], vy: a[3], o: a[4] }));
       const next = new Map(), list = [];
@@ -87,7 +87,7 @@
         u.engaged = !!(f & 1); u.harvesting = !!(f & 2); u.elite = f & 4 ? 1 : 0; u.revealT = f & 8 ? 1 : 0;
         u.temp = f & 16 ? 1 : undefined; u.apex = f & 32 ? 1 : 0; u.ct = f & 64 ? 's' : 'l'; u.free = f & 128 ? 1 : 0;
         u.cargo = a[8]; u.rank = a[9]; u.buffs = a[10] ? a[10].map(b => ({ k: b[0], v: b[1], t: b[2] })) : []; u.fade = a[11];
-        if (a[12]) { u.order = a[12][0]; u.cds = a[12][1]; }
+        if (a[12]) { u.order = a[12][0]; u.cds = a[12][1]; u.q = a[12][2]; }
         next.set(u.id, u); list.push(u);
       }
       w.unitMap = next; s.units = list;

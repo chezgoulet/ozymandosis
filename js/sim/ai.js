@@ -2,6 +2,15 @@
 (function (E) {
   'use strict';
   const AI = {};
+  // Personalities change *how* a bot plays, independent of difficulty (which only scales income/reaction).
+  E.PERSONAS = {
+    swarm: { name: 'Swarm', desc: 'Rushes early with small, cheap waves.', first: 0.55, wave: 0.6, grow: 1, foragers: -2, buds: 0, spires: 0, research: 0.6 },
+    boom: { name: 'Bloom-farmer', desc: 'Greedy economy and expansion, then a huge late tide.', first: 1.45, wave: 1.4, grow: 1.3, foragers: 4, buds: 1, spires: 0, research: 1 },
+    turtle: { name: 'Reef-builder', desc: 'Spires and defense, evolves deep, strikes late and hard.', first: 1.7, wave: 1.5, grow: 1.2, foragers: 1, buds: 0, spires: 2, research: 1.3 },
+    raider: { name: 'Raider', desc: 'Harasses foragers and buds with fast strike groups.', first: 0.9, wave: 0.9, grow: 1, foragers: 0, buds: 0, spires: 0, research: 0.9, harass: true },
+    tech: { name: 'Evolver', desc: 'Research first; powers, chimeric designs and an early Leviathan.', first: 1.25, wave: 1.1, grow: 1.1, foragers: 1, buds: 0, spires: 1, research: 1.6, tech: true },
+  };
+  E.personaOf = p => E.PERSONAS[p.persona] || E.PERSONAS[E.CULTURES[p.culture].persona] || E.PERSONAS.boom;
 
   const GENERIC_RESEARCH = ['tier:mandible:1', 'tier:leg:1', 'chassis:carapace', 'power:frenzy', 'tier:flagella:1', 'form:pincers', 'power:chitin',
     'tier:mandible:2', 'chassis:ctenophore', 'form:nematocyst', 'tier:antenna:1', 'form:eyestalks', 'power:bloom', 'tier:leg:2', 'form:horns', 'chassis:medusa',
@@ -40,8 +49,8 @@
   };
 
   AI.tick = function (w, p) {
-    const s = w.s, diff = E.DIFFS[p.diff], ai = p.ai, cmd = c => w.command(p.idx, c);
-    if (ai.wave === undefined) { ai.wave = diff.wave[0]; ai.mode = 'build'; ai.lastDesign = 0; }
+    const s = w.s, diff = E.DIFFS[p.diff], ai = p.ai, cmd = c => w.command(p.idx, c), P = E.personaOf(p);
+    if (ai.wave === undefined) { ai.wave = Math.max(4, Math.round(diff.wave[0] * P.wave)); ai.mode = 'build'; ai.lastDesign = 0; }
     const { units, structs } = mineOf(w, p);
     const nucleus = structs.find(b => b.kind === 'nucleus') || structs[0];
     if (!nucleus) return;
@@ -70,18 +79,19 @@
     // Research
     const lanes = Math.min(3, 1 + buds.filter(b => b.build >= 1).length);
     if (p.research.length < lanes) {
-      const list = E.CULTURES[p.culture].aiResearch.concat(GENERIC_RESEARCH);
+      const base = E.CULTURES[p.culture].aiResearch.concat(GENERIC_RESEARCH);
+      const list = P.tech ? ['power:frenzy', 'power:chitin', 'power:bloom', 'power:apex'].concat(base) : base;
       for (const key of list) {
         const t = E.TECHS[key]; if (!t || t.have(p) || p.research.some(r => r.key === key) || !t.req(p)) continue;
         const c = w.techCost(p, t);
-        if (p.lumen >= c.l + 60 && p.spore >= c.s) { cmd({ c: 'research', key }); break; }
+        if (p.lumen >= c.l + 60 / P.research && p.spore >= c.s) { cmd({ c: 'research', key }); break; }
         if (c.s > p.spore) continue; // wait on spore without blocking other techs
         break;
       }
     }
 
     // Economy
-    const want = Math.min(34, 7 + buds.length * 5 + (p.culture === 'verdant' ? 3 : 0));
+    const want = (s.cfg.map.mode === 'bloom' ? 6 : 0) + Math.max(4, Math.min(38, 7 + buds.length * 5 + (p.culture === 'verdant' ? 3 : 0) + P.foragers));
     const hatch = (d) => {
       let b = null; for (const h of hatcheries) if (!b || h.queue.length < b.queue.length) b = h;
       if (b && b.queue.length < 3) cmd({ c: 'hatch', sid: b.id, d });
@@ -103,7 +113,7 @@
     }
 
     // Expansion
-    const maxBuds = Math.min(4, Math.floor(s.t / 240) + (s.t > 150 ? 1 : 0));
+    const maxBuds = Math.min(5, Math.floor(s.t / 240) + (s.t > 150 ? 1 : 0) + (s.t > 120 ? P.buds : 0));
     const pendingBuild = units.some(u => u.order.t === 'build');
     if (!pendingBuild && buds.length < maxBuds && p.lumen > 190 && foragers.length >= 5) {
       let best = null, bd = Infinity;
@@ -124,7 +134,7 @@
     }
     // Spires
     const spires = structs.filter(b => b.kind === 'spire').length;
-    if (!pendingBuild && s.t > 240 && spires < Math.min(3, buds.length + 1) && p.lumen > 260 && p.spore >= 20 && foragers.length) {
+    if (!pendingBuild && s.t > 240 / (1 + P.spires * 0.5) && spires < Math.min(3 + P.spires, buds.length + 1 + P.spires) && p.lumen > 260 && p.spore >= 20 && foragers.length) {
       const base = structs.filter(b => b.kind !== 'spire')[spires % Math.max(1, structs.filter(b => b.kind !== 'spire').length)];
       const a = Math.atan2(s.map.h / 2 - base.y, s.map.w / 2 - base.x) + (w.rand() - 0.5);
       const x = base.x + Math.cos(a) * 150, y = base.y + Math.sin(a) * 150;
@@ -163,10 +173,18 @@
           }
           if (p.specials.includes('flare') && !(p.powerCd.flare > 0)) cmd({ c: 'power', id: 'flare', x: tgt.x, y: tgt.y });
         }
-      } else if (army.length >= ai.wave && s.t > diff.first) {
+      } else if (s.cfg.map.mode === 'tide' && army.length >= 4 && s.t > 90) {
+        // objective play: take and hold the nearest great caustic we don't own
+        const holders = (s.obj && s.obj.holders) || {};
+        let best = null, bd = Infinity;
+        for (const r of s.pools) if (r.great && holders[r.id] !== w.teamOf(p.idx)) { const d = E.dist2(r.x, r.y, nucleus.x, nucleus.y); if (d < bd) { bd = d; best = r; } }
+        if (!best) best = s.pools.find(r => r.great);
+        const far = army.filter(u => E.dist2(u.x, u.y, best.x, best.y) > 140 * 140 && u.order.t !== 'attack').map(u => u.id);
+        if (far.length) cmd({ c: 'amove', ids: far, x: best.x, y: best.y });
+      } else if (army.length >= ai.wave && s.t > diff.first * P.first) {
         ai.target = AI.pickTarget(w, p, army);
         const t = w.byId.get(ai.target);
-        if (t) { ai.mode = 'attack'; ai.wave = Math.min(diff.wave[1], ai.wave + 3); cmd({ c: 'amove', ids, x: t.x, y: t.y }); }
+        if (t) { ai.mode = 'attack'; ai.wave = Math.min(Math.round(diff.wave[1] * P.wave), ai.wave + Math.round(3 * P.grow)); cmd({ c: 'amove', ids, x: t.x, y: t.y }); }
       } else {
         // gather idle army at rally; grab nearby powerups
         const stray = army.filter(u => u.order.t === 'idle' && E.dist2(u.x, u.y, nucleus.rally.x, nucleus.rally.y) > 300 * 300).map(u => u.id);
@@ -178,9 +196,26 @@
         }
       }
     }
+    if (P.harass) AI.harass(w, p, army, ai);
     if (p.specials.includes('apex') && !(p.powerCd.apex > 0) && p.lumen > 360 && p.spore > 110 && !(p.apex && w.byId.get(p.apex))) cmd({ c: 'power', id: 'apex' });
   };
 
+  // Raiders peel off a fast strike group to hunt foragers and outlying buds.
+  AI.harass = function (w, p, army, ai) {
+    const s = w.s;
+    if (s.t < 150 || s.t - (ai.lastRaid || 0) < 55 || ai.mode === 'defend') return;
+    const fast = army.filter(u => w.stats(u).speed >= 60 && u.order.t !== 'attack').slice(0, 5);
+    if (fast.length < 3) return;
+    let best = null, bd = Infinity;
+    for (const e of s.units) {
+      if (!w.isEnemy(p.idx, e.o) || !w.stats(e).canHarvest) continue;
+      const d = E.dist2(e.x, e.y, fast[0].x, fast[0].y); if (d < bd) { bd = d; best = e; }
+    }
+    if (!best) for (const b of s.structs) if (w.isEnemy(p.idx, b.o) && b.kind === 'bud') { best = b; break; }
+    if (!best) return;
+    ai.lastRaid = s.t;
+    w.command(p.idx, { c: 'amove', ids: fast.map(u => u.id), x: best.x, y: best.y });
+  };
   AI.pickTarget = function (w, p, army) {
     let cx = 0, cy = 0; for (const u of army) { cx += u.x; cy += u.y; } cx /= army.length || 1; cy /= army.length || 1;
     let best = null, bd = Infinity;
