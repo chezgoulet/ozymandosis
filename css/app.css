@@ -195,7 +195,7 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 }
 /* desktop layout */
 @media (min-width: 1000px) and (min-height: 600px) {
-  .alerts { bottom: auto; top: calc(56px + var(--safe-t)); }
+  .alerts { bottom: auto; top: calc(108px + var(--safe-t)); }
   #minimap { width: 240px; height: 160px; }
   .minimap-wrap { top: auto; bottom: 12px; left: 12px; }
   .sheet { left: 264px; right: 76px; bottom: 12px; border-radius: 20px; border: 1px solid var(--line-2); max-height: 300px; }

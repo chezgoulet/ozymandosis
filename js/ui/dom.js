@@ -114,8 +114,9 @@
         if (!c.init) { c.x = W / 2; c.y = H / 2; c.init = true; for (const p of c.vis.trail) { p.x = c.x; p.y = c.y; } }
         c.tt -= dt;
         if (c.tt <= 0 || Math.hypot(c.tx - c.x, c.ty - c.y) < 12) { c.tx = W * (0.25 + Math.random() * 0.5); c.ty = H * (0.3 + Math.random() * 0.4); c.tt = 3 + Math.random() * 2; }
-        const d = E.angWrap(Math.atan2(c.ty - c.y, c.tx - c.x) - c.a); c.a += E.clamp(d, -2 * dt, 2 * dt);
-        c.x += Math.cos(c.a) * 22 * dt; c.y += Math.sin(c.a) * 22 * dt;
+        const d = E.angWrap(Math.atan2(c.ty - c.y, c.tx - c.x) - c.a); c.a += E.clamp(d, -1.1 * dt, 1.1 * dt);
+        c.x += Math.cos(c.a) * 30 * dt; c.y += Math.sin(c.a) * 30 * dt;
+        c.x = E.clamp(c.x, 20, W - 20); c.y = E.clamp(c.y, 20, H - 20);
         E.advanceVis(c.vis, c.x, c.y, dt);
         const pts = E.buildPts(c.vis, c.x, c.y, t, c.size);
         E.drawCreature(ctx, c.vis, pts, { design: this.design, hc: E.creatureColor(this.cult, pal, c.vis.indiv, c.vis.phase, t), pal, t, alpha: 0.95, lod: 0, size: c.size, vOverride: this.v });

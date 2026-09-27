@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server/server.js",
     "test": "node test/sim.test.cjs && node test/content.test.cjs",
-    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/mp.test.cjs"
+    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/mp.test.cjs"
   },
   "engines": { "node": ">=18" }
 }
