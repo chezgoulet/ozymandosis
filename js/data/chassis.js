@@ -104,10 +104,10 @@
       }
       ctx.save(); ctx.translate(head.x - Math.cos(a) * R * 0.6, head.y - Math.sin(a) * R * 0.6); ctx.rotate(a + Math.PI);
       ctx.beginPath();
-      for (let i = 0; i <= 60; i++) { const th = i / 60 * TAU * 1.6, r = R * 0.18 * Math.exp(0.36 * th); const x = Math.cos(th) * r, y = Math.sin(th) * r; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      for (let i = 0; i <= 60; i++) { const th = i / 60 * TAU * 1.6, r = R * 0.12 * Math.exp(0.21 * th); const x = Math.cos(th) * r, y = Math.sin(th) * r; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
       ctx.fillStyle = rgba(E.mix(hc, { r: 0, g: 0, b: 0 }, 0.3), ba * 0.45); ctx.fill();
       ctx.strokeStyle = rgba(E.mix(hc, E.WHITE, 0.3), ba * 0.8); ctx.lineWidth = 1.1; ctx.stroke();
-      for (let k = 1; k < 7; k++) { const th = k / 7 * TAU * 1.6, r = R * 0.18 * Math.exp(0.36 * th); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(th) * r, Math.sin(th) * r); ctx.strokeStyle = rgba(pal.accent, ba * 0.3); ctx.lineWidth = 0.6; ctx.stroke(); }
+      for (let k = 1; k < 7; k++) { const th = k / 7 * TAU * 1.6, r = R * 0.12 * Math.exp(0.21 * th); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(th) * r, Math.sin(th) * r); ctx.strokeStyle = rgba(pal.accent, ba * 0.3); ctx.lineWidth = 0.6; ctx.stroke(); }
       ctx.restore();
     },
     leviathan(ctx, pts, s, hc, pal, t, ba, act) {
