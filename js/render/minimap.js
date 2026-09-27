@@ -42,7 +42,7 @@
       }
       if (R.fogActive) {
         ctx.fillStyle = 'rgba(0,0,0,.55)';
-        const cs = 64;
+        const cs = R.cell;
         for (let cy = 0; cy < R.rows; cy++) for (let cx = 0; cx < R.cols; cx++) {
           const i = cy * R.cols + cx;
           if (!R.explored[i]) { ctx.fillStyle = 'rgba(0,0,0,.85)'; ctx.fillRect(cx * cs, cy * cs, cs + 1, cs + 1); }

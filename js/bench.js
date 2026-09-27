@@ -25,12 +25,25 @@
       w.index();
       return w;
     },
+    // Visual check: render a static-camera scene and leave it on screen.
+    show(opts) {
+      const w = this.world(opts.units || 60, opts.seed);
+      const host = document.getElementById('game'); host.hidden = false; E.Screens.hideAll(); document.getElementById('bg').hidden = true;
+      const cv = document.createElement('canvas'); Object.assign(cv.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: 50 }); host.appendChild(cv);
+      const r = E.createRenderer(cv, opts.backend, { quality: opts.quality || 'high', preserve: true });
+      r.resize(); r.reset(w, opts.local === undefined ? -1 : opts.local);
+      r.cam.x = w.s.map.w / 2; r.cam.y = w.s.map.h / 2; r.cam.z = opts.zoom || 1.4;
+      for (let i = 0; i < (opts.frames || 90); i++) { w.step(); r.frame(w, 1, w.s.t, 1 / 30, { selection: new Set(w.s.units.slice(0, 3).map(u => u.id)), pings: [] }); }
+      return r.kind;
+    },
     // Runs inside the page. Returns timing stats.
     async run(opts) {
       const n = opts.units || 200, frames = opts.frames || 240, warm = opts.warm || 60;
       const w = this.world(n, opts.seed);
-      const cv = document.getElementById('view');
-      document.getElementById('game').hidden = false; E.Screens.hideAll(); document.getElementById('bg').hidden = true;
+      const host = document.getElementById('game');
+      host.hidden = false; E.Screens.hideAll(); document.getElementById('bg').hidden = true;
+      const cv = document.createElement('canvas'); Object.assign(cv.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', zIndex: 50 });
+      host.appendChild(cv);
       const r = E.createRenderer(cv, opts.backend || 'auto', { quality: opts.quality || 'high' });
       r.resize(); r.reset(w, -1);
       r.cam.x = w.s.map.w / 2; r.cam.y = w.s.map.h / 2; r.cam.z = opts.zoom || 1;
@@ -55,6 +68,7 @@
       const stat = a => { const s = a.slice().sort((x, y) => x - y), q = p => s[Math.min(s.length - 1, Math.floor(p * s.length))]; return { avg: +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(2), p50: +q(0.5).toFixed(2), p95: +q(0.95).toFixed(2) }; };
       const res = { backend: r.kind, units: n, cpu: stat(cpu), frame: stat(gaps), fps: +(1000 / stat(gaps).avg).toFixed(1), gpu: r.gpuName ? r.gpuName() : '' };
       if (r.dispose) r.dispose();
+      cv.remove();
       return res;
     },
   };
