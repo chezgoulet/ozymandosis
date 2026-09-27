@@ -71,9 +71,14 @@
       const team = h('select', { disabled: !editable || (lobby && lobby.save), 'aria-label': 'Team' }, [['0', 'Free-for-all'], ['1', 'Team 1'], ['2', 'Team 2'], ['3', 'Team 3']].map(([v, l]) => h('option', { value: v }, l)));
       team.value = String(s.team || 0);
       team.onchange = () => { if (isGuest) { lobby.relay.toHost({ k: 'pick', culture: s.culture, team: +team.value }); return; } s.team = +team.value; changed(); };
-      const spec = h('span', { class: 'mono', style: 'color:var(--ink-dim);align-self:center', title: c.rule }, c.spec);
+      let spec = h('span', { class: 'mono', style: 'color:var(--ink-dim);align-self:center', title: c.rule }, c.spec);
+      if (s.kind === 'bot') {
+        spec = h('select', { disabled: !(!lobby || isHost), 'aria-label': 'Bot personality', title: 'Personality' }, [h('option', { value: '' }, 'Personality: ' + E.PERSONAS[c.persona].name)].concat(Object.entries(E.PERSONAS).filter(([, v]) => !v.hidden).map(([k, v]) => h('option', { value: k }, v.name))));
+        spec.value = s.persona || ''; spec.onchange = () => { s.persona = spec.value || undefined; changed(); };
+      }
       host.appendChild(h('div', { class: 'slot-row', style: `--c0:${c.hex[0]};--c1:${c.hex[1]}` }, h('div', { class: 'sw' }), h('div', null, h('div', { class: 'ctl' }, cult, ctrl, team, spec),
-        h('div', { style: 'font-size:.8em;color:var(--ink-soft);margin-top:6px' }, `${c.epithet}. ${c.rule}. Starts with ${E.ORGANS[c.startForm].name} and the ${E.CHASSIS[c.startChassis].name}.`))));
+        h('div', { style: 'font-size:.8em;color:var(--ink-soft);margin-top:6px' }, `${c.epithet}. ${c.rule}. Starts with ${E.ORGANS[c.startForm].name} and the ${E.CHASSIS[c.startChassis].name}.`),
+        h('div', { class: 'counters' }, h('span', { class: 'up' }, '▲ strong vs ' + c.pressures.map(id => E.CULTURES[id].short).join(', ')), h('span', { class: 'down' }, '▼ weak vs ' + E.CULTURE_LIST.filter(o => o.pressures.includes(c.id)).map(o => o.short).join(', '))))));
     });
     $('slot-add').hidden = setup.slots.length >= 6 || isGuest || (lobby && lobby.save);
     $('slot-note').textContent = `${setup.slots.length}/6 cultures`;
@@ -90,6 +95,11 @@
     seg('map-rich', [[0.6, 'Scarce'], [1, 'Normal'], [1.5, 'Lush']], 'richness');
     seg('map-pu', [[0, 'Off'], [1, 'Normal'], [2, 'Frequent']], 'powerups');
     seg('map-start', [[150, '150'], [220, '220'], [500, '500'], [1000, '1000']], 'startLumen');
+    if (!setup.map.mode) setup.map.mode = 'annihilation';
+    if (!setup.map.popCap) setup.map.popCap = E.Perf.defaultPopCap();
+    seg('map-mode', Object.entries(E.MODES).map(([k, v]) => [k, v.name]), 'mode');
+    $('map-mode-d').textContent = E.MODES[setup.map.mode].desc;
+    seg('map-pop', [[60, '60'], [90, '90'], [120, '120'], [150, '150']], 'popCap');
     $('map-seed').value = setup.map.seed; $('map-seed').disabled = isGuest || !!(lobby && lobby.save);
     $('map-reseed').disabled = isGuest || !!(lobby && lobby.save);
     $('map-fog').checked = !!setup.map.fog; $('map-cur').checked = !!setup.map.currents;
@@ -145,7 +155,7 @@
     const slots = setup.slots;
     const players = slots.map(s => ({
       name: s.kind === 'you' ? playerName() : s.kind === 'human' ? s.name : E.CULTURES[s.culture].short,
-      culture: s.culture, team: s.team || 0, kind: s.kind === 'you' ? 'human' : s.kind === 'human' ? 'remote' : 'bot', diff: s.diff || 'normal',
+      culture: s.culture, team: s.team || 0, kind: s.kind === 'you' ? 'human' : s.kind === 'human' ? 'remote' : 'bot', diff: s.diff || 'normal', persona: s.kind === 'bot' ? s.persona : undefined,
       designs: s.kind === 'you' ? E.Library.all().slice(0, 12) : [],
     }));
     return { map: Object.assign({}, setup.map), players };
@@ -284,9 +294,13 @@
     const nameIn = h('input', { type: 'text', maxlength: 18, value: S.name, placeholder: 'Tender' }); nameIn.onchange = () => { S.name = nameIn.value.trim(); E.saveSettings(); };
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Display & sound'),
       h('div', { class: 'field' }, h('label', null, 'Your name'), nameIn),
-      seg('Graphics quality', 'quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low (battery saver)']], () => { game.renderer.quality = S.quality === 'low' ? 'low' : 'high'; game.resize(); }),
+      seg('Renderer', 'backend', [['auto', 'Auto'], ['webgpu', 'WebGPU'], ['webgl2', 'WebGL2'], ['canvas2d', 'Canvas 2D']], () => { if (S.backend === 'webgpu') E.loadWebGPU(); }),
+      h('small', { class: 'hint-s' }, `This device: WebGL2 ${E.hasWebGL2() ? '✓' : '✗'} · WebGPU ${navigator.gpu ? '✓' : '✗'}. Auto uses WebGL2, and Canvas 2D if WebGL2 is unavailable.`),
+      seg('Quality', 'quality', [['auto', 'Auto (keeps 60 fps)'], ['ultra', 'Ultra'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']], () => { if (game.renderer) { if (game.renderer.setTier) game.renderer.setTier(S.quality === 'auto' ? E.Perf.defaultTier() : S.quality); else game.renderer.quality = S.quality === 'low' ? 'low' : 'high'; game.resize(); } }),
+      seg('Culture shape markers', 'markers', [['auto', 'When zoomed in'], ['always', 'Always'], ['off', 'Off']]),
+      seg('Orientation', 'orientation', [['auto', 'Auto'], ['landscape', 'Landscape'], ['portrait', 'Portrait']]),
       seg('Interface size', 'uiScale', [[0.9, 'S'], [1, 'M'], [1.15, 'L'], [1.3, 'XL']], applyUi),
-      slider('Music', 'music'), slider('Effects', 'sfx'), tog('Health bars on damaged creatures', 'showHp'), tog('Vibration (touch)', 'haptics')));
+      slider('Music', 'music'), slider('Effects', 'sfx'), tog('Mute all sound', 'muted'), tog('Organ-art command icons', 'organIcons'), tog('Health bars on damaged creatures', 'showHp'), tog('Vibration (touch)', 'haptics')));
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
       seg('Right-click / tap on ground', 'rightClick', [['amove', 'Attack-move'], ['move', 'Move']]),
@@ -303,6 +317,8 @@
       lobby = null;
       $('bg').hidden = false; E.Screens.stack = []; E.Screens.show('scr-menu');
       $('m-continue').hidden = !E.Saves.read('auto');
+      const pr = E.Profile.summary();
+      $('m-lineage').innerHTML = pr.matches ? `<b>Level ${pr.level}</b> ${E.esc(pr.title)} · ${pr.wins} wins · ${pr.ach}/${E.Profile.ACH.length} honours` : '';
     },
     openCodex(fromGame) { overGame('scr-codex', fromGame); E.Codex.render($('codex-tabs'), $('codex-body')); },
     openSettings(fromGame) { overGame('scr-settings', fromGame); renderSettings(); },
@@ -320,6 +336,12 @@
   }));
 
   $('m-continue').onclick = () => loadSave('auto');
+  $('m-tutorial').onclick = () => {
+    E.Audio.init();
+    const cfg = { map: Object.assign({}, E.DEFAULT_MAP, { size: 's', seed: 4242, startLumen: 320, mode: 'annihilation', popCap: 60 }),
+      players: [{ name: playerName(), culture: 'verdant', team: 0, kind: 'human', designs: [] }, { name: 'Current-born', culture: 'current', team: 0, kind: 'bot', diff: 'easy', persona: 'tutor' }] };
+    game.start({ mode: 'local', cfg, local: 0, tutorial: true });
+  };
   $('m-skirmish').onclick = () => { E.Audio.init(); lobby = null; setup = defaultSetup(); E.Screens.show('scr-setup'); renderSetup(); };
   $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl(); $('mp-status').textContent = location.protocol === 'file:' ? 'Tip: open the game from the server URL for multiplayer.' : ''; E.Screens.show('scr-mp'); };
   $('m-load').onclick = () => { E.Screens.show('scr-load'); renderLoad(); };

@@ -38,7 +38,8 @@
   }
   A.apply = function () {
     if (!A.ctx) return;
-    A.music.gain.value = E.Settings.music * 0.6; A.fx.gain.value = E.Settings.sfx * 0.7;
+    const m = E.Settings.muted ? 0 : 1;
+    A.music.gain.value = E.Settings.music * 0.6 * m; A.fx.gain.value = E.Settings.sfx * 0.7 * m;
   };
   // mood: 0..1 energy, 0..1 fever
   A.mood = function (e, fever) {
@@ -77,6 +78,12 @@
     defeat: () => [392, 311, 262, 196].forEach((f, i) => tone(f, 1.4, 'sine', 0.06, 1, i * 0.25, true)),
     chat: () => tone(1200, 0.08, 'sine', 0.04),
   };
+  // Each culture sings in its own mode; hatch and research chimes use it.
+  const SCALES = [[0, 2, 4, 7, 9], [0, 2, 4, 5, 7, 9, 11], [0, 3, 5, 7, 10], [0, 1, 5, 7, 8], [0, 2, 3, 7, 8], [0, 4, 6, 7, 11]];
+  A.setCulture = function (idx) { A.scale = SCALES[idx % 6]; A.root = [523.25, 587.33, 493.88, 440, 466.16, 554.37][idx % 6]; };
+  A.note = function (step) { const sc = A.scale || SCALES[0], n = sc[((step % sc.length) + sc.length) % sc.length] + 12 * Math.floor(step / sc.length); return (A.root || 523.25) * Math.pow(2, n / 12); };
+  SFX.hatch = () => { const s = Math.floor(Math.random() * 5); tone(A.note(s), 0.5, 'sine', 0.06, 1, 0, true); tone(A.note(s + 2), 0.4, 'sine', 0.03, 1, 0.05, true); };
+  SFX.research = () => [0, 1, 2, 4].forEach((s, i) => tone(A.note(s), 0.6, 'sine', 0.05, 1, i * 0.08, true));
   A.play = function (k, ms) { if (!A.on || !SFX[k]) return; if (!thr(k, ms || 60)) return; try { SFX[k](); } catch (e) { /* ignore */ } };
   E.Audio = A;
 })(window.E);

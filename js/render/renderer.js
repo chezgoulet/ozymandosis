@@ -79,6 +79,7 @@
       for (const b of s.structs) if (inView(b.x, b.y, 120) && (b.o === local || !this.fogActive || this.explore(b.x, b.y))) this.drawStruct(ctx, view, b, pals[b.o], t, ui);
       this.drawUnits(ctx, view, alpha, t, dt, pals, inView, ui);
       this.drawShots(ctx, view, alpha, t, pals);
+      this.trackDamage(view, dt);
       this.drawFx(ctx, t);
       // fog
       if (this.fogActive) this.drawFog(ctx, view);
@@ -262,6 +263,11 @@
         } else if (hpF < 0.98 && z > 0.45 && ui && ui.showHp) {
           const w = 16 * st.size; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x - w / 2, y - r - 5, w, 2.5);
           ctx.fillStyle = E.rgba(hpF > 0.35 ? cpal.accent : E.RED, 0.9); ctx.fillRect(x - w / 2, y - r - 5, w * hpF, 2.5);
+        }
+        if ((E.Settings.markers === 'always' || (E.Settings.markers !== 'off' && z >= 0.45)) && E.shapePath) {
+          const cult = E.CULTURES[s.players[u.o].culture], sz = 4.5 / Math.max(0.7, z);
+          ctx.save(); ctx.translate(x, y + r + (u.rank ? 9 : 5)); E.shapePath(ctx, E.SHAPES[cult.idx], sz);
+          ctx.fillStyle = cult.hex[1]; ctx.fill(); ctx.lineWidth = 1 / z; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
         }
         if (u.rank && z > 0.5) { ctx.fillStyle = '#ffe066'; for (let k = 0; k < u.rank; k++) { ctx.beginPath(); ctx.arc(x - (u.rank - 1) * 2.5 + k * 5, y + r + 3, 1.4, 0, TAU); ctx.fill(); } }
       }

@@ -16,6 +16,7 @@
     { text: 'Tap ⚔ Army, then tap the ground to send them. They fight anything on the way.', done: g => g.me().stats.kills > 0 },
   ];
 
+  const DIFF_ORDER = ['easy', 'normal', 'hard', 'brutal'];
   class Game {
     constructor() {
       this.root = $('game'); this.stage = $('stage'); this.cv = $('view');
@@ -33,6 +34,8 @@
 
     // ── lifecycle ───────────────────────────────────────────────
     start(o) {
+      this.startOpts = o; this.tutorial = !!o.tutorial;
+      if (this.tutorial) { E.Settings.guideStep = 0; E.Settings.tips = true; }
       this.netMode = o.mode || 'local';
       this.local = o.local || 0; this.relay = o.relay || null; this.peers = o.peers || new Map();
       if (this.netMode === 'guest') { this.world = E.NetPack.mirror(o.init); this.local = o.init.you; this.snapT = performance.now(); this.snapDt = 125; this.waiting = true; }
@@ -49,7 +52,8 @@
       const c = this.renderer.cam;
       if (home) { c.x = home.x; c.y = home.y; } else { c.x = w.s.map.w / 2; c.y = w.s.map.h / 2; }
       c.z = Math.min(this.renderer.W, this.renderer.H) < 700 ? 0.75 : 1;
-      if (me) { const cult = E.CULTURES[me.culture]; document.documentElement.style.setProperty('--pc0', cult.hex[0]); document.documentElement.style.setProperty('--pc1', cult.hex[1]); }
+      if (me) { const cult = E.CULTURES[me.culture]; document.documentElement.style.setProperty('--pc0', cult.hex[0]); document.documentElement.style.setProperty('--pc1', cult.hex[1]); E.Audio.setCulture(cult.idx); }
+      this.lockOrientation();
       $('mm-wrap').classList.toggle('collapsed', !!E.Settings.mmCollapsed);
       $('h-chat').hidden = this.netMode === 'local'; $('chat').hidden = this.netMode === 'local';
       $('chat-log').innerHTML = '';
@@ -77,12 +81,33 @@
       else this.renderer.quality = tier === 'low' ? 'low' : 'high';
       this.governor = new E.Governor(this.renderer);
     }
+    lockOrientation() {
+      const o = E.Settings.orientation || 'auto';
+      try { if (screen.orientation && screen.orientation.lock && o !== 'auto') screen.orientation.lock(o === 'landscape' ? 'landscape' : 'portrait').catch(() => {}); } catch (e) { /* not supported outside fullscreen/installed apps */ }
+    }
     stop() {
       this.autosave();
       this.running = false; this.root.hidden = true; $('bg').hidden = false;
       if (this.relay) { this.relay.close(); this.relay = null; }
     }
     me() { return this.world && this.local >= 0 ? this.world.s.players[this.local] : null; }
+    // Unit orders go through here: remembers previous orders for Undo and applies queue mode.
+    order(cmd, queue) {
+      const w = this.world, prev = [];
+      for (const id of cmd.ids || []) { const u = w.byId.get(id); if (u && u.o === this.local) prev.push({ id, order: E.deepCopy(u.order), q: E.deepCopy(u.q || []) }); }
+      if (queue || this.queueMode) cmd.queue = true;
+      this.send(cmd);
+      if (prev.length) this.offerUndo(prev);
+    }
+    offerUndo(prev) {
+      this.undo = prev; const el = $('undo'); el.hidden = false;
+      clearTimeout(this.undoT); this.undoT = setTimeout(() => { el.hidden = true; this.undo = null; }, 4000);
+    }
+    doUndo() {
+      if (!this.undo) return;
+      this.send({ c: 'restore', orders: this.undo }); this.undo = null; $('undo').hidden = true;
+      E.toast('Order undone'); E.Audio.play('tap');
+    }
     send(cmd) {
       if (!this.world || this.world.s.over) return;
       if (this.netMode === 'guest') this.relay.toHost({ k: 'cmd', cmd });
@@ -201,7 +226,7 @@
         const seen = ev.x === undefined || this.renderer.seen(ev.x, ev.y);
         switch (ev.e) {
           case 'hatch': if (mine) E.Audio.play('hatch', 150); break;
-          case 'die': if (seen) E.Audio.play('die', 90); break;
+          case 'die': if (seen) E.Audio.play('die', 90); if (!ev.withered && (ev.o === L || ev.by === L)) this.feedKill(ev); break;
           case 'hit': if (seen) E.Audio.play('bite', 70); break;
           case 'research': if (mine) { const t = E.TECHS[ev.key]; this.notify(`${t.name} evolved`, 'good'); E.Audio.play('research'); this.sheetSig = ''; if (!$('ov-tech').hidden) this.tech.build(); } break;
           case 'alert': if (mine) { const t = performance.now() / 1000; this.alerts.push({ x: ev.x, y: ev.y, t }); this.alerts = this.alerts.slice(-6); this.lastAlert = ev; this.notify(`Your ${E.STRUCTS[ev.kind].name} is under attack`, 'alert', ev); E.Audio.play('alert', 3000); } break;
@@ -209,7 +234,8 @@
           case 'pickup': if (mine) E.Audio.play('pickup'); break;
           case 'built': if (mine) { this.notify(`${E.STRUCTS[ev.kind].name} has bloomed`, 'good'); E.Audio.play('build'); this.sheetSig = ''; } break;
           case 'plant': if (mine) E.Audio.play('build'); break;
-          case 'destroy': if (seen) E.Audio.play('destroy'); if (mine) this.notify(`Your ${E.STRUCTS[ev.kind].name} was destroyed`, 'alert', ev); break;
+          case 'destroy': if (seen) E.Audio.play('destroy'); if (mine) this.notify(`Your ${E.STRUCTS[ev.kind].name} was destroyed`, 'alert', ev); this.feed(`${this.pname(ev.by)} ✕ ${this.pname(ev.o)} ${E.STRUCTS[ev.kind].name}`, ev.o === L ? 'bad' : ev.by === L ? 'good' : ''); break;
+          case 'objective': if (ev.team !== null && ev.team !== undefined) { const mineT = this.local >= 0 && ev.team === w.teamOf(L); this.feed(mineT ? 'You hold a great caustic' : 'A rival holds a great caustic', mineT ? 'good' : 'bad'); } break;
           case 'power': if (seen || mine) E.Audio.play('power'); break;
           case 'ability': if (seen) E.Audio.play('ability', 100); break;
           case 'convert': if (ev.from === L) this.notify('One of your creatures was turned', 'alert', ev); break;
@@ -223,6 +249,58 @@
       const el = h('div', { class: 'alert' + (kind === 'info' ? ' info' : kind === 'good' ? ' good' : '') }, h('span', null, text), at ? h('button', { class: 'btn small', onclick: () => this.jump(at.x, at.y) }, 'View') : null);
       box.appendChild(el); while (box.children.length > 3) box.firstChild.remove();
       setTimeout(() => el.remove(), kind === 'alert' ? 6000 : 3800);
+    }
+    pname(i) { const p = this.world.s.players[i]; return p ? (i === this.local ? 'You' : p.name) : '?'; }
+    // Kill feed: individual structure events, creature deaths batched every 1.5 s so fights read cleanly.
+    feedKill(ev) {
+      const k = ev.o === this.local ? 'lost' : 'kills', b = this.killBatch || (this.killBatch = { lost: {}, kills: {} });
+      const key = ev.o === this.local ? this.world.designOf(ev.o, ev.d).name : ev.o;
+      b[k][key] = (b[k][key] || 0) + 1;
+      if (!this.killT) this.killT = setTimeout(() => {
+        const bb = this.killBatch; this.killBatch = null; this.killT = 0;
+        for (const [name, n] of Object.entries(bb.lost)) this.feed(`Lost ${n} ${name}${n > 1 ? 's' : ''}`, 'bad');
+        for (const [o, n] of Object.entries(bb.kills)) this.feed(`Slew ${n} of ${this.pname(+o)}`, 'good');
+      }, 1500);
+    }
+    feed(text, cls) {
+      const el = $('killfeed'), row = h('div', { class: 'kf ' + (cls || '') }, text);
+      el.appendChild(row); while (el.children.length > 5) el.firstChild.remove();
+      setTimeout(() => row.remove(), 7000);
+    }
+    // Arrows at the screen edge toward off-screen trouble (recent alerts, own creatures in combat).
+    updateThreats() {
+      const R = this.renderer, w = this.world, el = $('threats'), now = performance.now() / 1000;
+      const list = [];
+      for (const a of this.alerts) if (now - a.t < 8) list.push({ x: a.x, y: a.y, kind: 'struct' });
+      let n = 0; for (const u of w.s.units) { if (u.o === this.local && u.engaged && n < 60) { n++; list.push({ x: u.x, y: u.y, kind: 'unit' }); } }
+      const off = [], W = R.W, H = R.H, m = 34;
+      for (const t of list) {
+        const s = R.w2s(t.x, t.y);
+        if (s.x > 0 && s.y > 0 && s.x < W && s.y < H) continue;
+        if (off.some(o => Math.hypot(o.wx - t.x, o.wy - t.y) < 400)) continue;
+        const cx = W / 2, cy = H / 2, dx = s.x - cx, dy = s.y - cy, k = Math.min((W / 2 - m) / Math.abs(dx || 1e-3), (H / 2 - m) / Math.abs(dy || 1e-3));
+        off.push({ sx: cx + dx * k, sy: cy + dy * k, a: Math.atan2(dy, dx), wx: t.x, wy: t.y, kind: t.kind });
+        if (off.length >= 4) break;
+      }
+      while (el.children.length < off.length) { const b = h('button', { class: 'threat', 'aria-label': 'Jump to threat' }, h('i')); el.appendChild(b); }
+      [...el.children].forEach((b, i) => {
+        const o = off[i]; b.hidden = !o; if (!o) return;
+        b.style.transform = `translate(${o.sx}px, ${o.sy}px)`; b.firstChild.style.transform = `rotate(${o.a}rad)`;
+        b.classList.toggle('struct', o.kind === 'struct');
+        b.onclick = () => this.jump(o.wx, o.wy);
+      });
+      this.threatMarks = off;
+    }
+    updateObjective() {
+      const w = this.world, s = w.s, mode = s.cfg.map.mode || 'annihilation', el = $('h-obj');
+      if (mode !== 'tide' && mode !== 'bloom') { el.hidden = true; return; }
+      el.hidden = false;
+      const goal = E.objectiveGoal(s.cfg.map), sc = (s.obj && s.obj.score) || {}, mine = this.local >= 0 ? w.teamOf(this.local) : null;
+      let foe = 0; for (const t in sc) if (+t !== mine) foe = Math.max(foe, sc[t]);
+      const me = mine !== null ? sc[mine] || 0 : 0;
+      $('h-obj-me').style.width = E.clamp(me / goal, 0, 1) * 100 + '%'; $('h-obj-foe').style.width = E.clamp(foe / goal, 0, 1) * 100 + '%';
+      $('h-obj-t').textContent = mode === 'tide' ? `${Math.floor(me)}/${goal}` : `${Math.floor(me / 100) / 10}k/${goal / 1000}k`;
+      el.title = E.MODES[mode].name + ': ' + E.MODES[mode].desc;
     }
     jump(x, y) { this.renderer.cam.x = x; this.renderer.cam.y = y; this.renderer.clampCam(this.world); }
 
@@ -269,33 +347,35 @@
       this.sheetSig = ''; this.renderSheet();
     }
     ping(x, y, c) { this.pings.push({ x, y, c: c || { r: 160, g: 255, b: 240 }, t0: this.renderer.t }); }
-    smart(pt) {
+    smart(pt, queue) {
       const us = this.selUnits(), st = this.selStruct();
       if (st && st.o === this.local && !us.length) { this.send({ c: 'rally', sid: st.id, x: pt.x, y: pt.y }); this.ping(pt.x, pt.y); E.Audio.play('order'); return true; }
       if (!us.length) return false;
       const ids = us.map(u => u.id), tg = this.pick(pt, true), w = this.world;
-      if (tg && tg.o !== undefined && !tg.pool && !tg.pickup && w.isEnemy(this.local, tg.o)) { this.send({ c: 'attack', ids, tid: tg.id }); this.ping(tg.x, tg.y, { r: 255, g: 110, b: 110 }); }
-      else if (tg && tg.pool) { this.send({ c: 'harvest', ids, rid: tg.id }); this.ping(tg.x, tg.y, { r: 200, g: 255, b: 255 }); }
-      else if (tg && tg.pickup) { this.send({ c: 'move', ids, x: tg.x, y: tg.y }); this.ping(tg.x, tg.y, { r: 255, g: 224, b: 102 }); }
-      else { this.send({ c: E.Settings.rightClick === 'move' ? 'move' : 'amove', ids, x: pt.x, y: pt.y }); this.ping(pt.x, pt.y); }
+      if (tg && tg.o !== undefined && !tg.pool && !tg.pickup && w.isEnemy(this.local, tg.o)) { this.order({ c: 'attack', ids, tid: tg.id }, queue); this.ping(tg.x, tg.y, { r: 255, g: 110, b: 110 }); }
+      else if (tg && tg.pool) { this.order({ c: 'harvest', ids, rid: tg.id }); this.ping(tg.x, tg.y, { r: 200, g: 255, b: 255 }); }
+      else if (tg && tg.pickup) { this.order({ c: 'move', ids, x: tg.x, y: tg.y }, queue); this.ping(tg.x, tg.y, { r: 255, g: 224, b: 102 }); }
+      else { this.order({ c: E.Settings.rightClick === 'move' ? 'move' : 'amove', ids, x: pt.x, y: pt.y }, queue); this.ping(pt.x, pt.y); }
       E.Audio.play('order'); E.haptic(6);
       return true;
     }
     setMode(m) {
       this.mode = m; this.ghost = null; this.targetPreview = null;
-      const hint = $('hint');
+      const hint = $('hint'); $('hint-ok').hidden = true;
       if (!m) { hint.hidden = true; this.renderSheet(); return; }
-      const labels = { amove: 'Tap a place to attack-move', move: 'Tap a place to move', rally: 'Tap to set the rally point', build: `Tap to plant a ${m.kind && E.STRUCTS[m.kind] ? E.STRUCTS[m.kind].name : ''}`,
+      const labels = { amove: 'Tap a place to attack-move', move: 'Tap a place to move', patrol: 'Tap the far end of the patrol route', rally: 'Tap to set the rally point', build: `Tap to plant a ${m.kind && E.STRUCTS[m.kind] ? E.STRUCTS[m.kind].name : ''}`,
         ability: m.ab ? `Target ${E.ABILITIES[m.ab].name}` : '', power: m.id ? `Target ${E.POWERS[m.id].name}` : '' };
       $('hint-text').textContent = labels[m.k] || ''; hint.hidden = false;
     }
     execMode(pt) {
       const m = this.mode; if (!m) return false;
       const ids = this.selUnits().map(u => u.id);
-      if (m.k === 'amove' || m.k === 'move') { if (ids.length) { this.send({ c: m.k, ids, x: pt.x, y: pt.y }); this.ping(pt.x, pt.y, m.k === 'amove' ? { r: 255, g: 110, b: 110 } : null); } }
+      if (m.k === 'amove' || m.k === 'move' || m.k === 'patrol') { if (ids.length) { this.order({ c: m.k, ids, x: pt.x, y: pt.y }, this.shiftHeld); this.ping(pt.x, pt.y, m.k === 'amove' ? { r: 255, g: 110, b: 110 } : m.k === 'patrol' ? { r: 255, g: 224, b: 102 } : null); } }
       else if (m.k === 'rally') { const st = this.selStruct(); if (st) this.send({ c: 'rally', sid: st.id, x: pt.x, y: pt.y }); }
       else if (m.k === 'build') {
-        if (!this.world.canPlace(this.local, m.kind, pt.x, pt.y)) { E.toast('Too close to another structure or the edge.'); E.Audio.play('deny'); return true; }
+        if (!this.world.canPlace(this.local, m.kind, pt.x, pt.y)) { this.ghost = { kind: m.kind, x: pt.x, y: pt.y, ok: false }; E.toast('Too close to another structure or the edge.'); E.Audio.play('deny'); return true; }
+        // touch: first tap previews, Confirm plants (a mis-tap never spends resources)
+        if (this.isTouch && !m.confirmed) { m.pending = { x: pt.x, y: pt.y }; this.ghost = { kind: m.kind, x: pt.x, y: pt.y, ok: true }; $('hint-text').textContent = `Plant the ${E.STRUCTS[m.kind].name} here?`; $('hint-ok').hidden = false; return true; }
         let builders = ids;
         if (!builders.length) { const f = this.nearestForager(pt); if (f) builders = [f.id]; }
         if (!builders.length) { E.toast('No creature available to plant it.'); return true; }
@@ -343,7 +423,7 @@
         this.select([e.id]); return;
       }
       // empty ground / pool / pickup
-      if (this.isTouch && E.Settings.tapCommand && this.selUnits().length) { this.smart(pt); return; }
+      if (this.isTouch && E.Settings.tapCommand && this.selUnits().length) { this.smart(pt, this.queueMode); return; }
       if (!add) { this.selection.clear(); this.sheetSig = ''; this.renderSheet(); }
     }
 
@@ -402,7 +482,7 @@
               this.clickAt(p.x, p.y, e.shiftKey, dbl);
             }
           } else if (p.btn === 2 && !p.moved) {
-            if (this.mode) this.setMode(null); else this.smart(this.renderer.s2w(p.x, p.y));
+            if (this.mode) this.setMode(null); else this.smart(this.renderer.s2w(p.x, p.y), e.shiftKey);
           }
         }
       };
@@ -414,7 +494,10 @@
         this.zoomAt(e.offsetX, e.offsetY, f);
       }, { passive: false });
       window.addEventListener('keydown', e => this.onKey(e));
-      window.addEventListener('keyup', e => this.keys.delete(e.key.toLowerCase()));
+      window.addEventListener('keyup', e => { this.keys.delete(e.key.toLowerCase()); this.shiftHeld = e.shiftKey; });
+      const reorient = () => setTimeout(() => this.resize(), 250);
+      window.addEventListener('orientationchange', reorient);
+      if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', reorient);
       // minimap
       const mm = $('minimap');
       const mmMove = e => { const r = mm.getBoundingClientRect(), pt = this.minimap.toWorld(this.world, e.clientX - r.left, e.clientY - r.top); this.jump(pt.x, pt.y); };
@@ -446,6 +529,7 @@
       }
     }
     onKey(e) {
+      this.shiftHeld = e.shiftKey;
       if (!this.running || this.root.hidden) return;
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') { if (e.key === 'Escape') e.target.blur(); return; }
@@ -462,7 +546,8 @@
       }
       if (overlayOpen) return;
       if (k === 'enter' && this.netMode !== 'local') { this.openChat(); e.preventDefault(); return; }
-      if (k === 'p' || k === 'f10') { this.openPause(); return; }
+      if (k === 'f10') { this.openPause(); return; }
+      if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); this.doUndo(); return; }
       const ctrl = e.ctrlKey || e.metaKey;
       if (/^[0-9]$/.test(k)) {
         const st = this.selStruct();
@@ -479,6 +564,7 @@
       const us = this.selUnits();
       if (k === 'a' && us.length) this.setMode({ k: 'amove' });
       else if (k === 'm' && us.length) this.setMode({ k: 'move' });
+      else if (k === 'p' && us.length) this.setMode({ k: 'patrol' });
       else if (k === 's' && us.length) this.send({ c: 'stop', ids: us.map(u => u.id) });
       else if (k === 'h' && us.length) this.send({ c: 'hold', ids: us.map(u => u.id), x: us[0].x, y: us[0].y });
       else if (k === 'b') this.showBuild();
@@ -545,6 +631,10 @@
       $('f-forge').onclick = () => this.openForge();
       $('mm-toggle').onclick = () => { const w = $('mm-wrap'); w.classList.toggle('collapsed'); E.Settings.mmCollapsed = w.classList.contains('collapsed'); E.saveSettings(); };
       $('hint-cancel').onclick = () => this.setMode(null);
+      $('hint-ok').onclick = () => { const m = this.mode; if (m && m.pending) { m.confirmed = true; this.execMode(m.pending); } };
+      $('undo-btn').onclick = () => this.doUndo();
+      $('h-mute').onclick = () => { E.Settings.muted = !E.Settings.muted; E.saveSettings(); E.Audio.apply(); this.renderMute(); };
+      for (const k of ['music', 'sfx']) { const el = $('p-' + k); el.oninput = () => { E.Settings[k] = el.value / 100; E.Settings.muted = false; E.saveSettings(); E.Audio.apply(); this.renderMute(); }; }
       $('sh-close').onclick = () => { this.selection.clear(); this.setMode(null); this.sheetSig = ''; this.renderSheet(); };
       $('sheet-grab').onclick = () => { $('sheet').classList.toggle('min'); this.measureSheet(); };
       document.querySelectorAll('#game [data-close]').forEach(b => (b.onclick = () => this.closeOverlays()));
@@ -556,6 +646,18 @@
       $('p-quit').onclick = async () => { if (this.world.s.over || await E.confirm('Quit to menu?', this.netMode === 'guest' ? 'You will leave the match.' : 'Your progress is autosaved. You can Continue from the menu.', 'Quit')) this.quit(); };
       $('end-menu').onclick = () => this.quit();
       $('end-watch').onclick = () => { $('ov-end').hidden = true; };
+      const rematch = reseed => {
+        const o = this.startOpts, cfg = E.deepCopy(o.cfg || (this.world && this.world.s.cfg));
+        if (!cfg) return;
+        if (reseed) cfg.map.seed = 1 + Math.floor(Math.random() * 999998);
+        cfg.players.forEach(p => { if (p.kind === 'remote') { const peer = [...this.peers.values()].find(x => x.name === p.name); if (!peer) { p.kind = 'bot'; } } });
+        const relay = this.relay; this.relay = null; // keep the connection across the restart
+        this.running = false;
+        this.start(Object.assign({}, o, { cfg, save: null, relay, peers: this.peers }));
+        E.toast(reseed ? 'Rematch on a new Dreamscape' : 'Rematch');
+      };
+      $('end-rematch').onclick = () => rematch(false);
+      $('end-reseed').onclick = () => rematch(true);
       $('h-chat').onclick = () => this.openChat();
       $('chat-form').onsubmit = e => {
         e.preventDefault(); const v = $('chat-input').value.trim(); $('chat-input').value = ''; $('chat-form').hidden = true;
@@ -567,10 +669,11 @@
       $('p-speed').innerHTML = '';
       for (const s of speeds) $('p-speed').appendChild(h('button', { 'aria-pressed': 'false', onclick: () => { this.speed = s; E.Settings.speed = s; E.saveSettings(); this.renderSpeed(); } }, s + '×'));
     }
+    renderMute() { $('h-mute').textContent = E.Settings.muted ? '🔇' : '🔊'; $('p-music').value = Math.round(E.Settings.music * 100); $('p-sfx').value = Math.round(E.Settings.sfx * 100); }
     renderSpeed() { [...$('p-speed').children].forEach((b, i) => b.setAttribute('aria-pressed', String([0.5, 1, 1.5, 2][i] === this.speed))); $('p-speed').parentElement.hidden = this.netMode !== 'local'; }
     openChat() { $('chat').hidden = false; $('chat-form').hidden = false; $('chat-input').focus(); }
     openPause() {
-      $('ov-pause').hidden = false; this.renderSpeed();
+      $('ov-pause').hidden = false; this.renderSpeed(); this.renderMute();
       $('p-save').hidden = this.netMode === 'guest';
       $('pause-note').textContent = this.netMode === 'guest' ? 'The match continues while this menu is open.' : '';
       if (this.netMode !== 'guest') { this.paused = true; if (this.netMode === 'host') this.relay.send('all', { k: 'pause', on: true }); }
@@ -614,6 +717,18 @@
       $('end-stats').innerHTML = `<tr><th>Culture</th><th>State</th><th>Hatched</th><th>Kills</th><th>Lost</th><th>Lumen</th><th>Spore</th><th>Evolutions</th></tr>${rows}`;
       E.Audio.play(won ? 'victory' : 'defeat');
       if (this.netMode !== 'guest') E.Saves.remove('auto');
+      // meta-progression
+      const box = $('end-xp'); box.innerHTML = '';
+      if (me) {
+        const foes = s.players.filter(p => w.isEnemy(this.local, p.idx));
+        const r = E.Profile.award({ won: !!won, culture: me.culture, hardest: Math.max(-1, ...foes.filter(p => p.kind === 'bot').map(p => DIFF_ORDER.indexOf(p.diff))), players: s.players.length,
+          ffa: s.players.every(p => !p.team), size: s.cfg.map.size, evolved: me.stats.evolved || 0, built: me.stats.built || 0, hatched: me.stats.hatched, kills: me.stats.kills,
+          time: s.t, mode: s.cfg.map.mode || 'annihilation', online: this.netMode !== 'local', tutorial: this.tutorial });
+        box.appendChild(h('div', { class: 'xp-row' }, h('b', null, `+${r.xp} lineage`), h('span', null, `Level ${r.level} · ${r.title}${r.levelUp ? ' ✦ new level' : ''}`)));
+        box.appendChild(h('div', { class: 'bar-l', style: 'margin:6px 0 4px' }, h('i', { style: `width:${Math.round(r.progress * 100)}%` })));
+        for (const a of r.got) box.appendChild(h('div', { class: 'ach' }, h('span', { class: 'glyph', style: '--gc:#ffe066' }, '✦'), h('div', null, h('b', null, a.name), h('small', null, a.desc + ' A new design is waiting in your Forge library.'))));
+      }
+      $('end-rematch').hidden = this.netMode === 'guest'; $('end-reseed').hidden = this.netMode === 'guest';
       setTimeout(() => { $('ov-end').hidden = false; }, 1800);
     }
     updateHud() {
@@ -635,6 +750,13 @@
       if (this.waiting) $('sh-title').textContent = 'Connecting…';
       this.renderSheet(true);
       this.guideTick();
+      this.updateThreats(); this.updateObjective();
+      // the HUD membrane takes on the colony's live palette (fever, starvation, blight)
+      if (me) { const pal = E.playerPalette(w, me), rs = document.documentElement.style; rs.setProperty('--pal-p', E.toHex(pal.primary)); rs.setProperty('--pal-a', E.toHex(pal.accent)); rs.setProperty('--fever', me.fever.toFixed(2)); rs.setProperty('--energy', me.energy.toFixed(2)); }
+    }
+    // Tutorial: the rival stays passive until you have learned to build an army.
+    unleashTutor() {
+      for (const p of this.world.s.players) if (p.persona === 'tutor' && !p.ai.unleash) { p.ai.unleash = true; this.notify('Your rival stirs. Send your army to destroy its nucleus.', 'alert'); }
     }
     guideTick() {
       const el = $('guide'); if (!el) return;
@@ -642,7 +764,11 @@
       if (!E.Settings.tips || i >= GUIDE.length || !me) { el.hidden = true; return; }
       if (!this.guideStart) this.guideStart = { i, t: this.world.s.t };
       if (this.guideStart.i !== i) this.guideStart = { i, t: this.world.s.t };
-      if (GUIDE[i].done(this, this.world.s.t - this.guideStart.t)) { E.Settings.guideStep = i + 1; E.saveSettings(); E.Audio.play('select'); return; }
+      if (GUIDE[i].done(this, this.world.s.t - this.guideStart.t)) {
+        E.Settings.guideStep = i + 1; E.saveSettings(); E.Audio.play('select');
+        if (this.tutorial && i + 1 >= GUIDE.length - 1) this.unleashTutor();
+        return;
+      }
       el.hidden = false; $('guide-text').textContent = GUIDE[i].text; $('guide-n').textContent = `${i + 1}/${GUIDE.length}`;
     }
 
@@ -665,7 +791,11 @@
       const body = $('sh-body'), w = this.world, me = this.me();
       body.innerHTML = ''; this.dyn = [];
       $('sh-close').hidden = kind === 'colony';
-      const cmd = (glyph, label, key, onclick, extra) => { const b = h('button', Object.assign({ class: 'cmd', onclick: e => { E.Audio.init(); onclick(e); } }, extra || {}), h('b', null, glyph), h('span', null, label), key ? h('kbd', null, key) : null); return b; };
+      const cult = me ? me.culture : 'verdant';
+      const cmd = (glyph, label, key, onclick, extra) => {
+        const ico = E.Settings.organIcons !== false && E.cmdIcon(label, cult);
+        return h('button', Object.assign({ class: 'cmd', onclick: e => { E.Audio.init(); onclick(e); } }, extra || {}), ico ? h('img', { class: 'ico', src: ico, alt: '' }) : h('b', null, glyph), h('span', null, label), key ? h('kbd', null, key) : null);
+      };
       if (!me) { $('sh-title').textContent = 'Spectating'; $('sh-sub').textContent = ''; body.appendChild(h('p', { style: 'margin:0;color:var(--ink-soft)' }, 'Your colony is gone. You can keep watching the match.')); this.measureSheet(); return; }
       if (kind === 'colony') {
         $('sh-title').textContent = E.CULTURES[me.culture].name; $('sh-sub').textContent = '';
@@ -717,7 +847,9 @@
           cmd('➤', 'Attack', 'A', () => this.setMode({ k: 'amove' })),
           cmd('↗', 'Move', 'M', () => this.setMode({ k: 'move' })),
           cmd('■', 'Stop', 'S', () => this.send({ c: 'stop', ids: this.selUnits().map(u => u.id) })),
-          cmd('⛉', 'Hold', 'H', () => { const s = this.selUnits(); this.send({ c: 'hold', ids: s.map(u => u.id), x: s[0].x, y: s[0].y }); }),
+          cmd('⛉', 'Hold', 'H', () => { const s = this.selUnits(); this.order({ c: 'hold', ids: s.map(u => u.id), x: s[0].x, y: s[0].y }); }),
+          cmd('⟲', 'Patrol', 'P', () => this.setMode({ k: 'patrol' })),
+          cmd('⋯', 'Queue', 'Shift', () => { this.queueMode = !this.queueMode; this.sheetSig = ''; this.renderSheet(); E.toast(this.queueMode ? 'Queue on: each order is added as a waypoint' : 'Queue off'); }, { class: 'cmd' + (this.queueMode ? ' active' : ''), title: 'Queue orders as waypoints (hold Shift on desktop)' }),
           canHarv ? cmd('◆', 'Harvest', null, () => { const f = this.selUnits().filter(u => w.stats(u).canHarvest); const r = w.nearestPool(f[0], 'lumen'); if (r) this.send({ c: 'harvest', ids: f.map(u => u.id), rid: r.id }); }) : null,
           canHarv ? cmd('✦', 'Spore', null, () => { const f = this.selUnits().filter(u => w.stats(u).canHarvest); const r = w.nearestPool(f[0], 'spore'); if (r) this.send({ c: 'harvest', ids: f.map(u => u.id), rid: r.id }); else E.toast('No spore beds nearby'); }) : null,
           cmd('⬡', 'Build', 'B', () => this.showBuild()));

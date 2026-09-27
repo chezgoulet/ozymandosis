@@ -852,14 +852,14 @@
         s.units.splice(i, 1); this.byId.delete(u.id);
         if (!u.temp) p.stats.lost++;
         if (u.apex) p.apex = 0;
-        this.event('die', { id: u.id, x: u.x, y: u.y, o: u.o, withered: !!u.withered });
+        this.event('die', { id: u.id, x: u.x, y: u.y, o: u.o, withered: !!u.withered, by: killer ? killer.idx : -1, d: u.d });
       }
       for (let i = s.structs.length - 1; i >= 0; i--) {
         const b = s.structs[i]; if (b.hp > 0) continue;
         s.structs.splice(i, 1); this.byId.delete(b.id);
         const k = b.lastHit; if (k && s.players[k.o]) s.players[k.o].stats.kills++;
         for (const q of b.queue) { s.players[b.o].lumen += q.l; }
-        this.event('destroy', { x: b.x, y: b.y, o: b.o, kind: b.kind });
+        this.event('destroy', { x: b.x, y: b.y, o: b.o, kind: b.kind, by: k ? k.o : -1 });
       }
     }
     adoptDesign(p, design) {

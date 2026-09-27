@@ -54,7 +54,7 @@ const assert = require('assert');
   await guest.screenshot({ path: OUT + '/mp-03-guest-game.png' });
   await host.screenshot({ path: OUT + '/mp-04-host-game.png' });
   // host pause propagates
-  await host.keyboard.press('p'); await guest.waitForTimeout(500);
+  await host.keyboard.press('F10'); await guest.waitForTimeout(500);
   const paused = await guest.evaluate(() => !document.getElementById('ov-pause').hidden);
   console.log('guest sees pause', paused); assert(paused);
   await host.click('#p-resume'); await guest.waitForTimeout(400);

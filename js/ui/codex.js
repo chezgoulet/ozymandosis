@@ -55,7 +55,9 @@
               <kbd>Ctrl+0–9 · 0–9</kbd><span>Set / recall control group</span>
               <kbd>1–9 (hatchery)</kbd><span>Hatch design</span>
               <kbd>Enter</kbd><span>Chat (multiplayer)</span>
-              <kbd>Esc · P</kbd><span>Cancel / menu · pause</span>` }))));
+              <kbd>P · Ctrl+Z</kbd><span>Patrol · undo last order</span>
+              <kbd>Shift+order</kbd><span>Queue as a waypoint</span>
+              <kbd>Esc · F10</kbd><span>Cancel / menu</span>` }))));
           return;
         case 'cultures':
           for (const c of E.CULTURE_LIST) entry(c.name, c.blurb + ' ' + c.rule + '.', `${c.spec.toUpperCase()} · STARTS WITH ${E.ORGANS[c.startForm].name.toUpperCase()} & ${E.CHASSIS[c.startChassis].name.toUpperCase()}`, cv => E.drawPortrait(cv, E.SIGNATURES[c.id], c.id, {}, 0.6));

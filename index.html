@@ -25,7 +25,9 @@
     <div class="logo">Efflorescent</div>
     <p class="tagline">Grow a culture. Tend its light. Outshine the dark.</p>
     <button class="btn primary" id="m-continue" hidden>Continue</button>
+    <div class="lineage" id="m-lineage"></div>
     <button class="btn primary" id="m-skirmish">Skirmish</button>
+    <button class="btn" id="m-tutorial">Tutorial</button>
     <button class="btn" id="m-mp">Multiplayer</button>
     <button class="btn" id="m-load">Load game</button>
     <button class="btn" id="m-forge">Organism Forge</button>
@@ -48,6 +50,7 @@
     </div>
     <div class="card">
       <h3>Dreamscape</h3>
+      <div class="field"><label>Victory</label><div class="seg" id="map-mode"></div><small class="hint-s" id="map-mode-d"></small></div>
       <div class="field"><label>Map size</label><div class="seg" id="map-size"></div></div>
       <div class="field" id="map-custom" hidden><label>Custom size (width × height)</label><div class="row" style="flex-wrap:nowrap"><input type="number" id="map-w" min="1600" max="9600" step="100"><span>×</span><input type="number" id="map-h" min="1200" max="6400" step="100"></div></div>
       <div class="field"><label>Start positions</label><div class="seg" id="map-layout"></div></div>
@@ -55,6 +58,7 @@
       <div class="field"><label>Resource richness</label><div class="seg" id="map-rich"></div></div>
       <div class="field"><label>Powerup vents</label><div class="seg" id="map-pu"></div></div>
       <div class="field"><label>Starting lumen</label><div class="seg" id="map-start"></div></div>
+      <div class="field"><label>Population cap per culture</label><div class="seg" id="map-pop"></div><small class="hint-s">Lower caps keep phones smooth. The default suits this device.</small></div>
       <div class="toggle-row"><span>Fog of war (the Murk)</span><label class="switch"><input type="checkbox" id="map-fog" checked><i></i></label></div>
       <div class="toggle-row"><span>Ocean currents</span><label class="switch"><input type="checkbox" id="map-cur" checked><i></i></label></div>
       <canvas id="map-preview" style="width:100%;height:170px;margin-top:12px;border-radius:12px;border:1px solid var(--line);display:block"></canvas>
@@ -122,9 +126,11 @@
       <span class="chip" id="h-pop-chip" title="Population"><i>●</i><b id="h-pop">0/0</b></span>
       <span class="chip fever" title="Fever"><i>♨</i><span class="bar"><b id="h-fever"></b></span></span>
       <span class="chip clock" id="h-clock">0:00</span>
+      <span class="chip objective" id="h-obj" hidden title="Objective"><i>◎</i><span class="obar"><b id="h-obj-me"></b><b id="h-obj-foe"></b></span><em id="h-obj-t"></em></span>
     </div>
     <div class="hud-right">
       <button class="icon-btn" id="h-chat" title="Chat (Enter)" hidden>💬</button>
+      <button class="icon-btn" id="h-mute" title="Sound" aria-label="Toggle sound">🔊</button>
       <button class="icon-btn" id="h-menu" title="Menu (Esc)" aria-label="Menu">☰</button>
     </div>
   </div>
@@ -137,9 +143,12 @@
     <button class="icon-btn" id="f-forge" title="Forge (G)">✎<small>FORGE</small></button>
   </div>
   <div class="alerts" id="alerts"></div>
+  <div class="killfeed" id="killfeed" aria-live="polite"></div>
+  <div class="threats" id="threats"></div>
+  <div class="undo" id="undo" hidden><button class="btn small" id="undo-btn">↶ Undo order</button></div>
   <div class="guide" id="guide" hidden><span class="mono" id="guide-n"></span><span id="guide-text"></span><button class="btn small" id="guide-next">Next</button><button class="btn small ghost" id="guide-off" aria-label="Turn off tips">✕</button></div>
   <div class="chat" id="chat" hidden><div id="chat-log" style="display:grid;gap:4px"></div><form id="chat-form" hidden><input type="text" id="chat-input" maxlength="140" placeholder="Message"><button class="btn small">Send</button></form></div>
-  <div class="hint" id="hint" hidden><span id="hint-text"></span><button class="btn small" id="hint-cancel">Cancel</button></div>
+  <div class="hint" id="hint" hidden><span id="hint-text"></span><button class="btn small primary" id="hint-ok" hidden>Confirm</button><button class="btn small" id="hint-cancel">Cancel</button></div>
   <div class="sheet" id="sheet">
     <button class="grab" id="sheet-grab" aria-label="Collapse panel"></button>
     <div class="sheet-head"><div class="title" id="sh-title">Colony</div><span class="sub" id="sh-sub"></span><button class="btn small ghost" id="sh-close" hidden>✕</button></div>
@@ -161,6 +170,8 @@
       <button class="btn" id="p-save">Save game</button>
       <button class="btn" id="p-codex">Codex</button>
       <button class="btn" id="p-settings">Settings</button>
+      <div class="row" style="gap:10px"><span class="lbl" style="width:70px;text-align:left">Music</span><input type="range" id="p-music" min="0" max="100" style="flex:1"></div>
+      <div class="row" style="gap:10px"><span class="lbl" style="width:70px;text-align:left">Effects</span><input type="range" id="p-sfx" min="0" max="100" style="flex:1"></div>
       <div class="row" style="gap:6px"><span class="lbl" style="flex:1;text-align:left">Game speed</span><div class="seg" id="p-speed" style="flex:2"></div></div>
       <button class="btn danger" id="p-surrender">Surrender</button>
       <button class="btn" id="p-quit">Quit to menu</button>
@@ -171,7 +182,8 @@
       <h2 id="end-title">Efflorescence</h2>
       <p id="end-text" style="color:var(--ink-soft)"></p>
       <div class="card" style="overflow-x:auto"><table class="stats-tbl" id="end-stats"></table></div>
-      <div class="row" style="justify-content:center"><button class="btn" id="end-watch">Keep watching</button><button class="btn primary" id="end-menu">Main menu</button></div>
+      <div class="card end-xp" id="end-xp"></div>
+      <div class="row" style="justify-content:center"><button class="btn primary" id="end-rematch">Rematch</button><button class="btn" id="end-reseed">New Dreamscape</button><button class="btn" id="end-watch">Keep watching</button><button class="btn" id="end-menu">Main menu</button></div>
     </div>
   </div>
 </div>
@@ -199,6 +211,7 @@
 <script src="js/render/backend.js"></script>
 <script src="js/core/store.js"></script>
 <script src="js/core/audio.js"></script>
+<script src="js/core/profile.js"></script>
 <script src="js/net/net.js"></script>
 <script src="js/ui/perf.js"></script>
 <script src="js/ui/dom.js"></script>

@@ -8,6 +8,7 @@
     boom: { name: 'Bloom-farmer', desc: 'Greedy economy and expansion, then a huge late tide.', first: 1.45, wave: 1.4, grow: 1.3, foragers: 4, buds: 1, spires: 0, research: 1 },
     turtle: { name: 'Reef-builder', desc: 'Spires and defense, evolves deep, strikes late and hard.', first: 1.7, wave: 1.5, grow: 1.2, foragers: 1, buds: 0, spires: 2, research: 1.3 },
     raider: { name: 'Raider', desc: 'Harasses foragers and buds with fast strike groups.', first: 0.9, wave: 0.9, grow: 1, foragers: 0, buds: 0, spires: 0, research: 0.9, harass: true },
+    tutor: { name: 'Tutor', desc: 'Passive until the tutorial releases it.', first: 1, wave: 0.5, grow: 0.5, foragers: -2, buds: -1, spires: 0, research: 0.5, passive: true, hidden: true },
     tech: { name: 'Evolver', desc: 'Research first; powers, chimeric designs and an early Leviathan.', first: 1.25, wave: 1.1, grow: 1.1, foragers: 1, buds: 0, spires: 1, research: 1.6, tech: true },
   };
   E.personaOf = p => E.PERSONAS[p.persona] || E.PERSONAS[E.CULTURES[p.culture].persona] || E.PERSONAS.boom;
@@ -173,6 +174,8 @@
           }
           if (p.specials.includes('flare') && !(p.powerCd.flare > 0)) cmd({ c: 'power', id: 'flare', x: tgt.x, y: tgt.y });
         }
+      } else if (P.passive && !ai.unleash) {
+        /* tutorial rival: gather and wait */
       } else if (s.cfg.map.mode === 'tide' && army.length >= 4 && s.t > 90) {
         // objective play: take and hold the nearest great caustic we don't own
         const holders = (s.obj && s.obj.holders) || {};
@@ -196,7 +199,7 @@
         }
       }
     }
-    if (P.harass) AI.harass(w, p, army, ai);
+    if (P.harass && !(P.passive && !ai.unleash)) AI.harass(w, p, army, ai);
     if (p.specials.includes('apex') && !(p.powerCd.apex > 0) && p.lumen > 360 && p.spore > 110 && !(p.apex && w.byId.get(p.apex))) cmd({ c: 'power', id: 'apex' });
   };
 

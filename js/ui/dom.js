@@ -83,6 +83,20 @@
     E.drawGlow(ctx, pts[0].x, pts[0].y, 11, pal.accent, 0.9);
     ctx.restore();
   };
+  // Command icons drawn from the organs themselves (cached per culture).
+  const ICON_ORGAN = { Attack: 'nippers', Move: 'whiptail', Hold: 'stilts', Patrol: 'finveil', Queue: 'tether', Harvest: 'fuzz', Spore: 'sporesacs',
+    Evolve: 'plumes', Forge: 'horns', Army: 'pincers', Idle: 'lures', Rally: 'photophores', Next: 'corkscrew', Hatch: 'tubefeet', Build: 'combs', Stop: 'thorn' };
+  const iconCache = new Map();
+  E.cmdIcon = function (label, cult) {
+    const id = ICON_ORGAN[label]; if (!id) return null;
+    const key = id + cult; let url = iconCache.get(key);
+    if (!url) {
+      const cv = document.createElement('canvas'); cv.width = 68; cv.height = 40; cv.style.width = '68px'; cv.style.height = '40px';
+      document.body.appendChild(cv); E.drawOrganThumb(cv, id, 6, cult, 0.7); url = cv.toDataURL(); cv.remove();
+      iconCache.set(key, url);
+    }
+    return url;
+  };
   E.drawChassisThumb = function (cv, chId, cultId, t) {
     const d = { chassis: chId, organs: [] };
     E.drawPortrait(cv, d, cultId, {}, t, { zoom: 0.95 });
