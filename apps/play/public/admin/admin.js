@@ -331,7 +331,7 @@
   // ── balance ────────────────────────────────────────────────────
   // Culture win rates from confirmed online matches: a dot at the rate, a line across
   // the 95% interval, and the 50% line; few games means a wide line, not a verdict.
-  const CULTURE_NAMES = { verdant: 'The Verdant Strain', luminant: 'The Luminants', current: 'The Slither', choir: 'The Choir', umbral: 'The Seethe', bloom: 'The Bloom' };
+  const CULTURE_NAMES = { verdant: 'The Verdant', luminant: 'The Luminants', current: 'The Slither', choir: 'The Choir', umbral: 'The Seethe', bloom: 'The Bloom' };
   function rateChart(rows) {
     const W = 520, row = 28, P = { l: 120, r: 70, t: 20, b: 22 }, H = P.t + P.b + rows.length * row;
     const ns = 'http://www.w3.org/2000/svg', S = (t, a) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); return e; };

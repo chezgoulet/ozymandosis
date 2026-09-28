@@ -45,7 +45,7 @@
   // ── Cultures (colors straight from the seed's _SWIMMER_COLORS) ─
   const BASE = { hp: 1, speed: 1, attack: 1, harvest: 1, sense: 1, cost: 1, hatch: 1, research: 1 };
   const C = [
-    { id: 'verdant', name: 'The Verdant Strain', short: 'Verdant', epithet: 'Gardeners of the Drift', spec: 'Economy',
+    { id: 'verdant', name: 'The Verdant', short: 'Verdant', epithet: 'Gardeners of the Drift', spec: 'Economy',
       rule: 'Harvest ×1.5 · Bite ×0.8', mods: { harvest: 1.5, attack: 0.8 }, pressures: ['umbral', 'choir'], persona: 'boom', affinity: 'pili', startForm: 'fronds', startChassis: 'siphonophore',
       aiResearch: ['tier:pili:1', 'form:combs', 'power:roots', 'tier:leg:1', 'tier:mandible:1', 'power:mitosis', 'form:tubefeet', 'tier:mandible:2', 'power:symbiosis', 'form:pincers'],
       blurb: 'Patient tenders who out-grow and out-research their rivals, then drown them in bodies.' },

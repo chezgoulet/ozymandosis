@@ -652,7 +652,7 @@ lifespan: Bloomtide wither at 80s</div>
     </div>
     <p>The demo opponent is deliberately simple: a readable state machine that plays to its culture's strengths.</p>
     <ul class="clean">
-      <li><strong>Grow.</strong> Keep five foragers working (seven for the Verdant Strain), and replace any that die.</li>
+      <li><strong>Grow.</strong> Keep five foragers working (seven for the Verdant), and replace any that die.</li>
       <li><strong>Evolve.</strong> Research the culture's home organ first, then bite, legs, flagella, antennae.</li>
       <li><strong>Mass.</strong> Hatch wardens and signature organisms until the army reaches the current wave size.</li>
       <li><strong>Surge.</strong> Attack-move to the enemy nucleus, trigger Frenzy near the target, and grow the next wave by two.</li>
@@ -1503,7 +1503,7 @@ const T_FORAGER = { name: 'Forager', role: 'harvest', parts: ['pili', 'flagella'
 const T_WARDEN  = { name: 'Warden', parts: ['mandible', 'leg'] };
 const BASE_MODS = { hp: 1, speed: 1, attack: 1, harvest: 1, sense: 1, cost: 1, hatch: 1, research: 1 };
 const CULTURES = [
-  { id: 'verdant', name: 'The Verdant Strain', epithet: 'Gardeners of the Drift', spec: 'Economy',
+  { id: 'verdant', name: 'The Verdant', epithet: 'Gardeners of the Drift', spec: 'Economy',
     blurb: 'Patient tenders of the light. Their creatures are furred in pili and drink from caustic pools faster than anyone else, but they fight badly. They win through tempo and territory: out-grow, out-research, then drown the enemy in bodies.',
     rule: 'Harvest ×1.5 · Pili start at tier II · Bite ×0.8', mods: { harvest: 1.5, attack: 0.8 }, affinity: 'pili',
     signature: { name: 'Tender', role: 'harvest', parts: ['pili', 'pili', 'leg', 'flagella'] }, pressures: ['umbral', 'choir'] },
