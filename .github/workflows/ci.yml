@@ -3,9 +3,20 @@ on: [push, pull_request]
 permissions: { contents: read }
 concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 
+# Runs on the House's self-hosted runner, which is registered at the ORGANISATION
+# level (gitHubUrl = https://github.com/chezgoulet), so it already serves this
+# repo. GitHub-hosted runners are blocked account-wide by a billing failure.
+#
+# Runner host prerequisites, installed once, not per job:
+#   - Node 22 (actions/setup-node provides it), Docker, and the Playwright
+#     browser binaries under ~/.cache/ms-playwright
+#   - WebKit also needs the system package `libavif16`. Until that is installed
+#     the webkit leg fails to launch, and that is an environment fault rather
+#     than a code fault. One command on the host fixes it:
+#         sudo apt-get install -y libavif16
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,7 +32,7 @@ jobs:
   # the desktop app), Firefox, and WebKit (Safari, every iOS browser).
   browsers:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     strategy:
       fail-fast: false
       matrix:
@@ -32,7 +43,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      # No --with-deps: that shells out to apt and needs sudo, which the runner
+      # does not have. System libraries are a one-time host prerequisite (see the
+      # note at the top); the browsers themselves live in the runner user's cache.
+      - run: npx playwright install ${{ matrix.browser }}
       - run: node test/ui.smoke.cjs
       - run: node test/features.test.cjs
         env: { NOGPU: "1" }
@@ -50,7 +64,7 @@ jobs:
         with: { name: "screens-${{ matrix.browser }}", path: "test/shots\ntest/traces", retention-days: 7 }
 
   images:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     needs: test
     steps:
       - uses: actions/checkout@v4
