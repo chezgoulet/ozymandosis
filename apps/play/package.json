@@ -1,0 +1,45 @@
+{
+  "name": "@ozymandosis/play",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "play.ozymandosis.com: accounts, subscriptions, matchmaking and WebRTC signaling, reports, moderation and admin for Ozymandosis.",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "admin": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/node": "22.20.4",
+    "@types/nodemailer": "6.4.24",
+    "@types/pg": "8.23.1",
+    "@types/qrcode": "1.5.6",
+    "@types/ws": "8.18.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.2",
+    "@fastify/formbody": "9.0.0",
+    "@fastify/rate-limit": "11.2.0",
+    "@fastify/static": "10.1.5",
+    "@fastify/websocket": "11.3.1",
+    "@node-rs/argon2": "2.2.1",
+    "arctic": "3.7.0",
+    "fastify": "5.12.5",
+    "nodemailer": "10.0.11",
+    "pg": "8.23.0",
+    "qrcode": "1.5.4",
+    "stripe": "22.6.2",
+    "zod": "4.6.5"
+  }
+}

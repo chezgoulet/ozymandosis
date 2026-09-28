@@ -14,7 +14,10 @@
     "android:apk": "node tools/build-web.cjs && npx cap sync android && cd android && ./gradlew assembleDebug",
     "ios:open": "node tools/build-web.cjs && npx cap sync ios && npx cap open ios",
     "bench": "node bench/bench.cjs",
-    "test:perf": "node bench/bench.cjs --backends webgl2,canvas2d --units 100,700 --label check --check"
+    "test:perf": "node bench/bench.cjs --backends webgl2,canvas2d --units 100,700 --label check --check",
+    "play:dev": "npm run dev -w apps/play",
+    "play:test": "npm test -w apps/play",
+    "play:build": "npm run build -w apps/play"
   },
   "engines": {
     "node": ">=18"
@@ -32,5 +35,8 @@
     "@capacitor/haptics": "^6.0.3",
     "@capacitor/screen-orientation": "^6.0.4",
     "@capacitor/status-bar": "^6.0.3"
-  }
+  },
+  "workspaces": [
+    "apps/*"
+  ]
 }

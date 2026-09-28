@@ -3,3 +3,7 @@ node_modules/
 test/shots/
 www/
 dist/
+apps/*/dist/
+apps/play/data/
+.env
+deploy/.env
