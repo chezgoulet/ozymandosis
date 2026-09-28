@@ -19,7 +19,9 @@
 <script src="js/render/menuscene.js"></script>
 <script>
   (function () {
-    var lg = new E.LivingLogo(document.getElementById('t')), last = performance.now(), q = new URLSearchParams(location.search);
+    var q = new URLSearchParams(location.search), last = performance.now();
+    // ?word=O renders part of the title (the app icon); ?pad= sets the margin
+    var lg = new E.LivingLogo(document.getElementById('t'), { word: q.get('word') || undefined, pad: q.has('pad') ? +q.get('pad') : undefined, flip: q.has('flip') });
     // ?still=<seconds>: one frame at that moment (used to render the title for emails and splash screens)
     if (q.has('still')) { lg.t = +q.get('still') || 6; lg.frame(0.001); document.title = 'ready'; return; }
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { lg.t = 4; lg.frame(0.001); addEventListener('resize', function () { lg.frame(0); }); return; }

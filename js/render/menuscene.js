@@ -78,18 +78,22 @@
   }
 
   class LivingLogo {
-    constructor(cv) {
+    // opts.word: draw part of the title (the app icon is its O); opts.pad: margin in cap-height units
+    constructor(cv, opts) {
+      opts = opts || {};
       this.cv = cv; this.ctx = cv.getContext('2d'); this.t = 0;
-      this.GAP = 10; this.PAD = 30; this.H = 60;
+      this.GAP = 10; this.PAD = opts.pad !== undefined ? opts.pad : 30; this.H = 60;
       let x = 0; this.letters = [];
-      [...WORD].forEach((ch, li) => {
+      const word = (opts.word || WORD).toUpperCase().replace(/[^OZYMANDSI]/g, '') || WORD;
+      [...word].forEach((ch, wi) => {
+        const li = word === WORD ? wi : WORD.indexOf(ch); // a letter keeps its own body plan wherever it appears
         const g = GLYPHS[ch], strokes = g.strokes.map((st, si) => {
           const raw = flatten(st), body = resample(raw, Math.max(18, Math.round(resample(raw, 200).len / 2.2)));
           const spine = resample(raw, 20);
           const dress = DRESS[li][si];
           return { body: body.pts, len: body.len, spine: spine.pts, dress, ph: li * 0.9 + si * 2.1 };
         });
-        this.letters.push({ ch, x, w: g.w, cx: x + g.w / 2, cy: 30, strokes });
+        this.letters.push({ ch, x, w: g.w, cx: x + g.w / 2, cy: 30, strokes, li });
         x += g.w + this.GAP;
       });
       this.W = x - this.GAP;
@@ -97,6 +101,7 @@
       for (const L of this.letters) for (const s of L.strokes) {
         const m = s.spine[10], a = s.spine[9], b = s.spine[11], tx = a.x - b.x, ty = a.y - b.y, nx = -ty, ny = tx;
         s.side = ((m.x - (L.w / 2)) * nx + (m.y - 30) * ny) >= 0 ? 1 : -1;
+        if (opts.flip) s.side = -s.side; // the app icon grows its cilia outward
       }
       this.cultures = E.CULTURE_LIST.map(c => c.colors);
     }
@@ -121,7 +126,7 @@
       ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (w - this.W * k) / 2, dpr * (h - this.H * k) / 2);
       const beatP = 2.2, bt = (t % beatP) / beatP; // the heartbeat travels left to right
       for (let li = 0; li < this.letters.length; li++) {
-        const L = this.letters[li], u = li / (this.letters.length - 1);
+        const L = this.letters[li], u = this.letters.length > 1 ? li / (this.letters.length - 1) : 0;
         const wave = bt * 1.4 - u; const pulse = Math.exp(-Math.pow(wave / 0.07, 2)) + 0.5 * Math.exp(-Math.pow((wave - 0.13) / 0.07, 2));
         const breath = 1 + 0.016 * Math.sin(t * 1.15 + li * 0.55) + 0.02 * pulse;
         const { body, acc } = this.colors(u);
