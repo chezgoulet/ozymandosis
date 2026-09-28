@@ -23,6 +23,20 @@
   function show(...nodes) { $('#view').replaceChildren(...nodes); }
   const add = (el, ...kids) => { for (const k of kids.flat()) if (k != null && k !== false) el.append(k); return el; };
   const busy = async (btn, fn) => { btn.disabled = true; try { await fn(); } catch (e) { flash(e.message, 'error'); } finally { btn.disabled = false; } };
+  // Prices from Stripe (tax included), in the reader's number format.
+  const price = plan => {
+    const p = ((cfg && cfg.plans) || []).find(x => x.plan === plan);
+    if (!p) return plan === 'month' ? '$1' : null;
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: p.currency.toUpperCase(), minimumFractionDigits: p.amount % 100 ? 2 : 0 }).format(p.amount / 100); } catch (e) { return '$' + p.amount / 100; }
+  };
+  // The age question: neutral (nothing preselected); only an age range is kept.
+  const agePicker = () => {
+    const y = new Date().getFullYear();
+    const month = h('select', { 'aria-label': 'Birth month', required: true }, h('option', { value: '' }, 'Month'), ...Array.from({ length: 12 }, (_, i) => h('option', { value: i + 1 }, new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }))));
+    const year = h('select', { 'aria-label': 'Birth year', required: true }, h('option', { value: '' }, 'Year'), ...Array.from({ length: 100 }, (_, i) => h('option', { value: y - i }, String(y - i))));
+    return { el: [h('label', null, 'When were you born?'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, month, year), h('p', { class: 'muted', style: 'font-size:.85rem;margin:6px 0 0' }, 'We keep only an age range, never the date. You need to be 13 or older.')],
+      value: () => month.value && year.value ? { birthMonth: +month.value, birthYear: +year.value } : null };
+  };
   const field = (label, attrs) => { const id = 'f' + Math.random().toString(36).slice(2, 8); return [h('label', { for: id }, label), h('input', Object.assign({ id }, attrs))]; };
 
   async function boot() {
@@ -38,6 +52,7 @@
     try { me = await api('GET', '/api/me'); } catch (e) { me = null; }
     if (q.get('mfa')) return mfaStep(q.get('mfa'));
     if (q.get('done')) return handoffDone();
+    if (me && me.user.needsAge) return askAge();
     if (me && handoff) return approve();
     if (me) return account();
     return signIn(q.get('signup') ? 'up' : 'in');
@@ -52,10 +67,12 @@
     const [lp, pass] = field('Password', { type: 'password', autocomplete: mode === 'in' ? 'current-password' : 'new-password', required: true, minlength: 10 });
     const [ln, name] = field('Display name (optional)', { type: 'text', maxlength: 18, autocomplete: 'nickname', placeholder: 'Choose later if you like' });
     const go = h('button', { class: 'btn primary block', type: 'submit' }, mode === 'in' ? 'Sign in' : 'Create account');
-    const form = h('form', { class: 'stack' }, le, email, lp, pass, mode === 'up' ? [ln, name, h('p', { class: 'muted', style: 'font-size:.85rem;margin:6px 0 0' }, 'At least 10 characters. We will email you a link to confirm your address.')] : null, go);
+    const age = agePicker();
+    const form = h('form', { class: 'stack' }, le, email, lp, pass, mode === 'up' ? [h('p', { class: 'muted', style: 'font-size:.85rem;margin:6px 0 0' }, 'At least 10 characters. We will email you a link to confirm your address.'), ln, name, age.el] : null, go);
     form.onsubmit = e => { e.preventDefault(); busy(go, async () => {
       const body = { email: email.value, password: pass.value, client: 'web', handoff: handoff || undefined };
-      const r = mode === 'in' ? await api('POST', '/api/auth/login', body) : await api('POST', '/api/auth/signup', Object.assign(body, { name: name.value || undefined }));
+      if (mode === 'up' && !age.value()) throw new Error('Tell us the month and year you were born.');
+      const r = mode === 'in' ? await api('POST', '/api/auth/login', body) : await api('POST', '/api/auth/signup', Object.assign(body, { name: name.value || undefined }, age.value()));
       if (r.mfa) return mfaStep(r.challenge);
       after(mode === 'up' ? 'Welcome. Check your email to confirm your address.' : '');
     }); };
@@ -116,9 +133,23 @@
   }
 
   // ── account ───────────────────────────────────────────────────
+  // Accounts made through Google, Apple or Steam answer the age question once.
+  function askAge() {
+    $('#subtitle').textContent = 'One question first';
+    const age = agePicker(), go = h('button', { class: 'btn primary block', type: 'submit' }, 'Continue');
+    const form = h('form', { class: 'stack' }, age.el, go);
+    form.onsubmit = e => { e.preventDefault(); busy(go, async () => {
+      if (!age.value()) throw new Error('Choose a month and a year.');
+      try { await api('POST', '/api/me/age', age.value()); }
+      catch (x) { if (x.status === 403) { me = null; show(h('div', { class: 'card' }, h('h2', null, 'Sorry'), h('p', null, x.message))); return; } throw x; }
+      me = await api('GET', '/api/me'); handoff ? approve() : account();
+    }); };
+    show(h('div', { class: 'card' }, h('h2', null, 'Before you play online'), form));
+  }
   function account() {
-    $('#subtitle').textContent = 'Your account';
     const u = me.user, ent = me.entitlements;
+    if (u.needsAge) return askAge();
+    $('#subtitle').textContent = 'Your account';
     if (q.get('billing') === 'success') flash('Thank you. Your membership is active; online matches have no time limit now.', 'ok');
     if (q.get('billing') === 'cancelled') flash('Checkout was cancelled. Nothing was charged.');
     const cards = [];
@@ -138,8 +169,12 @@
       add(mem, h('p', null, h('span', { class: 'pill good' }, ent.lifetime ? 'Lifetime member' : 'Member'), ' Online matches have no time limit.'), until ? h('p', { class: 'soft' }, until) : null);
       if (cfg.billing && ent.billing) { const b = h('button', { class: 'btn' }, 'Manage billing'); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/portal')).url; }); mem.append(b); }
     } else {
-      mem.append(h('p', null, `Free players can play online matches of up to ${ent.freeMatchMinutes} minutes. Membership removes the limit for $1 a month and keeps the servers running.`));
-      if (cfg.billing) { const b = h('button', { class: 'btn primary' }, 'Become a member · $1/month'); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/checkout')).url; }); mem.append(b); }
+      const year = price('year');
+      mem.append(h('p', null, `Free players can play online matches of up to ${ent.freeMatchMinutes} minutes. Membership removes the limit for ${price('month')} a month${year ? ` or ${year} a year` : ''} and keeps the servers running. Prices include any tax.`));
+      if (cfg.billing) {
+        const buy = (plan, label, primary) => { const b = h('button', { class: 'btn' + (primary ? ' primary' : '') }, label); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/checkout', { plan })).url; }); return b; };
+        mem.append(h('div', { class: 'row' }, buy('month', `Become a member · ${price('month')}/month`, true), year ? buy('year', `${year}/year`) : null));
+      }
       else mem.append(h('p', { class: 'muted' }, 'Membership is not available on this server.'));
     }
     // promo codes: a month, a year or life
@@ -184,11 +219,17 @@
     // privacy
     const crash = h('input', { type: 'checkbox', id: 'crash', style: 'width:auto;min-height:0' }); crash.checked = u.crashReports;
     crash.onchange = () => api('PATCH', '/api/me', { crashReports: crash.checked }).then(() => flash('Saved.', 'ok'), e => flash(e.message, 'error'));
+    // chat: everyone / quick chat (preset phrases) / off; free chat opens at 16
+    const chat = h('select', { 'aria-label': 'Online chat' }, [['all', 'Everyone (filtered)'], ['quick', 'Quick chat only (preset phrases)'], ['off', 'Off']].map(([v, l]) => h('option', { value: v, disabled: v === 'all' && !u.freeChat ? true : null }, l)));
+    chat.value = u.chat || 'all';
+    chat.onchange = () => api('PATCH', '/api/me', { chat: chat.value }).then(() => flash('Saved.', 'ok'), e => { flash(e.message, 'error'); chat.value = u.chat; });
     const del = h('button', { class: 'btn danger small' }, 'Delete my account');
     del.onclick = () => deleteAccount();
     cards.push(h('div', { class: 'card' }, h('h2', null, 'Privacy'),
       h('label', { style: 'display:flex;gap:10px;align-items:center;color:var(--ink)' }, crash, 'Send automatic crash reports (no personal data)'),
-      h('p', { class: 'muted', style: 'font-size:.88rem' }, 'We keep your email for sign-in and recovery, your display name, match results and membership status. Logs never contain your email or IP address.'),
+      h('label', null, 'Online chat'), chat,
+      u.freeChat ? null : h('p', { class: 'muted', style: 'font-size:.85rem;margin:6px 0 0' }, 'Players under 16 use quick chat.'),
+      h('p', { class: 'muted', style: 'font-size:.88rem' }, 'We keep your email for sign-in and recovery, your display name, match results, membership status, and the lineage, designs and saves the game backs up to your account. Logs never contain your email or IP address.'),
       h('div', { class: 'row' }, h('a', { class: 'btn small', href: '/api/me/export', download: 'ozymandosis-account.json' }, 'Download my data'), del)));
     const out = h('button', { class: 'btn' }, 'Sign out');
     out.onclick = () => busy(out, async () => { await api('POST', '/api/auth/logout'); me = null; history.replaceState(null, '', '/login'); signIn('in'); });

@@ -7,6 +7,35 @@
   const O = E.Online = { me: null, ent: null, config: null, announcements: [], chatLog: [], listeners: new Set() };
   const TOKEN = 'efl.session';
 
+  // Where this copy came from decides whether it may sell anything. App stores and
+  // Steam require their own payment systems for digital goods, so store builds never
+  // show prices, checkout or code redemption; memberships bought on the web still apply.
+  O.store = (() => {
+    const q = new URLSearchParams(location.search).get('store');
+    if (q) return q;
+    if (E.Native && E.Native.is) return E.Native.platform; // 'ios' | 'android'
+    return 'web';
+  })();
+  O.canPurchase = () => O.store === 'web' || O.store === 'direct';
+  // Prices from the service (Stripe), in the player's own number format; tax included.
+  O.price = plan => {
+    const p = O.config && (O.config.plans || []).find(x => x.plan === (plan || 'month'));
+    if (!p) return plan === 'year' ? null : '$1';
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: p.currency.toUpperCase(), minimumFractionDigits: p.amount % 100 ? 2 : 0 }).format(p.amount / 100); } catch (e) { return '$' + (p.amount / 100); }
+  };
+  O.priceLabel = () => `${O.price('month')}/month` + (O.price('year') ? ` or ${O.price('year')}/year` : '');
+
+  // Chat words blocked in local-network games (online chat is filtered by the service).
+  const BLOCK = ['fuck', 'shit', 'nigg', 'fagot', 'faggot', 'retard', 'hitler', 'kike', 'trany', 'whore', 'motherfuck'];
+  const BLOCK_WORDS = ['cunt', 'rape', 'rapist', 'nazi', 'spic', 'chink', 'slut', 'cock', 'dick', 'pusy', 'porn', 'kys', 'fag', 'twat', 'wank'];
+  const LEET = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's', '!': 'i', '|': 'i' };
+  const skel = w => w.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[0-9@$!|]/g, c => LEET[c] || c).replace(/[^a-z]/g, '').replace(/(.)\1+/g, '$1');
+  E.filterChat = text => String(text || '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 140).replace(/\S+/g, w => { const k = skel(w); return BLOCK.some(b => k.includes(skel(b))) || BLOCK_WORDS.includes(k) ? '•'.repeat(Math.min(8, w.length)) : w; });
+  // Quick chat phrases (the service sends its list; this is the offline copy).
+  E.QUICK_CHAT = ['Hello!', 'Good luck, have fun', 'Good game', 'Well played', 'Nice!', 'Oops', 'Thanks', 'Sorry', 'One moment', 'Let’s go', 'Help!', 'Attack here', 'Defend here', 'Rematch?'];
+  O.quickChat = () => (O.hello && O.hello.config && O.hello.config.quickChat) || E.QUICK_CHAT;
+  O.chatMode = () => (O.hello && O.hello.config && O.hello.config.chat) || (O.me && O.me.chat) || 'all';
+
   O.base = function () {
     const q = new URLSearchParams(location.search).get('play');
     if (q) return q.replace(/\/$/, '');
@@ -52,8 +81,10 @@
     if (r.mfa) return { mfa: r.challenge };
     O.setToken(r.token); await O.refresh(); return { ok: true };
   };
-  O.signup = async function (email, password, name) {
-    const r = await O.api('POST', '/api/auth/signup', { email, password, name: name || undefined, client: 'game' });
+  O.signup = async function (email, password, name, birthYear, birthMonth) {
+    let r;
+    try { r = await O.api('POST', '/api/auth/signup', { email, password, name: name || undefined, client: 'game', birthYear, birthMonth }); }
+    catch (e) { if (e.code === 'underage') E.LS.set(AGE_BLOCK, Date.now()); throw e; }
     O.setToken(r.token); await O.refresh(); return { ok: true, verifyEmail: r.verifyEmail };
   };
   O.mfa = async function (challenge, code, recovery) {
@@ -92,10 +123,37 @@
     } catch (e) { E.toast(e.message, 4000); return false; }
   };
   O.accountUrl = (path) => O.base() + (path || '/account');
-  O.subscribe = async function () {
+  O.subscribe = async function (plan) {
+    if (!O.canPurchase()) throw new Error('Membership is not sold in this version of the game.');
     if (!O.signedIn()) throw new Error('Sign in first.');
-    const r = await O.api('POST', '/api/billing/checkout');
+    const r = await O.api('POST', '/api/billing/checkout', { plan: plan || 'month' });
     O.openExternal(r.url);
+  };
+
+  // ── age ─────────────────────────────────────────────────────────
+  // A neutral question (no default answer). Under 13: no account; this device
+  // does not ask again for a day, so the answer is not simply changed.
+  const AGE_BLOCK = 'efl.agegate';
+  O.ageBlocked = () => { const t = E.LS.get(AGE_BLOCK, 0); return !!t && Date.now() - t < 864e5; };
+  O.agePicker = function () {
+    const h = E.h, y = new Date().getFullYear();
+    const month = h('select', { 'aria-label': 'Birth month', required: true }, h('option', { value: '' }, 'Month'), ...Array.from({ length: 12 }, (_, i) => h('option', { value: i + 1 }, new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }))));
+    const year = h('select', { 'aria-label': 'Birth year', required: true }, h('option', { value: '' }, 'Year'), ...Array.from({ length: 100 }, (_, i) => h('option', { value: y - i }, String(y - i))));
+    const el = h('fieldset', { class: 'age-pick' }, h('legend', null, 'When were you born?'), h('div', { class: 'row' }, month, year), h('small', { class: 'hint-s' }, 'We keep only an age range, never the date.'));
+    return { el, value: () => month.value && year.value ? { birthMonth: +month.value, birthYear: +year.value } : null };
+  };
+  // For accounts made through Google, Apple or Steam: asked once before online play.
+  O.ageDialog = async function () {
+    if (O.ageBlocked()) { E.modal('Online play', 'Online play is for players 13 and older. You can still play offline and on your local network.'); return false; }
+    const pick = O.agePicker();
+    const ok = await E.modal('One question first', pick.el, [{ label: 'Not now', value: false }, { label: 'Continue', value: true, primary: true }]);
+    if (!ok) return false;
+    const v = pick.value(); if (!v) { E.toast('Choose a month and a year.'); return O.ageDialog(); }
+    try { await O.api('POST', '/api/me/age', v); await O.refresh(); return true; }
+    catch (e) {
+      if (e.code === 'underage') { E.LS.set(AGE_BLOCK, Date.now()); O.setToken(null); O.me = null; O.ent = null; changed(); E.modal('Online play', e.message); return false; }
+      E.toast(e.message); return false;
+    }
   };
 
   // ── lobby connection (one per lobby, authenticated) ──────────────
@@ -179,12 +237,16 @@
         const email = h('input', { type: 'email', autocomplete: 'email', placeholder: 'you@example.com', 'aria-label': 'Email' });
         const pass = h('input', { type: 'password', autocomplete: mode === 'in' ? 'current-password' : 'new-password', placeholder: mode === 'in' ? 'Password' : 'Password (10 characters or more)', 'aria-label': 'Password' });
         const name = h('input', { type: 'text', maxlength: 18, placeholder: 'Display name (optional)', 'aria-label': 'Display name' });
+        const age = O.agePicker();
         const go = h('button', { class: 'btn primary', type: 'submit' }, mode === 'in' ? 'Sign in' : 'Create account');
-        const form = h('form', { class: 'si-form' }, email, pass, mode === 'up' ? name : null, go);
+        const form = mode === 'up' && O.ageBlocked() ? h('p', { class: 'si-note' }, 'Online play is for players 13 and older. You can still play offline and on your local network.')
+          : h('form', { class: 'si-form' }, email, pass, mode === 'up' ? name : null, mode === 'up' ? age.el : null, go);
         form.onsubmit = async e => {
           e.preventDefault(); go.disabled = true; say('');
           try {
-            const r = mode === 'in' ? await O.login(email.value, pass.value) : await O.signup(email.value, pass.value, name.value);
+            const a = age.value();
+            if (mode === 'up' && !a) { say('Tell us the month and year you were born.'); go.disabled = false; return; }
+            const r = mode === 'in' ? await O.login(email.value, pass.value) : await O.signup(email.value, pass.value, name.value, a.birthYear, a.birthMonth);
             if (r.mfa) return mfaStep(r.mfa);
             if (r.verifyEmail) E.toast('Check your email to confirm your address.', 4000);
             close(true);
@@ -230,7 +292,10 @@
   // Membership prompt shown when a free match ends at the limit.
   O.membershipDialog = async function (why) {
     const mins = (O.ent && O.ent.freeMatchMinutes) || (O.config && O.config.freeMatchMinutes) || 15;
-    const v = await E.modal('Keep the bloom going', `${why ? why + ' ' : ''}Free online matches last ${mins} minutes. Membership removes the limit for $1 a month and pays for the servers that introduce players.`, [{ label: 'Not now', value: false }, { label: 'Become a member', value: true, primary: true }]);
-    if (v) { try { await O.subscribe(); } catch (e) { E.toast(e.message); } }
+    if (!O.canPurchase()) { await E.modal('The match has ended', `${why ? why + ' ' : ''}Free online matches last ${mins} minutes.`); return; }
+    const year = O.price('year');
+    const v = await E.modal('Keep the bloom going', `${why ? why + ' ' : ''}Free online matches last ${mins} minutes. Membership removes the limit for ${O.price('month')} a month${year ? ` (or ${year} a year)` : ''} and pays for the servers that introduce players.`,
+      [{ label: 'Not now', value: false }].concat(year ? [{ label: `${year} a year`, value: 'year' }] : [], [{ label: `${O.price('month')} a month`, value: 'month', primary: true }]));
+    if (v) { try { await O.subscribe(v); } catch (e) { E.toast(e.message); } }
   };
 })(window.E);

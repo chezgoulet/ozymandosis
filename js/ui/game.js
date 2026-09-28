@@ -151,12 +151,13 @@
     hostSetup() {
       const r = this.relay, ah = this.auditHost;
       r.on('result', m => this.onResult(m));
+      r.on('chat', m => this.chat(m.from, m.text));
       r.on('ticket', m => this.onTicket(m.ticket));
       if (r.ticket) this.onTicket(r.ticket.ticket);
       r.on('msg', m => {
         const peer = this.peers.get(m.from); const d = m.data; if (!d) return;
         if (d.k === 'cmd' && peer) { if (d.cmd && !E.HOST_CMDS.has(d.cmd.c)) this.world.command(peer.slot, d.cmd); }
-        else if (d.k === 'chat' && peer) { if (!peer.muted) this.chat(peer.name, d.text, true); }
+        else if (d.k === 'chat' && peer && !this.online) { if (!peer.muted) this.chat(peer.name, E.filterChat(d.text), true); }
         else if (d.k === 'ready' && peer) this.sendInit(m.from);
         else if (d.k === 'audit?' && ah) r.send(m.from, ah.answer(d));
       });
@@ -193,13 +194,14 @@
           this.handleEvents(d.ev || []);
         } else if (d.k === 'init') { this.world = E.NetPack.mirror(d); this.local = d.you; this.renderer.reset(this.world, this.local); if (this.auditGuest) this.auditGuest = new E.AuditGuest(this.local); }
         else if (d.k === 'audit' && this.onAudit) this.onAudit(d);
-        else if (d.k === 'chat') this.chat(d.from, d.text);
+        else if (d.k === 'chat' && !this.online) this.chat(d.from, E.filterChat(d.text));
         else if (d.k === 'pause') { this.remotePaused = d.on; $('ov-pause').hidden = !d.on; $('pause-note').textContent = d.on ? 'Paused by the host' : ''; }
         else if (d.k === 'limit') this.limitReached(d.who === 'host' ? 'host' : 'you');
       });
       r.on('ticket', m => this.onTicket(m.ticket));
       if (r.ticket) this.onTicket(r.ticket.ticket);
       r.on('result', m => this.onResult(m));
+      r.on('chat', m => this.chat(m.from, m.text));
       r.on('closed', m => { if (m && m.link) return; this.notify('The host closed the game.', 'info'); E.toast('The host closed the game.'); setTimeout(() => this.quit(true), 1500); });
       r.on('close', () => { if (this.running && this.relay === r) this.reconnect(); });
       r.on('unstable', () => this.banner('Connection to the host is unstable. Holding on…'));
@@ -218,6 +220,14 @@
         if (peer.au) { d.au = peer.au; peer.au = null; }
         this.relay.send(id, d);
       }
+    }
+    // Online matches chat through the service (filtered there, age-aware, and on the record
+    // for reports); local-network matches chat peer to peer through the host.
+    say(m) {
+      if (!this.relay) return;
+      if (this.online) { this.relay.raw(Object.assign({ op: 'chat' }, m)); return; }
+      const text = m.q !== undefined ? E.QUICK_CHAT[m.q] : E.filterChat(m.text), me = this.me(), name = me ? me.name : 'Spectator';
+      if (this.netMode === 'guest') this.relay.toHost({ k: 'chat', text }); else this.chat(name, text, true);
     }
     chat(from, text, relayOut) {
       text = String(text).slice(0, 140);
@@ -896,9 +906,7 @@
       $('h-chat').onclick = () => this.openChat();
       $('chat-form').onsubmit = e => {
         e.preventDefault(); const v = $('chat-input').value.trim(); $('chat-input').value = ''; $('chat-form').hidden = true;
-        if (!v) return;
-        const me = this.me(), name = me ? me.name : 'Spectator';
-        if (this.netMode === 'guest') this.relay.toHost({ k: 'chat', text: v }); else this.chat(name, v, true);
+        if (v) this.say({ text: v });
       };
       const speeds = [0.5, 1, 1.5, 2];
       $('p-speed').innerHTML = '';
@@ -906,7 +914,14 @@
     }
     renderMute() { $('h-mute').innerHTML = E.iconSvg(E.Settings.muted ? 'conchMute' : 'conch'); $('h-mute').setAttribute('aria-pressed', String(!E.Settings.muted)); $('p-music').value = Math.round(E.Settings.music * 100); $('p-sfx').value = Math.round(E.Settings.sfx * 100); }
     renderSpeed() { [...$('p-speed').children].forEach((b, i) => b.setAttribute('aria-pressed', String([0.5, 1, 1.5, 2][i] === this.speed))); $('p-speed').parentElement.hidden = this.netMode !== 'local'; }
-    openChat() { $('chat').hidden = false; $('chat-form').hidden = false; $('chat-input').focus(); }
+    openChat() {
+      const mode = this.online ? E.Online.chatMode() : 'all';
+      if (mode === 'off') { E.toast('Chat is off in your settings.'); return; }
+      $('chat').hidden = false; $('chat-form').hidden = false;
+      $('chat-input').parentNode.hidden = mode !== 'all';
+      $('chat-quick').replaceChildren(...(this.online ? E.Online.quickChat() : E.QUICK_CHAT).map((t, q) => h('button', { type: 'button', onclick: () => { $('chat-form').hidden = true; this.say({ q }); } }, t)));
+      if (mode === 'all') $('chat-input').focus(); else { const b = $('chat-quick').firstChild; if (b) b.focus(); }
+    }
     openPause() {
       $('ov-pause').hidden = false; this.renderSpeed(); this.renderMute();
       $('p-save').hidden = this.netMode === 'guest';

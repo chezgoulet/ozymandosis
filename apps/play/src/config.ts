@@ -27,6 +27,9 @@ const Env = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
+  STRIPE_PRICE_ID_YEARLY: z.string().optional(),
+  // Stripe Tax computes VAT/GST/sales tax at checkout (activate Stripe Tax in the dashboard first)
+  STRIPE_TAX: bool.default(true),
 
   GOOGLE_CLIENT_ID: z.string().optional(), GOOGLE_CLIENT_SECRET: z.string().optional(),
   APPLE_CLIENT_ID: z.string().optional(), APPLE_TEAM_ID: z.string().optional(), APPLE_KEY_ID: z.string().optional(), APPLE_PRIVATE_KEY: z.string().optional(),

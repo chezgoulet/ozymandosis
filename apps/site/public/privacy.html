@@ -14,7 +14,9 @@
 <li><strong>Email address</strong> (email accounts, or when a sign-in provider shares a verified one): to sign you in, confirm it is yours, and let you reset your password.</li>
 <li><strong>Password</strong>: stored only as an Argon2id hash. Two-factor secrets are stored encrypted.</li>
 <li><strong>Sign-in providers</strong> (Google, Apple, Steam): the account identifier each provider gives us, and nothing else from your profile beyond a suggested display name.</li>
-<li><strong>Display name, rating and match results</strong>: to run matchmaking and show your record.</li>
+<li><strong>Display name, rating and match results</strong>: to run matchmaking and show your record. Results are reported by every player in a match; when they disagree, a moderator may look at what each player reported.</li>
+<li><strong>Age range</strong>: we ask the month and year you were born, work out whether you are 13–15, 16–17 or an adult, and keep only that range. We do not make accounts for children under 13; if we learn an account belongs to one, we delete it.</li>
+<li><strong>Game progress</strong> (when signed in): your lineage, your Spawnforge designs and your save slots are backed up to your account so they follow you between devices.</li>
 <li><strong>Signed-in devices</strong>: a coarse label such as “Chrome on Android” and when each was last used, so you can sign them out.</li>
 <li><strong>Membership</strong>: its status and renewal date. Payments are handled by Stripe; we never see or store card details.</li>
 <li><strong>Reports</strong>: player reports you send (with the recent chat lines attached from your own game) and moderation decisions.</li>
@@ -34,6 +36,7 @@
 <h2>Crash and bug reports</h2>
 <p>If the game crashes it can send a report: the error, the game version, your device type, the renderer and a short summary of the match. Emails, IP addresses and file paths are removed before storage. You can turn automatic reports off in the game’s Settings or in your account. Bug reports you send yourself may include a screenshot of the game if you choose.</p>
 <h2>Online matches</h2>
+<p><strong>Chat.</strong> In online lobbies and matches, chat passes through our server so it can be filtered, so mutes work, and so players under 16 only send and see preset quick-chat phrases. We keep the last lines of a match’s chat in memory while it runs and for 30 minutes after; they are stored only if someone reports a player from that match, attached to the report. You can turn chat off or limit it to quick chat in Settings or your account.</p>
 <p>Matches connect players’ devices directly (WebRTC, encrypted with DTLS). As with any direct connection, the other players’ devices can see your IP address. Turn on <em>Hide my IP address</em> in Settings to route the match through our relay server instead; the relay forwards encrypted traffic it cannot read.</p>
 <h2>Your controls</h2>
 <p>From your account you can download all of your data, sign out devices, turn off crash reports, and delete your account. Deletion erases your email, sign-ins, name and two-factor data and cancels your membership; anonymised match records remain.</p>

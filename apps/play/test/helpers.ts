@@ -6,10 +6,10 @@ import { makeMailer } from '../src/lib/mail.js';
 import { hotp, stepAt } from '../src/lib/totp.js';
 
 export const WEBHOOK_SECRET = 'whsec_test_secret';
-export async function boot(env: Record<string, string> = {}) {
+export async function boot(env: Record<string, string> = {}, over: { stripe?: any } = {}) {
   const cfg = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', PUBLIC_URL: 'http://play.test', SITE_URL: 'http://site.test', STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, TURN_SECRET: 'turnsecret', TURN_URLS: 'turn:turn.test:3478', ...env } as any);
   const mailer = makeMailer(undefined, 'test', () => {});
-  const stripe = new Stripe('sk_test_dummy');
+  const stripe = over.stripe || new Stripe('sk_test_dummy');
   const built = await buildApp(cfg, { mailer, stripe });
   await built.app.listen({ port: 0, host: '127.0.0.1' });
   const port = (built.app.server.address() as any).port;
@@ -23,9 +23,9 @@ export async function boot(env: Record<string, string> = {}) {
 export type T = Awaited<ReturnType<typeof boot>>;
 
 let n = 0;
-export async function signup(t: T, over: Partial<{ email: string; password: string; name: string; verify: boolean }> = {}) {
+export async function signup(t: T, over: Partial<{ email: string; password: string; name: string; verify: boolean; birthYear: number }> = {}) {
   const email = over.email || `player${++n}_${Date.now()}@example.com`, password = over.password || 'correct horse battery';
-  const r = await t.api('POST', '/api/auth/signup', { email, password, name: over.name, client: 'game' });
+  const r = await t.api('POST', '/api/auth/signup', { email, password, name: over.name, client: 'game', birthYear: over.birthYear ?? 1990, birthMonth: 6 });
   if (r.status !== 200) throw new Error('signup failed ' + JSON.stringify(r.json));
   if (over.verify !== false) {
     const mail = t.mailer.outbox.filter(m => m.to === email).pop()!;

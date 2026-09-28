@@ -48,8 +48,12 @@ export default async function moderationRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!(await ctx.db.one('select 1 from users where id = $1', [b.target]))) throw notFound('That player no longer exists.');
     const dup = await ctx.db.one(`select 1 from player_reports where reporter_id = $1 and target_id = $2 and created_at > now() - interval '1 hour'`, [a.user.id, b.target]);
     if (dup) return { ok: true, duplicate: true };
+    // Online chat passes through the hub, so its own record is the evidence; a client's
+    // copy is kept only when the server has none (and marked as such).
+    const heard = b.match ? ctx.hub.chatLog(b.match) : null;
+    const chat = heard ? heard.map(c => ({ from: c.from, uid: c.uid, at: c.at, text: c.text, server: true })) : b.chat.map(c => ({ from: c.from, text: scrub(c.text, 200), client: true }));
     await ctx.db.query(`insert into player_reports (reporter_id, target_id, reason, details, match_id, chat) values ($1, $2, $3, $4, $5, $6)`,
-      [a.user.id, b.target, b.reason, scrub(b.details, 1000), b.match || null, JSON.stringify(b.chat.map(c => ({ from: c.from, text: scrub(c.text, 200) })))]);
+      [a.user.id, b.target, b.reason, scrub(b.details, 1000), b.match || null, JSON.stringify(chat)]);
     return { ok: true };
   });
 

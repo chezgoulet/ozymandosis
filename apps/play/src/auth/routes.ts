@@ -9,6 +9,7 @@ import { randomToken, sha256 } from '../lib/crypto.js';
 import { Limiter } from '../lib/limiter.js';
 import { coarseClient } from '../lib/privacy.js';
 import { templates } from '../lib/mail.js';
+import { ageFrom, bandOf } from '../lib/age.js';
 import { verifyTotp } from '../lib/totp.js';
 import { checkPassword, createSession, createUser, hashPassword, mfaChallenge, normEmail, readChallenge, revokeAll, revokeSession, validEmail, verifyPassword, assertCanPlay, bump } from './service.js';
 
@@ -55,8 +56,14 @@ export default async function authRoutes(app: FastifyInstance, ctx: Ctx) {
   const ipKey = (req: FastifyRequest) => ctx.cfg.test ? 'test:' + Math.random() : ctx.secrets.pseudonym('ip:' + (req.ip || ''), 16);
 
   app.post('/api/auth/signup', async (req, reply) => {
-    const b = z.object({ email: z.string(), password: z.string(), name: z.string().optional(), client: Client, captcha: z.string().optional(), handoff: z.string().optional() }).parse(req.body);
+    const b = z.object({ email: z.string(), password: z.string(), name: z.string().optional(), client: Client, captcha: z.string().optional(), handoff: z.string().optional(),
+      birthYear: z.number().int().optional(), birthMonth: z.number().int().optional() }).parse(req.body);
     if (!signupIp.take(ipKey(req))) throw tooMany();
+    const age = ageFrom(b.birthYear ?? NaN, b.birthMonth ?? NaN);
+    if (age === null) throw bad('Please tell us the month and year you were born.', 'age');
+    const band = bandOf(age);
+    // under 13: no account, and nothing about them is kept
+    if (!band) throw new HttpError(403, 'Sorry, you need to be 13 or older to make an account. You can still play offline and on your local network.', 'underage');
     if (!(await captchaOk(ctx, b.captcha))) throw bad('Please complete the check that you are human.', 'captcha');
     const email = normEmail(b.email);
     if (!validEmail(email)) throw bad('That email address does not look right.', 'email');
@@ -64,7 +71,7 @@ export default async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     const exists = await ctx.db.one('select 1 from users where email = $1', [email]);
     // Same answer either way would be kinder to privacy, but players need to know; rate limits cover enumeration.
     if (exists) throw new HttpError(409, 'An account with that email already exists. Try signing in.', 'exists');
-    const user = await createUser(ctx, { email, password: b.password, name: b.name });
+    const user = await createUser(ctx, { email, password: b.password, name: b.name, ageBand: band });
     await sendVerify(ctx, user);
     const out = await issueSession(ctx, req, reply, user, b.client, false, b.handoff);
     return { ...out, name: user.display_name, verifyEmail: true };

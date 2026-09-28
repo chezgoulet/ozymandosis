@@ -69,6 +69,7 @@
     <div class="card" id="lobby-chat-card" hidden>
       <h3>Lobby</h3>
       <div id="lobby-log" style="max-height:160px;overflow:auto;font-size:.88em;display:grid;gap:4px;margin-bottom:8px"></div>
+      <div class="quick-chat" id="lobby-quick"></div>
       <form class="row" id="lobby-chat" style="flex-wrap:nowrap"><input type="text" id="lobby-msg" placeholder="Say something" maxlength="140"><button class="btn small">Send</button></form>
     </div>
   </div>
@@ -160,7 +161,7 @@
   <div class="undo" id="undo" hidden><button class="btn small" id="undo-btn">↶ Undo order</button></div>
   <div class="net-banner" id="net-banner" role="status" aria-live="polite" hidden><span class="spin" aria-hidden="true"></span><span id="net-banner-t"></span><button class="btn small ghost" id="net-banner-leave">Leave</button></div>
   <div class="guide" id="guide" hidden><span class="mono" id="guide-n"></span><span id="guide-text"></span><button class="btn small" id="guide-next">Next</button><button class="btn small ghost" id="guide-off" aria-label="Turn off tips">✕</button></div>
-  <div class="chat" id="chat" hidden><div id="chat-log" style="display:grid;gap:4px"></div><form id="chat-form" hidden><input type="text" id="chat-input" maxlength="140" placeholder="Message"><button class="btn small">Send</button></form></div>
+  <div class="chat" id="chat" hidden><div id="chat-log" style="display:grid;gap:4px"></div><form id="chat-form" hidden><div class="quick-chat" id="chat-quick"></div><div class="chat-line"><input type="text" id="chat-input" maxlength="140" placeholder="Message"><button class="btn small">Send</button></div></form></div>
   <div class="hint" id="hint" hidden><span id="hint-text"></span><button class="btn small primary" id="hint-ok" hidden>Confirm</button><button class="btn small" id="hint-cancel">Cancel</button></div>
   <div class="sheet" id="sheet">
     <button class="grab" id="sheet-grab" aria-label="Collapse panel"></button>
@@ -236,6 +237,7 @@
 <script src="js/net/net.js"></script>
 <script src="js/net/audit.js"></script>
 <script src="js/net/online.js"></script>
+<script src="js/net/cloud.js"></script>
 <script src="js/ui/perf.js"></script>
 <script src="js/ui/dom.js"></script>
 <script src="js/ui/icons.js"></script>

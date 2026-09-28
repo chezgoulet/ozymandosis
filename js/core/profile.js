@@ -46,7 +46,7 @@
   E.Profile = {
     ACH, TITLES,
     get() { return Object.assign(blank(), E.LS.get(KEY, {})); },
-    save(p) { E.LS.set(KEY, p); },
+    save(p) { E.LS.set(KEY, p); if (E.Cloud) E.Cloud.dirty('profile'); },
     level(xp) { return 1 + Math.floor(Math.sqrt(xp / 120)); },
     levelXp(lvl) { return 120 * (lvl - 1) * (lvl - 1); },
     title(lvl) { let t = TITLES[0][1]; for (const [l, n] of TITLES) if (lvl >= l) t = n; return t; },

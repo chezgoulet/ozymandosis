@@ -31,11 +31,11 @@
     write(id, world, extra) {
       const data = { v: 1, state: world.serialize(), extra: extra || {} };
       const ok = LS.set('efl.save.' + id, data);
-      if (ok) LS.set('efl.meta.' + id, this.meta(world, extra));
+      if (ok) { LS.set('efl.meta.' + id, this.meta(world, extra)); if (E.Cloud) E.Cloud.dirty('save.' + id); }
       return ok;
     },
     read(id) { return LS.get('efl.save.' + id, null); },
-    remove(id) { LS.del('efl.save.' + id); LS.del('efl.meta.' + id); },
+    remove(id) { LS.del('efl.save.' + id); LS.del('efl.meta.' + id); if (E.Cloud) E.Cloud.removed('save.' + id); },
     freeSlot() { const used = new Set(this.list().map(m => m.id)); return SAVE_SLOTS.slice(1).find(s => !used.has(s)) || SAVE_SLOTS[1]; },
     exportBlob(world, extra) { return new Blob([JSON.stringify({ ozymandosis: 1, v: 1, state: world.serialize(), extra: extra || {} })], { type: 'application/json' }); },
   };
@@ -43,8 +43,8 @@
   // Design library shared across games (player-authored designs).
   E.Library = {
     all() { return LS.get('efl.designs', []); },
-    save(list) { LS.set('efl.designs', list.slice(0, 30)); },
-    add(d) { const l = this.all().filter(x => x.name !== d.name); l.unshift({ name: d.name, chassis: d.chassis, organs: d.organs.slice(), role: d.role }); this.save(l); },
-    remove(name) { this.save(this.all().filter(x => x.name !== name)); },
+    save(list) { LS.set('efl.designs', list.slice(0, 30)); if (E.Cloud) E.Cloud.dirty('designs'); },
+    add(d) { const l = this.all().filter(x => x.name !== d.name); l.unshift({ name: d.name, chassis: d.chassis, organs: d.organs.slice(), role: d.role, at: Date.now() }); this.save(l); },
+    remove(name) { const g = LS.get('efl.designs.gone', {}); g[name] = Date.now(); LS.set('efl.designs.gone', g); this.save(this.all().filter(x => x.name !== name)); },
   };
 })(window.E);

@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Ctx } from '../context.js';
 import { enabledProviders } from '../auth/oauth.js';
 import { entitlements, freeMinutes } from '../auth/service.js';
+import { plans } from '../billing/stripe.js';
 
 export async function activeAnnouncements(ctx: Ctx, subscriber: boolean | null) {
   const rows = await ctx.db.query<any>(`select id, title, body, severity, audience, starts_at, ends_at from announcements where starts_at <= now() and (ends_at is null or ends_at > now()) order by starts_at desc limit 10`);
@@ -23,6 +24,8 @@ export default async function publicRoutes(app: FastifyInstance, ctx: Ctx) {
       priceUsd: 1,
       providers: enabledProviders(ctx),
       billing: !!ctx.stripe,
+      // what membership costs, from Stripe (amounts in minor units, tax included)
+      plans: Object.entries(await plans(ctx)).map(([plan, p]) => ({ plan, amount: p!.amount, currency: p!.currency })),
       turnstileSiteKey: rc.turnstileSiteKey || null,
       ticketKey: { kid: ctx.signer.id, x: ctx.signer.publicRaw },
       features: rc.features || {},

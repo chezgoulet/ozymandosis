@@ -1,7 +1,7 @@
 // Operator commands:  npm run admin -- <command>
 //   promote <email|name> <role>     grant a staff role (owner, admin, moderator, support, player)
 //   create-owner <email> <password> create the first owner account (email pre-verified)
-//   stripe:setup                    create the $1/month product and price in Stripe
+//   stripe:setup [yearlyCents]      create the product, the $1/month price, and optionally a yearly price
 //   migrate                         apply database migrations
 //   grant <email|name> <days>       complimentary membership
 import Stripe from 'stripe';
@@ -31,8 +31,8 @@ try {
     console.log(`owner created (${name}, ${u.id}). Sign in at ${cfg.PUBLIC_URL} and turn on two-factor before using the admin console.`);
   } else if (cmd === 'stripe:setup') {
     if (!cfg.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is not set');
-    const price = await setupStripeProduct(new Stripe(cfg.STRIPE_SECRET_KEY));
-    console.log(`price ${price.id} (${price.unit_amount! / 100} ${price.currency}/${price.recurring?.interval}). Set STRIPE_PRICE_ID=${price.id} or rely on the lookup key.`);
+    const { monthly, yearly } = await setupStripeProduct(new Stripe(cfg.STRIPE_SECRET_KEY), args[0] ? Math.round(Number(args[0])) : undefined);
+    for (const p of [monthly, yearly]) if (p) console.log(`price ${p.id} (${p.unit_amount! / 100} ${p.currency}/${p.recurring?.interval}, tax ${p.tax_behavior}), lookup key ${p.lookup_key}`);
   } else if (cmd === 'grant') {
     const [who, days] = args; const u = await find(who); if (!u || !(+days > 0)) throw new Error('usage: grant <email|name> <days>');
     await db.query(`insert into subscriptions (id, user_id, status, current_period_end) values ($1, $2, 'active', now() + ($3 || ' days')::interval) on conflict (id) do update set status = 'active', current_period_end = excluded.current_period_end`, ['comp_' + u.id, u.id, days]);

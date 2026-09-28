@@ -15,6 +15,7 @@
 //   → start                                       ← ticket {ticket, match}  (to everyone in the lobby)
 //   → end {match, kind, winnerTeam, results, audit} (every player reports; results.ts settles) ← result {match, status, rated, result, delta}
 //   → queue {mode} | unqueue                      ← queued {mode} | matched {room, role, mode}
+//   → chat {text} | chat {q}                     ← chat {from, uid, text, q?, at}  (lobby and match chat, filtered here)
 //   server pushes: me {user, ent}, announcement {...}, maintenance {message}, kicked {msg}, error {msg}
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from 'ws';
@@ -25,6 +26,12 @@ import { userTag } from '../lib/privacy.js';
 import { filterChat } from '../lib/names.js';
 import { activeAnnouncements } from '../routes/public.js';
 import { recordClaim, settle, dueMatches, type Settled } from './results.js';
+import { freeChatAllowed } from '../lib/age.js';
+
+// Quick chat: the only messages players under 16 send or receive.
+export const QUICK_CHAT = ['Hello!', 'Good luck, have fun', 'Good game', 'Well played', 'Nice!', 'Oops', 'Thanks', 'Sorry', 'One moment', 'Let’s go', 'Help!', 'Attack here', 'Defend here', 'Rematch?'];
+const CHAT_KEEP = 100, CHAT_LOG_TTL = 30 * 60e3;
+interface ChatLine { at: string; uid: string; from: string; text: string }
 
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS = 6;
@@ -34,7 +41,7 @@ const cmpVersion = (a: string, b: string) => { const x = a.split('.').map(Number
 
 interface Conn {
   ws: WebSocket; user: UserRow | null; ent: Entitlements | null; tag: string;
-  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; platform: string; queued: string | null; queuedAt: number;
+  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; platform: string; queued: string | null; queuedAt: number; chatAt: number[];
 }
 interface Lobby {
   code: string; host: Conn; members: Map<number, Conn>; seq: number; createdAt: number;
@@ -43,12 +50,15 @@ interface Lobby {
   seats: Map<string, number>; // user id → lobby id, so a player who drops and rejoins keeps their seat
   pending: boolean; waiting: Conn[]; // quick match: guests wait until the chosen host claims the lobby
   hostGone: number; goneTimer: NodeJS.Timeout | null; // the host's signaling dropped mid-match
+  chat: ChatLine[]; // recent chat, held in memory only: evidence for reports about this lobby or match
 }
 
 export class Hub {
   conns = new Set<Conn>();
   lobbies = new Map<string, Lobby>();
   queue = new Map<string, Conn[]>();
+  // chat of lobbies that have closed, kept a little while for reports filed after the match
+  chatLogs = new Map<string, { lines: ChatLine[]; until: number }>();
   private timer: NodeJS.Timeout;
   private ticks = 0;
   constructor(private ctx: Ctx) {
@@ -56,6 +66,7 @@ export class Hub {
     this.timer.unref();
   }
   async settleDue() {
+    const now = Date.now(); for (const [k, e] of this.chatLogs) if (e.until < now) this.chatLogs.delete(k);
     try { for (const id of await dueMatches(this.ctx)) this.announceResult(await settle(this.ctx, id)); }
     catch (e: any) { this.ctx.log.error({ err: { message: e.message } }, 'settle failed'); }
   }
@@ -74,7 +85,7 @@ export class Hub {
 
   // ── connection lifecycle ─────────────────────────────────────
   private accept(ws: WebSocket, req: FastifyRequest) {
-    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, platform: '', queued: null, queuedAt: 0 };
+    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, platform: '', queued: null, queuedAt: 0, chatAt: [] };
     this.conns.add(c);
     const authTimer = setTimeout(() => { if (!c.user) ws.close(4001, 'auth timeout'); }, 10000);
     (ws as any).isAlive = true;
@@ -101,13 +112,14 @@ export class Hub {
     c.version = String(m.version || '0').slice(0, 20); c.proto = Number.isInteger(m.proto) ? m.proto : 1; c.platform = String(m.platform || '').slice(0, 20);
     const cfg = await this.remote();
     if (cmpVersion(c.version, cfg.minClientVersion) < 0) { this.send(c, { op: 'upgrade', msg: 'A new version of Ozymandosis is out. Please update to play online.', min: cfg.minClientVersion }); c.ws.close(4010, 'upgrade'); return; }
+    if (!a.user.age_band) { this.send(c, { op: 'error', code: 'age', msg: 'Before you play online, tell us your age.' }); c.ws.close(4012, 'age'); return; }
     if (cfg.maintenance?.on && a.user.role === 'player') { this.send(c, { op: 'maintenance', msg: cfg.maintenance.message || 'Online play is down for maintenance. Back soon.' }); c.ws.close(4011, 'maintenance'); return; }
     c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user);
     this.send(c, {
       op: 'hello', user: this.pub(c), ent: c.ent, ice: this.ice(c),
       key: { kid: this.ctx.signer.id, x: this.ctx.signer.publicRaw },
       announcements: await activeAnnouncements(this.ctx, c.ent.subscriber),
-      config: { freeMatchMinutes: c.ent.freeMatchMinutes, needsVerify: this.needsVerify(a.user), mutedUntil: a.user.muted_until },
+      config: { freeMatchMinutes: c.ent.freeMatchMinutes, needsVerify: this.needsVerify(a.user), mutedUntil: a.user.muted_until, chat: this.chatMode(a.user), quickChat: QUICK_CHAT },
     });
     await bump(this.ctx, 'ws_sessions');
   }
@@ -165,6 +177,7 @@ export class Hub {
         return;
       }
       case 'leave': return this.leaveLobby(c, true);
+      case 'chat': return this.chat(c, m);
       case 'start': return this.start(c);
       case 'end': return this.end(c, m);
       case 'queue': {
@@ -210,7 +223,7 @@ export class Hub {
       title: filterChat(String(m.title || `${c.user!.display_name}'s bloom`).slice(0, 40)).text, public: m.public !== false && !opts.reserved,
       mode: String(opts.mode || m.mode || 'custom').slice(0, 20), max: Math.max(2, Math.min(MAX_PLAYERS, Number(m.max) || MAX_PLAYERS)), players: 1,
       started: false, matchId: null, ticket: null, ranked: !!opts.ranked, reserved: opts.reserved || null, kicked: new Set(), seats: new Map(),
-      pending: !!opts.pending, waiting: [], hostGone: 0, goneTimer: null,
+      pending: !!opts.pending, waiting: [], hostGone: 0, goneTimer: null, chat: [],
     };
     this.lobbies.set(L.code, L); c.lobby = L; c.lid = 0;
     if (!L.pending) this.send(c, { op: 'hosted', room: L.code, id: 0, ice: this.ice(c), ranked: L.ranked });
@@ -248,7 +261,7 @@ export class Hub {
       // the host's signaling dropped mid-match: the match itself runs peer to peer, so keep
       // the lobby for the host to resume (and for guests to rejoin through) for a while
       L.hostGone = Date.now();
-      L.goneTimer = setTimeout(() => { if (L.hostGone && this.lobbies.get(L.code) === L) { for (const o of L.members.values()) o.lobby = null; this.lobbies.delete(L.code); } }, HOST_GRACE_MS);
+      L.goneTimer = setTimeout(() => { if (L.hostGone && this.lobbies.get(L.code) === L) { for (const o of L.members.values()) o.lobby = null; this.closeLobby(L); } }, HOST_GRACE_MS);
       L.goneTimer.unref?.();
       return;
     }
@@ -256,12 +269,52 @@ export class Hub {
       if (L.goneTimer) clearTimeout(L.goneTimer);
       if (!L.started) for (const o of L.members.values()) { this.send(o, { op: 'closed' }); o.lobby = null; }
       else for (const o of L.members.values()) o.lobby = null;
-      this.lobbies.delete(L.code);
+      this.closeLobby(L);
     } else if (L.members.get(c.lid) === c) {
       L.members.delete(c.lid);
       if (notify && !L.started) this.send(L.host, { op: 'left', id: c.lid });
     }
   }
+  private closeLobby(L: Lobby) {
+    this.lobbies.delete(L.code);
+    if (L.chat.length) { const e = { lines: L.chat, until: Date.now() + CHAT_LOG_TTL }; this.chatLogs.set('room:' + L.code, e); if (L.matchId) this.chatLogs.set(L.matchId, e); }
+  }
+
+  // ── chat ─────────────────────────────────────────────────────
+  // Everyone's own choice (all / quick / off) and age decide what they send and see.
+  chatMode(u: UserRow): 'all' | 'quick' | 'off' { return u.chat === 'off' ? 'off' : u.chat === 'all' && freeChatAllowed(u.age_band) ? 'all' : 'quick'; }
+  private chat(c: Conn, m: any) {
+    const L = c.lobby, u = c.user!; if (!L) return;
+    const mode = this.chatMode(u);
+    if (mode === 'off') return this.send(c, { op: 'error', code: 'chat', msg: 'Chat is off in your settings.' });
+    if (u.muted_until && new Date(u.muted_until).getTime() > Date.now()) return this.send(c, { op: 'error', code: 'muted', msg: `You are muted until ${new Date(u.muted_until).toUTCString()}.` });
+    const now = Date.now(); c.chatAt = c.chatAt.filter(t => now - t < 10e3);
+    if (c.chatAt.length >= 6) return this.send(c, { op: 'error', code: 'chat', msg: 'Slow down a little.' });
+    let text: string, q: number | undefined;
+    if (Number.isInteger(m.q) && m.q >= 0 && m.q < QUICK_CHAT.length) { q = m.q; text = QUICK_CHAT[m.q]; }
+    else {
+      if (mode !== 'all') return this.send(c, { op: 'error', code: 'chat', msg: 'Quick chat only.' });
+      text = filterChat(String(m.text || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 140)).text;
+      if (!text) return;
+    }
+    c.chatAt.push(now);
+    const line: ChatLine = { at: new Date(now).toISOString(), uid: u.id, from: u.display_name, text };
+    L.chat.push(line); if (L.chat.length > CHAT_KEEP) L.chat.shift();
+    const out = { op: 'chat', from: u.display_name, uid: u.id, text, q, at: line.at };
+    for (const o of [L.host, ...L.members.values()]) {
+      if (!o.user || o.ws.readyState !== 1) continue;
+      const om = this.chatMode(o.user);
+      if (om === 'off' || (om === 'quick' && q === undefined)) continue;
+      this.send(o, out);
+    }
+  }
+  // What was said in a match (or lobby), for a report about it.
+  chatLog(matchOrRoom: string): ChatLine[] | null {
+    for (const L of this.lobbies.values()) if (L.matchId === matchOrRoom || L.code === matchOrRoom) return L.chat.slice(-30);
+    const e = this.chatLogs.get(matchOrRoom) || this.chatLogs.get('room:' + matchOrRoom);
+    return e && e.until > Date.now() ? e.lines.slice(-30) : null;
+  }
+
   private drop(c: Conn) { this.unqueue(c); this.leaveLobby(c, true, true); this.conns.delete(c); }
 
   // lobbies the asking client can actually join (same peer protocol)
@@ -301,7 +354,6 @@ export class Hub {
       m = { match: L.matchId, kind: 'final', winnerTeam: m.winnerTeam, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ uid: seat.get(Number(r?.id)), result: r?.result })) };
     }
     const r = await recordClaim(this.ctx, c.user!.id, m);
-    if (c.lobby && c.lobby.matchId === r.match && c === c.lobby.host && m.kind !== 'disconnected') c.lobby.matchId = null;
     if (r.ok && r.complete) this.announceResult(await settle(this.ctx, r.match!));
     if (r.ok) await bump(this.ctx, 'match_claims');
   }
@@ -345,7 +397,7 @@ export class Hub {
       if (!u || u.status === 'banned' || u.status === 'deleted') { this.kick(c, 'This account can no longer play online.'); continue; }
       c.user = u; c.ent = await entitlements(this.ctx, u);
       if (u.status === 'suspended') { this.kick(c, `Your account is suspended until ${new Date(u.suspended_until!).toUTCString()}.`); continue; }
-      this.send(c, { op: 'me', user: this.pub(c), ent: c.ent, config: { needsVerify: this.needsVerify(u), mutedUntil: u.muted_until } });
+      this.send(c, { op: 'me', user: this.pub(c), ent: c.ent, config: { needsVerify: this.needsVerify(u), mutedUntil: u.muted_until, chat: this.chatMode(u) } });
     }
   }
   kickUser(userId: string, msg: string) { for (const c of this.conns) if (c.user?.id === userId) this.kick(c, msg); }

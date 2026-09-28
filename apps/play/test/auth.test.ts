@@ -18,9 +18,9 @@ test('sign up, verify email, sign in, and see the account', async () => {
   assert.equal(bad.status, 401);
   const ok = await t.api('POST', '/api/auth/login', { email: u.email.toUpperCase(), password: u.password, client: 'game' });
   assert.equal(ok.status, 200); assert.ok(ok.json.token);
-  const dup = await t.api('POST', '/api/auth/signup', { email: u.email, password: 'another good password', client: 'game' });
+  const dup = await t.api('POST', '/api/auth/signup', { email: u.email, password: 'another good password', client: 'game', birthYear: 1990, birthMonth: 1 });
   assert.equal(dup.status, 409);
-  const weak = await t.api('POST', '/api/auth/signup', { email: 'weak@example.com', password: 'short', client: 'game' });
+  const weak = await t.api('POST', '/api/auth/signup', { email: 'weak@example.com', password: 'short', client: 'game', birthYear: 1990, birthMonth: 1 });
   assert.equal(weak.status, 400);
 });
 

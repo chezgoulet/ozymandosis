@@ -26,7 +26,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await p.click('#mp-account button');
     await p.click('.modal.signin .seg button:nth-child(2)');
     await p.fill('.modal.signin input[type=email]', email); await p.fill('.modal.signin input[type=password]', 'a long enough password'); await p.fill('.modal.signin input[type=text]', name);
-    await p.click('.modal.signin button[type=submit]'); await p.waitForSelector('.modal.signin', { state: 'detached' });
+    await p.selectOption('.modal.signin select[aria-label="Birth month"]', '6'); await p.selectOption('.modal.signin select[aria-label="Birth year"]', '1990');
+    await p.click('.modal.signin button[type=submit]');
+    await p.waitForSelector('.modal.signin', { state: 'detached', timeout: 20000 }).catch(async e => { throw new Error('sign-up did not finish: ' + (await p.textContent('.modal.signin .form-err').catch(() => '?'))); });
     const mail = (await (await fetch(PLAY_URL + '/api/dev/outbox')).json()).mail.filter(m => m.to === email).pop();
     const token = /token=([A-Za-z0-9_-]+)/.exec(mail.text)[1];
     assert((await fetch(PLAY_URL + '/api/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }) })).ok);
@@ -46,6 +48,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await guest.waitForSelector('#scr-setup:not([hidden])'); await host.waitForTimeout(800);
     const hostSeesGuest = await host.evaluate(() => [...document.querySelectorAll('#slots .slot-row select:nth-child(2)')].map(s => s.selectedOptions[0].textContent));
     console.log('host slots', hostSeesGuest); assert(hostSeesGuest.some(t => /Guestling/.test(t)));
+    // lobby chat goes through the service, filtered
+    await guest.fill('#lobby-msg', 'what the fuck, hello'); await guest.click('#lobby-chat button');
+    await host.waitForFunction(() => /hello/.test(document.getElementById('lobby-log').textContent), null, { timeout: 5000 });
+    const heard = await host.textContent('#lobby-log');
+    assert(/•+/.test(heard) && !/fuck/.test(heard), 'chat filtered by the service'); console.log('lobby chat filtered');
     await host.screenshot({ path: OUT + '/online-02-lobby.png' });
     await host.click('#setup-start');
     await guest.waitForSelector('#game:not([hidden])', { timeout: 10000 }); await guest.waitForTimeout(2000);
@@ -96,6 +103,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     console.log('guest audit', JSON.stringify(audit), '·', await host.textContent('#end-result'));
     assert(audit && audit.verdict === 'ok' && audit.windows >= 2, 'guest verified the host');
     await guest.screenshot({ path: OUT + '/online-05-result.png' });
+    // lineage, designs and saves sync to the account
+    const cloud = await guest.evaluate(async () => { await E.Cloud.sync(); return (await E.Online.api('GET', '/api/cloud')).items.map(i => i.key); });
+    console.log('cloud items', cloud.join(', ')); assert(cloud.includes('profile'), 'profile synced');
   } catch (e) { console.error(e); errs.push(e.message); }
   console.log(errs.length ? errs.join('\n') : 'no errors');
   await b.close(); stopAll(errs.length ? 1 : 0);

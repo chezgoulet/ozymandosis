@@ -26,6 +26,7 @@ export interface UserRow {
   totp_secret_enc: string | null; totp_enabled: boolean; totp_last_step: string | number | null;
   role: Role; status: 'active' | 'suspended' | 'banned' | 'deleted'; suspended_until: string | Date | null; muted_until: string | Date | null;
   stripe_customer_id: string | null; rating: number; matches: number; wins: number; crash_reports: boolean; created_at: string | Date; last_seen_at: string | Date | null;
+  age_band: '13-15' | '16-17' | 'adult' | null; chat: 'all' | 'quick' | 'off';
 }
 export interface Authed { user: UserRow; sessionId: string; via: 'cookie' | 'bearer'; mfa: boolean }
 

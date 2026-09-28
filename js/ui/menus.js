@@ -152,11 +152,25 @@
     $('setup-start').onclick = () => startFromSetup();
     $('lobby-chat').onsubmit = e => {
       e.preventDefault(); const v = $('lobby-msg').value.trim(); $('lobby-msg').value = ''; if (!v || !lobby) return;
-      if (lobby.role === 'host') { lobbyLog(playerName(), v); lobby.relay.send('all', { k: 'chat', from: playerName(), text: v }); }
-      else lobby.relay.toHost({ k: 'chat', text: v });
+      sayInLobby({ text: v });
     };
   }
+  // Online lobbies chat through the service (filtered, age-aware); LAN lobbies peer to peer.
+  function sayInLobby(m) {
+    if (!lobby) return;
+    if (lobby.online) { lobby.relay.raw(Object.assign({ op: 'chat' }, m)); return; }
+    const text = m.q !== undefined ? E.QUICK_CHAT[m.q] : E.filterChat(m.text);
+    if (lobby.role === 'host') { lobbyLog(playerName(), text); lobby.relay.send('all', { k: 'chat', from: playerName(), text }); }
+    else lobby.relay.toHost({ k: 'chat', text });
+  }
+  function renderLobbyChat() {
+    const online = lobby && lobby.online, mode = online ? E.Online.chatMode() : 'all';
+    $('lobby-chat').hidden = mode !== 'all';
+    $('lobby-quick').replaceChildren(...(mode === 'off' ? [] : (online ? E.Online.quickChat() : E.QUICK_CHAT).slice(0, 6).map((t, q) => h('button', { type: 'button', onclick: () => sayInLobby({ q }) }, t))));
+    if (mode === 'off') $('lobby-quick').append(h('small', { class: 'hint-s' }, 'Chat is off in your settings.'));
+  }
   function lobbyLog(from, text) {
+    if (!renderLobbyChat.done) { renderLobbyChat.done = true; renderLobbyChat(); }
     if (from !== 'Room') E.Online.logChat(from, text);
     const log = $('lobby-log'); log.appendChild(h('div', null, h('b', null, from + ': '), text)); log.scrollTop = 1e9; E.Audio.play('chat');
   }
@@ -206,6 +220,7 @@
   function onlineError(e) {
     if (e.code === 'signin' || e.code === 'unauthorized') { renderOnline(); E.Online.signInDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
     if (e.code === 'upgrade') { E.modal('Update Ozymandosis', e.message); return; }
+    if (e.code === 'age') { E.Online.ageDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
     onlineStatus(e.message); E.toast(e.message);
   }
   async function connect(src) {
@@ -227,7 +242,7 @@
     const r = opts.relay || await connect(opts.src); if (!r) return;
     if (opts.relay) E.Online.wire(r);
     r.on('hosted', m => {
-      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null, online, quick: opts.quick || null };
+      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null, online, quick: opts.quick || null }; renderLobbyChat.done = false;
       if (save) {
         const st = JSON.parse(save.state), local = save.extra && save.extra.local !== undefined ? save.extra.local : 0;
         setup = { map: Object.assign({}, st.cfg.map), slots: st.players.map((p, i) => ({ kind: i === local ? 'you' : p.kind === 'bot' ? 'bot' : 'open', culture: p.culture, team: p.team, diff: p.diff || 'normal', name: p.name })) };
@@ -254,12 +269,13 @@
       s.kind = 'human'; s.peer = m.id; s.name = m.name; s.uid = m.uid; s.sub = m.sub; s.muted = m.muted;
       lobbyLog('Room', `${m.name} joined`); changed();
     });
+    r.on('chat', m => { if (lobby) lobbyLog(m.from, m.text); });
     r.on('left', m => { if (!lobby) return; const s = setup.slots.find(s => s.peer === m.id); if (s) { s.kind = 'open'; delete s.peer; lobbyLog('Room', `${s.name} left`); changed(); } });
     r.on('msg', m => {
       if (!lobby) return;
       const d = m.data, s = setup.slots.find(s => s.peer === m.from);
       if (d.k === 'pick' && s) { if (!lobby.save) { setCulture(s, d.culture); s.team = d.team || 0; } changed(); }
-      else if (d.k === 'chat' && s) { if (s.muted) return; lobbyLog(s.name, String(d.text).slice(0, 140)); r.send('all', { k: 'chat', from: s.name, text: String(d.text).slice(0, 140) }); }
+      else if (d.k === 'chat' && s && !lobby.online) { if (s.muted) return; const text = E.filterChat(d.text); lobbyLog(s.name, text); r.send('all', { k: 'chat', from: s.name, text }); }
       else if (d.k === 'hello') broadcastLobby();
     });
     r.on('close', () => { if (lobby) { E.toast('Disconnected from the lobby'); lobby = null; E.Screens.show('scr-mp'); } });
@@ -272,12 +288,13 @@
     if (!code) { code = $('mp-code').value.trim().toUpperCase(); if (code.length < 4) { $('mp-status').textContent = 'Enter the 4-letter room code.'; return; } }
     const r = opts.relay || await connect(opts.src); if (!r) return;
     if (opts.relay) E.Online.wire(r);
-    r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id, online }; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
+    r.on('chat', m => { if (lobby) lobbyLog(m.from, m.text); });
+    r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id, online }; renderLobbyChat.done = false; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
     r.on('error', m => { $('mp-status').textContent = m.msg; onlineStatus(m.msg); E.toast(m.msg); if (!lobby && online) E.Screens.show('scr-mp'); });
     r.on('msg', m => {
       const d = m.data;
       if (d.k === 'lobby' && lobby) { setup = d.setup; lobby.save = d.save; renderSetup(); }
-      else if (d.k === 'chat') lobbyLog(d.from, d.text);
+      else if (d.k === 'chat' && !online) lobbyLog(d.from, E.filterChat(d.text));
       else if (d.k === 'init') {
         const rl = lobby ? lobby.relay : r, slotUid = {};
         if (setup) setup.slots.forEach((s, i) => { if (s.uid) slotUid[i] = s.uid; });
@@ -301,8 +318,8 @@
     const ent = O.ent || {};
     acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.lifetime ? 'Lifetime member' : ent.subscriber ? 'Member' : `Free · ${ent.freeMatchMinutes || 15}-minute matches`),
       h('span', { class: 'mono', title: 'Rating' }, '◆ ' + (O.me.rating || 1200))),
-      h('div', { class: 'row' }, ent.subscriber ? null : h('button', { class: 'btn small', onclick: () => O.subscribe().catch(e => E.toast(e.message)) }, 'Membership · $1/month'),
-        ent.lifetime ? null : h('button', { class: 'btn small ghost', onclick: async () => { if (await O.redeemDialog()) renderOnline(); } }, 'Redeem a code'),
+      h('div', { class: 'row' }, ent.subscriber || !O.canPurchase() ? null : h('button', { class: 'btn small', onclick: () => O.membershipDialog() }, `Membership · ${O.priceLabel()}`),
+        ent.lifetime || !O.canPurchase() ? null : h('button', { class: 'btn small ghost', onclick: async () => { if (await O.redeemDialog()) renderOnline(); } }, 'Redeem a code'),
         h('button', { class: 'btn small ghost', onclick: () => O.openExternal(O.accountUrl()) }, 'Account'),
         h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); if (browse) { browse.close(); browse = null; } renderOnline(); } }, 'Sign out')));
     if (O.hello && O.hello.config && O.hello.config.needsVerify) acc.append(h('p', { class: 'hint-s warn' }, 'Confirm your email to play online. Check your inbox for the link.'));
@@ -406,9 +423,11 @@
       O.me ? h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.subscriber ? 'Member' : 'Free')) : h('p', { class: 'hint-s' }, 'Not signed in. Online play needs a free account.'),
       h('div', { class: 'row' }, O.me ? [h('button', { class: 'btn small', onclick: () => O.openExternal(O.accountUrl()) }, 'Manage account'), h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); renderSettings(); } }, 'Sign out')]
         : h('button', { class: 'btn small primary', onclick: async () => { if (await O.signInDialog()) renderSettings(); } }, 'Sign in')),
+      O.me ? chatPref(O) : null,
+      O.me ? cloudRow() : null,
       tog('Hide my IP address from other players (relays the match; adds a little delay)', 'relayOnly'),
       tog('Send automatic crash reports (nothing personal)', 'crashReports'),
-      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug'), h('button', { class: 'btn small', onclick: async () => { if (await O.redeemDialog()) renderSettings(); } }, 'Redeem a code')),
+      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug'), O.canPurchase() ? h('button', { class: 'btn small', onclick: async () => { if (await O.redeemDialog()) renderSettings(); } }, 'Redeem a code') : null),
       h('div', { class: 'field', style: 'margin-top:12px' }, h('label', null, 'Play server (advanced)'), playIn)));
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
@@ -417,6 +436,22 @@
       h('button', { class: 'btn small', style: 'margin-top:8px', onclick: () => { S.guideStep = 0; S.tips = true; E.saveSettings(); E.toast('Tips will start again next match'); renderSettings(); } }, 'Restart tips'),
       h('div', { style: 'height:12px' }),
       h('button', { class: 'btn danger small', onclick: async () => { if (await E.confirm('Erase all data?', 'Deletes settings, saves and your design library on this device.', 'Erase')) { localStorage.clear(); location.reload(); } } }, 'Erase all local data')));
+  }
+  // Online chat: everyone / quick chat (preset phrases) / off. Free chat opens at 16.
+  function chatPref(O) {
+    const cur = O.chatMode(), free = O.me.freeChat !== false;
+    const set = async v => {
+      try { await O.api('PATCH', '/api/me', { chat: v }); O.me.chat = v; if (O.hello && O.hello.config) O.hello.config.chat = v; renderSettings(); }
+      catch (e) { E.toast(e.message); }
+    };
+    return h('div', { class: 'field' }, h('label', null, 'Online chat'),
+      h('div', { class: 'seg' }, [['all', 'Everyone'], ['quick', 'Quick chat only'], ['off', 'Off']].map(([v, l]) => h('button', { 'aria-pressed': String(cur === v), disabled: v === 'all' && !free ? true : null, onclick: () => set(v) }, l))),
+      h('small', { class: 'hint-s' }, free ? 'Quick chat sends and shows only preset phrases. Everything else is filtered by the server, and reports include what was said.' : 'Players under 16 use quick chat: preset phrases only.'));
+  }
+  function cloudRow() {
+    const C = E.Cloud, when = C.lastSync ? new Date(C.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+    const txt = C.state === 'syncing' ? 'Syncing…' : C.state === 'ok' ? `Lineage, designs and saves are backed up to your account${when ? ` (last at ${when})` : ''}.` : C.state === 'offline' ? 'Offline: changes sync when you reconnect.' : C.state === 'error' ? `Sync problem: ${C.error}` : 'Lineage, designs and saves sync to your account.';
+    return h('div', { class: 'toggle-row' }, h('span', { class: 'hint-s' }, txt), h('button', { class: 'btn small ghost', onclick: async () => { await C.sync(); renderSettings(); } }, 'Sync now'));
   }
   function applyUi() { document.documentElement.style.setProperty('--ui', E.Settings.uiScale || 1); }
 

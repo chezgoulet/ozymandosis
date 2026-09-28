@@ -31,12 +31,12 @@ export async function uniqueName(ctx: Ctx, wanted?: string | null): Promise<stri
   return 'Drifter' + randomInt(100000, 999999);
 }
 
-export async function createUser(ctx: Ctx, o: { email?: string | null; password?: string | null; name?: string | null; verified?: boolean }): Promise<UserRow> {
+export async function createUser(ctx: Ctx, o: { email?: string | null; password?: string | null; name?: string | null; verified?: boolean; ageBand?: string | null }): Promise<UserRow> {
   const name = await uniqueName(ctx, o.name);
   const ph = o.password ? await hashPassword(o.password) : null;
   const row = await ctx.db.one<UserRow>(
-    `insert into users (display_name, name_key, email, email_verified, password_hash) values ($1, $2, $3, $4, $5) returning *`,
-    [name, nameKey(name), o.email ?? null, !!o.verified, ph]);
+    `insert into users (display_name, name_key, email, email_verified, password_hash, age_band, chat) values ($1, $2, $3, $4, $5, $6, $7) returning *`,
+    [name, nameKey(name), o.email ?? null, !!o.verified, ph, o.ageBand ?? null, o.ageBand === '13-15' ? 'quick' : 'all']);
   await bump(ctx, 'signups');
   return row!;
 }

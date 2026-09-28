@@ -29,6 +29,7 @@ import reportRoutes from './reports/routes.js';
 import moderationRoutes from './moderation/routes.js';
 import adminRoutes from './admin/routes.js';
 import publicRoutes from './routes/public.js';
+import cloudRoutes from './cloud/routes.js';
 
 export const SESSION_COOKIE = 'ozy_session';
 
@@ -137,6 +138,7 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   await reportRoutes(app, ctx);
   await moderationRoutes(app, ctx);
   await adminRoutes(app, ctx);
+  await cloudRoutes(app, ctx);
   ctx.hub.routes(app);
 
   // Account portal and admin console (static, same origin as the API).
