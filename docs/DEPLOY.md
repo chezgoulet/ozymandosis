@@ -83,7 +83,7 @@ Sign in at https://play.ozymandosis.com, turn on two-factor sign-in (required fo
 
 ## 7. Stripe
 
-1. Create the product and prices: `… exec play node apps/play/dist/cli.js stripe:setup` creates $1/month (tax included); `stripe:setup 1000` also creates a $10/year plan. Or create your own and set `STRIPE_PRICE_ID` / `STRIPE_PRICE_ID_YEARLY`.
+1. Create the product and prices: `… exec play node apps/play/dist/cli.js stripe:setup` creates $2/month (tax included); `stripe:setup 1200` also creates a $12/year plan. Or create your own and set `STRIPE_PRICE_ID` / `STRIPE_PRICE_ID_YEARLY`.
 2. **Tax**: Dashboard → Tax → activate Stripe Tax, set your origin address, and add registrations where you must collect (EU One-Stop Shop, UK, and US states as you cross thresholds). Checkout computes tax automatically (`STRIPE_TAX=true`); if Stripe Tax is not active, checkout still works and the admin console raises an alert.
 3. Webhook endpoint `https://play.ozymandosis.com/api/billing/webhook` with events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.paused`, `customer.subscription.resumed`, `invoice.payment_failed`. Its signing secret goes in `STRIPE_WEBHOOK_SECRET`.
 4. Settings → Billing → Customer portal: allow cancelling, switching plans and updating payment methods.

@@ -229,8 +229,10 @@
       onlineStatus('Connecting…');
       try { const r = await E.Online.openRelay(); E.Online.wire(r); onlineStatus(''); return r; } catch (e) { onlineError(e); return null; }
     }
-    const url = $('mp-server').value.trim() || E.Relay.defaultUrl();
-    E.Settings.server = $('mp-server').value.trim(); E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
+    const typed = $('mp-server').value.trim();
+    const url = E.Relay.fromInput(typed || E.Relay.defaultUrl());
+    E.Settings.server = typed; E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
+    if (!url) { $('mp-status').textContent = 'Enter the address of the host on your network — the machine running this game, as host:port.'; return null; }
     $('mp-status').textContent = 'Connecting to ' + url + '…';
     const r = new E.Relay();
     try { await r.connect(url); } catch (e) { $('mp-status').textContent = e.message + '. Is the server running?'; return null; }
@@ -532,7 +534,7 @@
     game.start({ mode: 'local', cfg, local: 0, tutorial: true });
   };
   $('m-skirmish').onclick = () => { E.Audio.init(); lobby = null; setup = defaultSetup(); E.Screens.show('scr-setup'); renderSetup(); };
-  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl(); $('mp-status').textContent = location.protocol === 'file:' ? 'Tip: open the game from the local server URL to play on your network.' : ''; onlineStatus(''); E.Screens.show('scr-mp'); renderOnline(); renderLobbies([]); if (E.Online.signedIn()) E.Online.refresh().then(() => { renderOnline(); openBrowse(); }); };
+  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl() || 'e.g. 192.168.1.50:8080'; $('mp-status').textContent = location.protocol === 'file:' ? 'Tip: open the game from the local server URL to play on your network.' : ''; onlineStatus(''); E.Screens.show('scr-mp'); renderOnline(); renderLobbies([]); if (E.Online.signedIn()) E.Online.refresh().then(() => { renderOnline(); openBrowse(); }); };
   E.Screens.onLeave['scr-mp'] = () => { if (browse && !lobby) { browse.close(); browse = null; } clearInterval(openBrowse.t); };
   $('mp-host-online').onclick = () => hostGame(null, { src: 'online' });
   $('mp-join-online').onclick = () => { const code = $('mp-code-online').value.trim().toUpperCase(); if (code.length !== 5) { onlineStatus('Online codes have 5 letters.'); return; } joinGame(code, { src: 'online' }); };

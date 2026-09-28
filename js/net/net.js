@@ -44,9 +44,21 @@
   class Relay {
     constructor(opts) { this.opts = opts || {}; this.ws = null; this.handlers = {}; this.id = -1; this.room = ''; this.role = null; this.peers = new Map(); this.ice = []; this.seq = 0; }
     static defaultUrl() {
-      if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return 'ws://192.168.1.10:8080/ws'; // no origin server inside the app: enter the LAN host
+      // A native shell has no origin server, so there is no host we can guess: the
+      // host runs on the players' own network and one of them types it. Returning ''
+      // rather than a built-in address keeps a private address out of the shipped
+      // app, and stops every install from dialling a host that only exists on the
+      // developer's LAN. Callers must treat '' as "ask the player".
+      if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return '';
       if (location.protocol === 'http:' || location.protocol === 'https:') return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
       return 'ws://localhost:8080/ws';
+    }
+    // Accept what a person actually types on a phone: either a full ws:// URL or a
+    // bare host:port, which gains the scheme and the /ws path.
+    static fromInput(raw) {
+      const s = (raw || '').trim(); if (!s) return '';
+      if (/^wss?:\/\//i.test(s)) return s;
+      return 'ws://' + s.replace(/\/+$/, '').replace(/\/ws$/, '') + '/ws';
     }
     on(op, fn) { this.handlers[op] = fn; return this; }
     emit(op, m) { const h = this.handlers[op]; if (h) try { h(m); } catch (e) { console.error(e); } }

@@ -5,15 +5,16 @@ The code handles what code can. These need a person, an account, a signature or 
 ## Decisions
 
 ### Price
-Stripe's standard card fee is 2.9% + 30¢, so on a $1 payment Stripe keeps about 33¢, and prices now include tax (EU and UK law require tax-inclusive consumer prices). A $1 membership bought in France nets you roughly 50¢.
+Stripe's standard card fee is 2.9% + 30¢, and prices now include tax (EU and UK law require tax-inclusive consumer prices). The settled prices are **$2/month and $12/year**:
 
 | Plan | You receive (US, no tax) | You receive (EU, ~20% VAT) |
 |---|---|---|
-| $1/month | ~67¢ | ~50¢ |
 | $2/month | ~$1.64 | ~$1.31 |
-| $10/year | ~$9.41 | ~$7.74 |
+| $12/year | ~$11.35 | ~$9.35 |
 
-(Before Stripe Tax's own fee of about 0.5% per transaction, and extra fees on international cards.) Options, which you can combine: keep $1/month and ask Stripe support for **micropayment pricing** (about 5% + 5¢); add the yearly plan (`stripe:setup 1000`: the game and portal offer it automatically once it exists); or raise the monthly price. Prices shown to players come from Stripe, so changing them needs no release.
+(Before Stripe Tax's own fee of about 0.5% per transaction, and extra fees on international cards.) The monthly price was raised from $1 to $2 and the yearly plan added at $12 — create it with `stripe:setup 1200`; the game and portal offer it automatically once it exists. The annual plan is where the fee stops dominating: Stripe takes 17.9% of a $2 month but only 5.4% of a $12 year.
+
+Still worth asking Stripe support for **micropayment pricing** (about 5% + 5¢), which would lift the $2 month from ~$1.64 to ~$1.85 — but confirm the current eligibility terms rather than relying on these figures. Prices shown to players come from Stripe, so changing them needs no release.
 
 ### Store billing
 App stores and Steam require their own payment systems for digital goods. Store builds of the game therefore never show prices, checkout or code redemption, and memberships bought on the website still work in them. Apple's rule 3.1.3(b) expects content bought elsewhere to also be purchasable in the app, so before the iOS release choose one:
