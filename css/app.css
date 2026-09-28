@@ -377,6 +377,8 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 .end-xp { text-align: left; display: grid; gap: 6px; }
 .xp-row { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .xp-row b { color: var(--gold); font-weight: 500; }
+.end-result { margin: 10px auto 0; max-width: 34em; text-align: center; font-size: .92rem; color: var(--ink-soft); text-wrap: balance; }
+.end-result.good { color: var(--pc1); } .end-result.warn { color: var(--gold); }
 .ach { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; }
 .ach small { display: block; color: var(--ink-soft); font-size: .8em; }
 /* legible type on phones and tablets: nothing below 11px, no keyboard hints */

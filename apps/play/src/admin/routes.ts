@@ -7,6 +7,7 @@ import { bad, forbidden, notFound, ROLE_RANK } from '../context.js';
 import { requireRole, audit } from '../app.js';
 import { entitlements } from '../auth/service.js';
 import { deleteAccount } from '../auth/me.js';
+import { settle } from '../realtime/results.js';
 
 const Role = z.enum(['player', 'support', 'moderator', 'admin', 'owner']);
 
@@ -14,7 +15,7 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get('/api/admin/dashboard', async req => {
     requireRole(req, 'support');
     const one = async (sql: string, p: unknown[] = []) => Number(Object.values((await ctx.db.one<any>(sql, p)) || { v: 0 })[0] || 0);
-    const [users, dau, wau, mau, subs, openIssues, regressed, openReports, matches24] = await Promise.all([
+    const [users, dau, wau, mau, subs, openIssues, regressed, openReports, matches24, disputed] = await Promise.all([
       one(`select count(*) from users where status <> 'deleted'`),
       one(`select count(*) from users where last_seen_at > now() - interval '1 day'`),
       one(`select count(*) from users where last_seen_at > now() - interval '7 days'`),
@@ -24,12 +25,13 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
       one(`select count(*) from issues where status = 'regressed'`),
       one(`select count(*) from player_reports where status = 'open'`),
       one(`select count(*) from matches where started_at > now() - interval '1 day'`),
+      one(`select count(*) from matches where status = 'disputed' and settled_at > now() - interval '30 days'`),
     ]);
     // dense 30-day series computed on the database's calendar, so the client never guesses time zones
     const series = await ctx.db.query<any>(`select d::date::text as day, k.key, coalesce(s.value, 0) as value from generate_series(current_date - 29, current_date, interval '1 day') d
       cross join (values ('signups'), ('matches_started'), ('crashes'), ('subscriptions_started')) k(key) left join daily_stats s on s.day = d::date and s.key = k.key order by d`);
     const topIssues = await ctx.db.query<any>(`select id, title, count, last_seen, last_version, status from issues where kind = 'crash' and status in ('open', 'regressed') order by last_seen desc limit 8`);
-    return { now: new Date().toISOString(), live: ctx.hub.stats(), users, dau, wau, mau, subscribers: subs, mrrUsd: subs * 1, openIssues, regressed, openReports, matches24, series, topIssues };
+    return { now: new Date().toISOString(), live: ctx.hub.stats(), users, dau, wau, mau, subscribers: subs, mrrUsd: subs * 1, openIssues, regressed, openReports, matches24, disputed, series, topIssues };
   });
 
   // ── players ────────────────────────────────────────────────────
@@ -194,10 +196,28 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
   // ── matches, audit ─────────────────────────────────────────────
   app.get('/api/admin/matches', async req => {
     requireRole(req, 'support');
-    const rows = await ctx.db.query(`select m.id, m.code, m.mode, m.started_at, m.ended_at, m.duration_s, h.display_name as host,
-      (select json_agg(json_build_object('name', u.display_name, 'result', mp.result, 'until', mp.until)) from match_players mp join users u on u.id = mp.user_id where mp.match_id = m.id) as players
-      from matches m left join users h on h.id = m.host_id order by m.started_at desc nulls last limit 100`);
-    return { matches: rows, live: ctx.hub.stats() };
+    const q = z.object({ status: z.enum(['open', 'confirmed', 'disputed', 'void']).optional() }).parse(req.query);
+    const rows = await ctx.db.query(`select m.id, m.code, m.mode, m.started_at, m.ended_at, m.duration_s, m.status, m.rated, m.verdict, m.claims, h.display_name as host,
+      (select json_agg(json_build_object('uid', u.id, 'name', u.display_name, 'result', mp.result, 'delta', mp.rating_delta, 'until', mp.until) order by mp.slot) from match_players mp join users u on u.id = mp.user_id where mp.match_id = m.id) as players
+      from matches m left join users h on h.id = m.host_id where ($1::text is null or m.status = $1) order by m.started_at desc nulls last limit 100`, [q.status || null]);
+    const disputed = Number((await ctx.db.one<any>(`select count(*) as n from matches where status = 'disputed' and settled_at > now() - interval '30 days'`))?.n || 0);
+    return { matches: rows, live: ctx.hub.stats(), disputed };
+  });
+  // A moderator settles a dispute by accepting one player's account of it.
+  app.post('/api/admin/matches/:id/resolve', async req => {
+    const a = requireRole(req, 'moderator');
+    const { id } = req.params as { id: string };
+    const b = z.object({ accept: z.string().uuid(), note: z.string().max(500).default('') }).parse(req.body);
+    const m = await ctx.db.one<any>(`select status, claims from matches where id = $1`, [id]);
+    if (!m) throw notFound();
+    if (m.status !== 'disputed') throw bad('Only disputed matches can be resolved.');
+    const c = m.claims?.[b.accept];
+    if (!c || c.kind !== 'final') throw bad('That player did not report a result.');
+    const { audit: _drop, ...claim } = c;
+    await ctx.db.query(`update matches set status = 'open', claims = jsonb_build_object($2::text, $3::jsonb) where id = $1`, [id, b.accept, JSON.stringify(claim)]);
+    const r = await settle(ctx, id);
+    await audit(ctx, a.user.id, 'match.resolve', id, { accept: b.accept, note: b.note, status: r?.status, rated: r?.rated });
+    return { ok: true, result: r };
   });
   app.get('/api/admin/audit', async req => {
     requireRole(req, 'admin');

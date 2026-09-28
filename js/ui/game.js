@@ -41,10 +41,16 @@
       this.netMode = o.mode || 'local';
       this.local = o.local || 0; this.relay = o.relay || null; this.peers = o.peers || new Map();
       this.online = !!o.online; this.slotUid = o.slotUid || {}; this.ticket = null; this.limitNote = {}; this.reported = false;
-      $('h-limit').hidden = true; $('p-report').hidden = !this.online; $('end-online').hidden = true;
+      this.claimed = null; this.onAudit = null; this.auditHost = null; this.auditGuest = null;
+      $('h-limit').hidden = true; $('p-report').hidden = !this.online; $('end-online').hidden = true; this.endNote('');
       if (this.netMode === 'guest') { this.world = E.NetPack.mirror(o.init); this.local = o.init.you; this.snapT = performance.now(); this.snapDt = 125; this.waiting = true; }
       else this.world = o.save ? new E.World({ state: o.save }) : new E.World({ cfg: o.cfg });
       const w = this.world;
+      // online matches are auditable: the host commits to its state, guests check it at the end (js/net/audit.js)
+      if (this.online && E.Audit && E.Audit.supported()) {
+        if (this.netMode === 'host') this.auditHost = new E.AuditHost(w);
+        else if (this.netMode === 'guest') this.auditGuest = new E.AuditGuest(this.local);
+      }
       this.selection.clear(); this.groups = {}; this.pings = []; this.alerts = []; this.mode = null; this.acc = 0; this.snapAcc = 0; this.evBuf = []; this.hudT = 0; this.saveT = 45; this.lastAlert = null;
       this.paused = false; this.ended = false; this.speed = this.netMode === 'local' ? (E.Settings.speed || 1) : 1;
       this.root.hidden = false; E.Screens.hideAll(); $('bg').hidden = true;
@@ -92,8 +98,13 @@
     }
     stop() {
       this.autosave();
+      if (this.online && this.world && !this.world.s.over && !this.limitHit) this.claim('forfeit');
       this.running = false; this.root.hidden = true; $('bg').hidden = false;
-      if (this.relay) { this.relay.close(); this.relay = null; }
+      if (this.relay) {
+        const r = this.relay; this.relay = null; this.lastRelay = null;
+        // guests check the host's match after it ends: a host keeps answering for a little while
+        if (this.auditHost && this.world && this.world.s.over) setTimeout(() => r.close(), 30000); else r.close();
+      }
     }
     me() { return this.world && this.local >= 0 ? this.world.s.players[this.local] : null; }
     // Unit orders go through here: remembers previous orders for Undo and applies queue mode.
@@ -115,7 +126,7 @@
     }
     send(cmd) {
       if (!this.world || this.world.s.over) return;
-      if (this.netMode === 'guest') this.relay.toHost({ k: 'cmd', cmd });
+      if (this.netMode === 'guest') this.relay.toHost({ k: 'cmd', cmd: this.auditGuest ? this.auditGuest.stamp(cmd) : cmd });
       else this.world.command(this.local, cmd);
     }
     resize() {
@@ -136,28 +147,30 @@
 
     // ── networking ──────────────────────────────────────────────
     hostSetup() {
-      const r = this.relay;
+      const r = this.relay, ah = this.auditHost;
+      r.on('result', m => this.onResult(m));
       r.on('ticket', m => this.onTicket(m.ticket));
       if (r.ticket) this.onTicket(r.ticket.ticket);
       r.on('msg', m => {
         const peer = this.peers.get(m.from); const d = m.data; if (!d) return;
-        if (d.k === 'cmd' && peer) this.world.command(peer.slot, d.cmd);
+        if (d.k === 'cmd' && peer) { if (d.cmd && !E.HOST_CMDS.has(d.cmd.c)) this.world.command(peer.slot, d.cmd); }
         else if (d.k === 'chat' && peer) { if (!peer.muted) this.chat(peer.name, d.text, true); }
         else if (d.k === 'ready' && peer) this.sendInit(m.from);
+        else if (d.k === 'audit?' && ah) r.send(m.from, ah.answer(d));
       });
       r.on('peer', m => {
         // mid-game rejoin: reclaim a dropped human slot with the same name, else any bot slot marked open
         const p = this.world.s.players.find(p => p.dropped && p.name === m.name) || this.world.s.players.find(p => p.dropped);
         if (!p) { this.relay.kick(m.id); return; }
         if (this.expired(this.uidOfSlot(p.idx))) { this.relay.send(m.id, { k: 'limit', who: 'you' }); this.relay.kick(m.id); return; }
-        p.kind = 'remote'; p.dropped = false; this.peers.set(m.id, { slot: p.idx, name: m.name, muted: m.muted });
+        p.dropped = false; this.world.command(p.idx, { c: 'seat', kind: 'remote' }); this.peers.set(m.id, { slot: p.idx, name: m.name, muted: m.muted });
         if (m.uid) this.slotUid[p.idx] = m.uid;
         this.notify(`${m.name} rejoined`, 'good'); this.sendInit(m.id);
       });
       r.on('left', m => {
         const peer = this.peers.get(m.id); if (!peer) return;
         this.peers.delete(m.id);
-        const p = this.world.s.players[peer.slot]; p.kind = 'bot'; p.diff = p.diff || 'normal'; p.dropped = true; p.income = 1;
+        const p = this.world.s.players[peer.slot]; p.dropped = true; this.world.command(peer.slot, { c: 'seat', kind: 'bot', diff: p.diff || 'normal', income: 1 });
         this.notify(`${peer.name} disconnected. A bot takes over until they return.`, 'info');
       });
       r.on('sigclose', () => this.notify('Lost the signaling server. The match continues peer to peer.', 'info'));
@@ -171,21 +184,25 @@
         if (d.k === 'snap') {
           const now = performance.now(); this.snapDt = E.clamp(now - this.snapT, 60, 300); this.snapT = now;
           E.NetPack.apply(this.world, d); this.waiting = false;
+          if (this.auditGuest) this.auditGuest.onSnap(d, this.world);
           this.handleEvents(d.ev || []);
-        } else if (d.k === 'init') { this.world = E.NetPack.mirror(d); this.local = d.you; this.renderer.reset(this.world, this.local); }
+        } else if (d.k === 'init') { this.world = E.NetPack.mirror(d); this.local = d.you; this.renderer.reset(this.world, this.local); if (this.auditGuest) this.auditGuest = new E.AuditGuest(this.local); }
+        else if (d.k === 'audit' && this.onAudit) this.onAudit(d);
         else if (d.k === 'chat') this.chat(d.from, d.text);
         else if (d.k === 'pause') { this.remotePaused = d.on; $('ov-pause').hidden = !d.on; $('pause-note').textContent = d.on ? 'Paused by the host' : ''; }
         else if (d.k === 'limit') this.limitReached(d.who === 'host' ? 'host' : 'you');
       });
       r.on('ticket', m => this.onTicket(m.ticket));
       if (r.ticket) this.onTicket(r.ticket.ticket);
+      r.on('result', m => this.onResult(m));
       r.on('closed', () => { this.notify('The host closed the game.', 'info'); E.toast('The host closed the game.'); setTimeout(() => this.quit(true), 1500); });
-      r.on('close', () => { if (this.running) this.notify('Lost the connection to the host.', 'info'); });
+      r.on('close', () => { if (this.running) { this.notify('Lost the connection to the host.', 'info'); if (!this.world.s.over) this.claim('disconnected'); } });
       r.on('error', m => E.toast(m.msg));
       r.toHost({ k: 'ready' });
     }
     broadcastSnaps(events) {
-      for (const [id, peer] of this.peers) this.relay.send(id, E.NetPack.snap(this.world, peer.slot, events));
+      const au = this.auditHost ? this.auditHost.take() : null;
+      for (const [id, peer] of this.peers) { const d = E.NetPack.snap(this.world, peer.slot, events); if (au) d.au = au; this.relay.send(id, d); }
     }
     chat(from, text, relayOut) {
       text = String(text).slice(0, 140);
@@ -228,7 +245,7 @@
         for (const [id, peer] of this.peers) {
           if (!this.expired(this.uidOfSlot(peer.slot))) continue;
           this.relay.send(id, { k: 'limit', who: 'you' });
-          const p = this.world.s.players[peer.slot]; p.kind = 'bot'; p.diff = p.diff || 'normal'; p.dropped = true;
+          const p = this.world.s.players[peer.slot]; p.dropped = true; this.world.command(peer.slot, { c: 'seat', kind: 'bot', diff: p.diff || 'normal', income: 1 });
           this.peers.delete(id); setTimeout(() => this.relay && this.relay.kick(id), 500);
           this.notify(`${peer.name}'s free match time ended. A bot takes over their colony.`, 'info');
         }
@@ -243,14 +260,62 @@
       this.notify(why, 'alert');
       setTimeout(() => { this.quit(); E.Online.membershipDialog(why); }, 1800);
     }
-    reportMatch() {
-      if (!this.online || this.netMode !== 'host' || !this.relay || this.reportedMatch) return;
-      this.reportedMatch = true;
-      const w = this.world, s = w.s, results = [];
-      const res = i => s.winner === null ? 'draw' : w.teamOf(i) === s.winner ? 'win' : 'loss';
-      results.push({ id: 0, result: res(this.local) });
-      for (const [id, peer] of this.peers) results.push({ id, result: res(peer.slot) });
-      this.relay.raw({ op: 'end', winnerTeam: s.winner, duration: Math.round(s.t), results });
+    // ── online results ──────────────────────────────────────────
+    // Every player reports what they saw; the server only counts results that
+    // agree (apps/play/src/realtime/results.ts). Guests first check the host's
+    // simulation (js/net/audit.js) and send the verdict with their report.
+    matchId() { return (this.relay && this.relay.ticket && this.relay.ticket.match) || (this.ticket && this.ticket.mid) || null; }
+    claim(kind, extra) {
+      if (!this.online || this.claimed) return;
+      const mid = this.matchId(), r = this.relay || this.lastRelay; if (!mid || !r) return;
+      this.claimed = kind;
+      r.raw(Object.assign({ op: 'end', match: mid, kind }, extra || {}));
+    }
+    results() {
+      const w = this.world, s = w.s, out = [];
+      for (const k in this.slotUid) out.push({ uid: this.slotUid[k], result: s.winner === null ? 'draw' : w.teamOf(+k) === s.winner ? 'win' : 'loss' });
+      return out;
+    }
+    async reportMatch() {
+      if (!this.online || this.claimed || this.reporting) return;
+      this.reporting = true;
+      const s = this.world.s, claim = { winnerTeam: s.winner, duration: Math.round(s.t), results: this.results() };
+      if (this.auditGuest) { this.endNote('Checking the match with the host…'); claim.audit = this.lastAudit = await this.runAudit(); }
+      this.reporting = false;
+      this.claim('final', claim);
+      this.endNote(claim.audit && claim.audit.verdict === 'tamper' ? 'The host’s game did not add up. The result will not count until a moderator reviews it.' : 'Waiting for every player to confirm the result…');
+    }
+    // Check random windows of the host's match until the time budget is spent.
+    async runAudit() {
+      const ag = this.auditGuest, fail = why => ({ verdict: 'unverified', windows: 0, reasons: [why] });
+      const order = ag.order(), verdicts = [], until = performance.now() + E.Audit.BUDGET_MS;
+      if (!order.length) return fail('match too short to check');
+      const ask = w => new Promise(res => {
+        const r = this.relay; if (!r) { res(null); return; }
+        const to = setTimeout(() => { this.onAudit = null; res(null); }, 15000);
+        this.onAudit = d => { clearTimeout(to); this.onAudit = null; res(d); };
+        r.toHost({ k: 'audit?', w });
+      });
+      while (order.length && performance.now() < until) {
+        const reply = await ask(order.splice(0, E.Audit.WINDOWS));
+        if (!reply) { if (!verdicts.length) return fail('host did not answer'); break; }
+        const v = await ag.verify(reply).catch(e => fail('check failed: ' + e.message));
+        verdicts.push(v);
+        if (v.verdict === 'tamper') break;
+      }
+      return E.Audit.merge(verdicts);
+    }
+    onResult(m) {
+      if (m.match !== this.matchId()) return;
+      const txt = m.status === 'confirmed'
+        ? `Result confirmed${m.rated ? `: rating ${m.delta >= 0 ? '+' : ''}${m.delta}` : m.reason ? ` (not rated: ${m.reason})` : ''}.`
+        : m.status === 'disputed' ? `Players reported different outcomes (${m.reason || 'disputed'}). No rating changes until a moderator reviews it.` : 'No result was recorded for this match.';
+      this.endNote(txt, m.status === 'confirmed' ? 'good' : 'warn');
+      if (m.rated && E.Online.me) E.Online.me.rating = (E.Online.me.rating || 1200) + (m.delta || 0);
+    }
+    endNote(text, kind) {
+      const el = $('end-result'); if (!el) return;
+      el.hidden = !text; el.textContent = text || ''; el.className = 'end-result' + (kind ? ' ' + kind : '');
     }
     // Players you shared this match with (for reports).
     rivals() {
@@ -283,7 +348,7 @@
         if (!this.paused) {
           this.acc += dt * this.speed;
           let n = 0; const s0 = performance.now();
-          while (this.acc >= DT && n < 8) { try { w.step(); } catch (err) { console.error(err); if (E.Crash) E.Crash.crash(err, 'sim'); if (!this.simErr) { this.simErr = true; E.toast('A simulation error occurred. The game will try to continue.'); } } this.acc -= DT; n++; const ev = w.drainEvents(); this.handleEvents(ev); if (this.netMode === 'host') this.evBuf.push(...ev); }
+          while (this.acc >= DT && n < 8) { try { w.step(); if (this.auditHost) this.auditHost.tick(); } catch (err) { console.error(err); if (E.Crash) E.Crash.crash(err, 'sim'); if (!this.simErr) { this.simErr = true; E.toast('A simulation error occurred. The game will try to continue.'); } } this.acc -= DT; n++; const ev = w.drainEvents(); this.handleEvents(ev); if (this.netMode === 'host') this.evBuf.push(...ev); }
           if (n >= 8) this.acc = 0;
           this.stepMs = performance.now() - s0;
         }

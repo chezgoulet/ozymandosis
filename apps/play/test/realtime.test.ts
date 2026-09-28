@@ -76,11 +76,13 @@ test('match tickets: free players get the time limit, members do not; rejoin kee
   assert.equal(j2.id, 1, 'same seat');
   const t2 = t.ctx.signer.verify((await F2.wait('ticket')).ticket);
   assert.equal(t2.players.find((x: any) => x.uid === free.id).until, by(free.id).until, 'deadline unchanged');
-  // host reports the result
-  H.send({ op: 'end', winnerTeam: 0, duration: 600, results: [{ id: 0, result: 'win' }, { id: 1, result: 'loss' }, { id: 2, result: 'loss' }] });
-  await new Promise(r => setTimeout(r, 200));
-  const row = await t.ctx.db.one<any>(`select duration_s from matches where id = $1`, [p.mid]);
-  assert.equal(row.duration_s, 600);
+  // every player reports; the match settles once all have, and each hears the outcome
+  const results = [{ uid: host.id, result: 'win' }, { uid: free.id, result: 'loss' }, { uid: member.id, result: 'loss' }];
+  for (const c of [H, F2, M]) c.send({ op: 'end', match: p.mid, kind: 'final', winnerTeam: 0, results });
+  const res = await H.wait('result');
+  assert.equal(res.status, 'confirmed'); assert.equal(res.result, 'win'); assert.equal(res.rated, false, 'custom lobbies are unrated');
+  const row = await t.ctx.db.one<any>(`select status, duration_s from matches where id = $1`, [p.mid]);
+  assert.equal(row.status, 'confirmed'); assert.ok(row.duration_s < 60, 'duration is measured by the server, not claimed');
   const hs = await t.ctx.db.one<any>('select wins, matches from users where id = $1', [host.id]);
   assert.equal(hs.wins, 1); assert.equal(hs.matches, 1);
   H.close(); F2.close(); M.close();

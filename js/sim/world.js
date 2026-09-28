@@ -24,6 +24,8 @@
   // Bud they mend fast, paid in lumen. Structures regrow slowly when left alone.
   E.MEND = { delay: 5, natural: 0.01, nestReach: 70, nest: 0.12, lumenPerHp: 0.25, nestDelay: 1.5, structDelay: 8, struct: 0.004 };
   const RANK_XP = [60, 180, 420];
+  // commands only the host itself may issue; a host drops these when a guest sends them
+  E.HOST_CMDS = new Set(['seat']);
 
   class World {
     constructor(opts) {
@@ -328,6 +330,8 @@
           break;
         case 'mend': mine.forEach(u => { const n = this.nearestNest(pi, u.x, u.y); if (n) this.giveOrder(u, { t: 'mend', id: n.id, x: n.x, y: n.y }, c.queue); }); break;
         case 'stop': mine.forEach(u => { u.order = { t: 'idle', x: u.x, y: u.y }; u.tgt = 0; u.q = []; }); break;
+        // host only (never accepted from a guest): a seat changes hands between a player and a bot
+        case 'seat': p.kind = c.kind === 'bot' ? 'bot' : 'remote'; p.dropped = c.kind === 'bot'; if (c.diff && E.DIFFS[c.diff]) p.diff = c.diff; if (c.income) p.income = +c.income || 1; break;
         case 'attack': { const t = this.byId.get(c.tid); if (t && t.hp > 0 && this.isEnemy(pi, t.o)) mine.forEach(u => this.giveOrder(u, { t: 'attack', id: t.id }, c.queue)); break; }
         case 'restore': {
           // undo: put back the orders a unit had before a mis-tap (only order shapes, only own units)
@@ -484,6 +488,8 @@
       const s = this.s;
       if (s.over) return;
       const pend = s.pending; s.pending = [];
+      // an online host keeps the applied command stream so guests can audit it (js/net/audit.js)
+      if (this.rec) for (const { pi, cmd } of pend) this.rec.push([s.tick, pi, cmd]);
       for (const { pi, cmd } of pend) this.applyCommand(pi, cmd);
       s.t += DT; s.tick++;
       // pools & vents

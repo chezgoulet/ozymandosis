@@ -44,7 +44,7 @@ export async function sweep(ctx: Ctx): Promise<Record<string, number>> {
     await run('player_reports', `delete from player_reports where status <> 'open' and resolved_at < now() - make_interval(days => $1)`, [R.playerReportsDays]);
     await run('audit_log', `delete from audit_log where at < now() - make_interval(days => $1)`, [R.auditDays]);
     await run('announcements', `delete from announcements where ends_at is not null and ends_at < now() - make_interval(days => $1)`, [R.endedAnnouncementsDays]);
-    await run('stale_matches', `update matches set ended_at = started_at, duration_s = null where ended_at is null and started_at < now() - make_interval(hours => $1)`, [R.staleMatchHours]);
+    await run('stale_matches', `update matches set status = 'void', settled_at = now(), ended_at = coalesce(ended_at, started_at) where status = 'open' and started_at < now() - make_interval(hours => $1)`, [R.staleMatchHours]);
     // email sign-ups that never confirmed, never linked a provider, never paid and never played
     await run('unverified_users', `delete from users u where u.status = 'active' and u.role = 'player' and u.email is not null and not u.email_verified and u.created_at < now() - make_interval(days => $1)
       and u.matches = 0 and u.stripe_customer_id is null

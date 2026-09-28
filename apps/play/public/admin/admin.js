@@ -70,13 +70,13 @@
   }
   async function dashboard() {
     const d = await api('GET', '/api/admin/dashboard');
-    route.counts = { issues: d.openIssues, reports: d.openReports }; nav(route.counts);
+    route.counts = { issues: d.openIssues, reports: d.openReports, matches: d.disputed }; nav(route.counts);
     const tile = (k, v, sub) => h('div', { class: 'tile' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, v, sub ? h('small', null, ' ' + sub) : null));
     const series = key => d.series.filter(s => s.key === key).map(s => ({ label: new Date(s.day + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }), v: Number(s.value) }));
     main(
       h('div', { class: 'tiles' }, tile('Online now', fmt(d.live.online), `${d.live.queued} queued`), tile('Live lobbies', fmt(d.live.lobbies), `${d.live.matches} in match`),
         tile('Daily active', fmt(d.dau), `${fmt(d.wau)} weekly`), tile('Monthly active', fmt(d.mau)), tile('Members', fmt(d.subscribers), `$${fmt(d.mrrUsd)}/mo`),
-        tile('Players', fmt(d.users)), tile('Matches, 24 h', fmt(d.matches24)), tile('Open crashes', fmt(d.openIssues), d.regressed ? `${d.regressed} regressed` : ''), tile('Open reports', fmt(d.openReports))),
+        tile('Players', fmt(d.users)), tile('Matches, 24 h', fmt(d.matches24), d.disputed ? `${d.disputed} disputed (30 d)` : ''), tile('Open crashes', fmt(d.openIssues), d.regressed ? `${d.regressed} regressed` : ''), tile('Open reports', fmt(d.openReports))),
       h('div', { class: 'charts' }, lineChart('New players', series('signups'), 'sign-ups'), lineChart('Matches started', series('matches_started'), 'matches'),
         lineChart('Crashes', series('crashes'), 'crashes'), lineChart('Memberships started', series('subscriptions_started'), 'new members')),
       h('div', { class: 'card' }, h('h2', null, 'Recent crashes'), issueTable(d.topIssues)));
@@ -216,12 +216,32 @@
   }
 
   // ── matches ────────────────────────────────────────────────────
-  async function matches() {
-    const r = await api('GET', '/api/admin/matches');
-    main(h('div', { class: 'tiles' }, h('div', { class: 'tile' }, h('div', { class: 'k' }, 'Lobbies'), h('div', { class: 'v' }, r.live.lobbies)), h('div', { class: 'tile' }, h('div', { class: 'k' }, 'In match'), h('div', { class: 'v' }, r.live.matches)), h('div', { class: 'tile' }, h('div', { class: 'k' }, 'Queued'), h('div', { class: 'v' }, r.live.queued))),
-      h('div', { class: 'card' }, h('h2', null, 'Recent matches'), h('p', { class: 'muted' }, 'Matches run peer to peer; the server only records who played, for how long, and the result the host reported.'),
-        h('div', { class: 'scroll' }, h('table', { class: 't' }, h('thead', null, h('tr', null, h('th', null, 'Started'), h('th', null, 'Mode'), h('th', null, 'Host'), h('th', null, 'Players'), h('th', { class: 'num' }, 'Length'))),
-          h('tbody', null, r.matches.map(m => h('tr', null, h('td', null, when(m.started_at)), h('td', null, m.mode), h('td', null, m.host || '—'), h('td', null, (m.players || []).map(p => `${p.name}${p.result ? ' (' + p.result + ')' : ''}${p.until ? ' ⏱' : ''}`).join(', ')), h('td', { class: 'num' }, m.duration_s ? Math.round(m.duration_s / 60) + ' min' : m.ended_at ? '—' : 'live'))))))));
+  const STATUS = { open: 'Awaiting results', confirmed: 'Confirmed', disputed: 'Disputed', void: 'Void' };
+  async function matches(filter) {
+    const r = await api('GET', '/api/admin/matches' + (filter ? '?status=' + filter : ''));
+    const tab = (id, label) => h('button', { class: 'btn small' + ((filter || '') === id ? '' : ' ghost'), onclick: () => { location.hash = 'matches' + (id ? '/' + id : ''); } }, label);
+    const claimText = (m, p) => {
+      const c = (m.claims || {})[p.uid]; if (!c) return 'no report';
+      if (c.kind !== 'final') return c.kind;
+      const mine = (c.results || []).map(x => { const who = (m.players || []).find(q => q.uid === x.uid); return `${who ? who.name : '?'} ${x.result}`; }).join(', ');
+      return mine + (c.audit ? ` · audit ${c.audit.verdict}${c.audit.reasons && c.audit.reasons.length ? ': ' + c.audit.reasons.join('; ') : ''}` : '');
+    };
+    const row = m => {
+      const players = m.players || [];
+      const detail = m.status === 'disputed' ? h('tr', { class: 'sub' }, h('td', { colspan: 6 }, h('div', { class: 'claims' }, players.map(p => h('div', { class: 'claim' },
+        h('b', null, p.name + ': '), h('span', null, claimText(m, p)),
+        (m.claims || {})[p.uid] && m.claims[p.uid].kind === 'final' && can('moderator') ? h('button', { class: 'btn small ghost', onclick: e => act(e.target, async () => { await api('POST', `/api/admin/matches/${m.id}/resolve`, { accept: p.uid }); route(); }, 'Resolved') }, `Accept ${p.name}’s account`) : null))))) : null;
+      return [h('tr', null, h('td', null, when(m.started_at)), h('td', null, m.mode), h('td', null, m.host || '—'),
+        h('td', null, players.map(p => `${p.name}${p.result ? ' (' + p.result + (p.delta ? (p.delta > 0 ? ' +' : ' ') + p.delta : '') + ')' : ''}${p.until ? ' ⏱' : ''}`).join(', ')),
+        h('td', null, h('span', { class: 'pill ' + (m.status === 'disputed' ? 'bad' : m.status === 'confirmed' ? 'good' : '') }, STATUS[m.status] || m.status), m.rated ? ' rated' : '', m.verdict ? ` · ${m.verdict}` : ''),
+        h('td', { class: 'num' }, m.duration_s ? Math.round(m.duration_s / 60) + ' min' : m.ended_at ? '—' : 'live')), detail];
+    };
+    main(h('div', { class: 'tiles' }, h('div', { class: 'tile' }, h('div', { class: 'k' }, 'Lobbies'), h('div', { class: 'v' }, r.live.lobbies)), h('div', { class: 'tile' }, h('div', { class: 'k' }, 'In match'), h('div', { class: 'v' }, r.live.matches)), h('div', { class: 'tile' }, h('div', { class: 'k' }, 'Queued'), h('div', { class: 'v' }, r.live.queued)), h('div', { class: 'tile' }, h('div', { class: 'k' }, 'Disputed (30 d)'), h('div', { class: 'v' }, r.disputed))),
+      h('div', { class: 'card' }, h('h2', null, 'Matches'),
+        h('p', { class: 'muted' }, 'Matches run peer to peer. Every player reports the result; only results that agree count, and guests check the host’s simulation. Disputed matches change no ratings until a moderator accepts one player’s account.'),
+        h('div', { class: 'row' }, tab('', 'All'), tab('disputed', 'Disputed'), tab('open', 'Awaiting results'), tab('void', 'Void')),
+        h('div', { class: 'scroll' }, h('table', { class: 't' }, h('thead', null, h('tr', null, h('th', null, 'Started'), h('th', null, 'Mode'), h('th', null, 'Host'), h('th', null, 'Players'), h('th', null, 'Result'), h('th', { class: 'num' }, 'Length'))),
+          h('tbody', null, r.matches.map(row).flat())))));
   }
 
   // ── promo codes ────────────────────────────────────────────────

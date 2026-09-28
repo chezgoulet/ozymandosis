@@ -36,7 +36,7 @@ The first message must be `{op:'auth', token, version, proto, platform}`; the re
 | `lobbies` | `lobbies {list}` |
 | `kick {id}` · `leave` | `left {id}` · `closed` (only before the match starts) |
 | `start` (host) | `ticket {ticket, match}` to everyone |
-| `end {winnerTeam, duration, results}` (host) | |
+| `end {match, kind, winnerTeam, results, audit}` (every player) | `result {match, status, rated, result, delta}` once settled |
 | `queue {mode}` · `unqueue` | `queued {mode, waiting}` · `matched {room, role, mode}` |
 | `ping` | `pong` |
 | | pushes: `me`, `announcement`, `announcement.end`, `maintenance`, `upgrade`, `kicked`, `error` |
@@ -44,6 +44,15 @@ The first message must be `{op:'auth', token, version, proto, platform}`; the re
 `proto` is the peer protocol (`E.PROTOCOL` in `js/net/net.js`). The lobby list, `join` and quick match only put together clients on the same protocol, so a store build that lags the web build never lands in a match it cannot play. Peers check it again themselves: the first DataChannel message each way is `{k:'hi', p, v}`, and a mismatch (or no hello within 6 s, i.e. an older build) is refused with a message naming both versions. This also covers LAN games, which never touch the service. Bump `E.PROTOCOL` whenever snapshots, commands, game data or the sim change incompatibly.
 
 `hosted`, `joined`, `peer`, `signal`, `left` and `closed` are the same messages the LAN server speaks, so the client's `E.Relay` works with either. After a match starts, signaling drops don't send `left`/`closed`: the peers' own connection decides, so a blip to the server can't end a healthy game.
+
+## Results you can trust
+
+The server never sees a match, and the host runs its only simulation, so results are settled from everyone's word and checked against the host's own record (`src/realtime/results.ts`, `js/net/audit.js`):
+
+- **Every player reports.** At the end each client sends a claim: `final` (with every player's result), `forfeit` (quit early: a loss by their own word) or `disconnected` (lost the match connection: does not accept a loss). The match settles when all have claimed, or 90 s after the first claim.
+- **Only agreement counts.** Finals must agree on every player's result. A player who never claims accepts the others' account (leaving is losing); a player who claims `disconnected` and would be given a loss disputes it. Disputed matches change nothing until a moderator accepts one player's account in the admin console (Matches → Disputed).
+- **Guests audit the host.** The sim is deterministic. Every 20 s the host commits to the SHA-256 of its full world state (in the snapshot stream; a hash reveals nothing). After the match each guest walks the windows between commitments in a random order, for about nine seconds: the host sends the two bounding states and the commands it applied in between; the guest checks the hashes, re-simulates the window, compares per-player facts (lumen, spore, creatures, health, structures, evolutions) with tolerances wide enough for cross-browser float drift, checks that every order it sent was applied, that its colony was never handed to a bot while connected, and that the committed states agree with what it was shown live. A `tamper` verdict disputes the match and files an automatic cheating report against the host with the evidence. Full states are only revealed after the match, so the audit leaks nothing during play.
+- **Ratings are harder to farm.** Ranked Elo moves only for confirmed matches with a result for every player, at least 120 s long (measured by the server, not claimed), and at most three rated matches a day between the same group of players. Anyone in three disputes within a week is flagged for review.
 
 ## The free time limit
 

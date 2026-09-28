@@ -66,6 +66,32 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     assert(await guest.evaluate(() => !!document.querySelector('.modal')), 'membership prompt offered');
     await guest.screenshot({ path: OUT + '/online-04-limit.png' });
     console.log('limit enforced on both sides');
+    await sleep(500);
+    await Promise.all([host, guest].map(p => p.evaluate(() => { document.querySelectorAll('.modal-bg, .modal').forEach(m => m.remove()); })));
+    await guest.screenshot({ path: OUT + '/online-04b-before.png' });
+    // a second match plays to the end: both report, the guest checks the host, the server confirms
+    await host.click('#m-mp'); await host.waitForSelector('#mp-online-play:not([hidden])');
+    await host.click('#mp-host-online'); await host.waitForSelector('#scr-setup:not([hidden])');
+    const room2 = (await host.textContent('#setup-room')).replace('ROOM ', '').trim();
+    await guest.click('#m-mp'); await guest.waitForSelector('#mp-online-play:not([hidden])');
+    await guest.waitForSelector('#mp-join-online', { state: 'visible' });
+    await guest.fill('#mp-code-online', room2); await guest.click('#mp-join-online');
+    await guest.waitForSelector('#scr-setup:not([hidden])'); await host.waitForTimeout(800);
+    await host.click('#setup-start');
+    await guest.waitForSelector('#game:not([hidden])', { timeout: 10000 }); await guest.waitForTimeout(1500);
+    // the guest gives a few orders (they must show up in the host's log)
+    await guest.evaluate(() => { const g = E.game, ids = g.world.s.units.filter(u => u.o === g.local).map(u => u.id); for (let i = 0; i < 3; i++) g.send({ c: 'move', ids, x: 500 + i * 20, y: 500 }); });
+    await host.waitForTimeout(800);
+    // fast-forward the host's world through a few audit checkpoints, then end it
+    await host.evaluate(async () => { const g = E.game, w = g.world; for (let i = 0; i < 1900; i++) { w.step(); g.auditHost.tick(); w.drainEvents(); if (i % 200 === 0) await new Promise(r => setTimeout(r, 30)); } });
+    await host.waitForTimeout(1500);
+    await host.evaluate(() => { const w = E.game.world; w.s.over = true; w.s.winner = w.teamOf(E.game.local); });
+    const confirmed = p => p.waitForFunction(() => /confirmed/i.test(document.getElementById('end-result').textContent), null, { timeout: 40000 });
+    await Promise.all([confirmed(host), confirmed(guest)]);
+    const audit = await guest.evaluate(() => E.game.lastAudit);
+    console.log('guest audit', JSON.stringify(audit), '·', await host.textContent('#end-result'));
+    assert(audit && audit.verdict === 'ok' && audit.windows >= 2, 'guest verified the host');
+    await guest.screenshot({ path: OUT + '/online-05-result.png' });
   } catch (e) { console.error(e); errs.push(e.message); }
   console.log(errs.length ? errs.join('\n') : 'no errors');
   await b.close(); stopAll(errs.length ? 1 : 0);

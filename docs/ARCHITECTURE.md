@@ -54,6 +54,8 @@ The sim's inputs are the config, the seed and the command stream. Pending comman
 A lookahead scheduler (25 ms timer, 160 ms horizon) plays 16th-note steps on the AudioContext clock. State: theme (culture mode, root, tempo, leitmotif seed), chord (Markov chain over scale degrees), section (drift, pulse, break, surge, chosen at 4-bar boundaries from a smoothed intensity), and mood (energy → brightness, fever → detune, drive and tempo). Voices are built per note from oscillators, filters and gains; a kick-driven gain node pumps the synth bus. `musicTick()` in the game computes intensity from engaged creatures, recent alerts and fever.
 
 ## Online (js/net, apps/play)
+Guests can verify the host (`js/net/audit.js`): the host records the command stream it applies (`world.rec`) and commits to state hashes every 600 ticks; bot takeovers go through the host-only `seat` command so a replay reproduces them. Anything that changes the world during an online match must be a command, or the audit will flag it.
+
 - **Transport**: `E.Relay` keeps its original API but carries every game message over WebRTC DataChannels (host↔guest star, chunked framing, snapshot back-pressure). The WebSocket only negotiates offers, answers and ICE candidates. A match survives losing the signaling server.
 - **Signaling servers**: `server/server.js` for LAN rooms; `apps/play` for accounts, lobbies, quick match, TURN credentials and match tickets (same `host`/`join`/`signal` protocol plus extras). See `docs/PLAY-SERVICE.md`.
 - **Tickets**: on start the service signs (Ed25519) the list of players with each free player's deadline; clients verify it with WebCrypto and enforce it on each other.

@@ -41,3 +41,7 @@ pre.stack { white-space: pre-wrap; word-break: break-word; background: rgba(0, 0
 .fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .fields.two { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .fld label { margin: 0 0 6px; }
+tr.sub td { background: rgba(255, 122, 122, .04); padding-top: 0; }
+.claims { display: grid; gap: 6px; padding: 4px 0 8px; }
+.claim { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: .9rem; }
+.claim span { color: var(--muted, #9fb3b8); overflow-wrap: anywhere; }

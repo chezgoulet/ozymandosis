@@ -12,7 +12,7 @@
 //   → lobbies                                     ← lobbies {list}
 //   → kick {id} | leave                            ← left {id} | closed
 //   → start                                       ← ticket {ticket, match}  (to everyone in the lobby)
-//   → end {winnerTeam, duration, results}         (host reports the outcome)
+//   → end {match, kind, winnerTeam, results, audit} (every player reports; results.ts settles) ← result {match, status, rated, result, delta}
 //   → queue {mode} | unqueue                      ← queued {mode} | matched {room, role, mode}
 //   server pushes: me {user, ent}, announcement {...}, maintenance {message}, kicked {msg}, error {msg}
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -23,6 +23,7 @@ import { entitlements, sessionUser, bump, type Entitlements } from '../auth/serv
 import { userTag } from '../lib/privacy.js';
 import { filterChat } from '../lib/names.js';
 import { activeAnnouncements } from '../routes/public.js';
+import { recordClaim, settle, dueMatches, type Settled } from './results.js';
 
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS = 6;
@@ -46,9 +47,21 @@ export class Hub {
   lobbies = new Map<string, Lobby>();
   queue = new Map<string, Conn[]>();
   private timer: NodeJS.Timeout;
+  private ticks = 0;
   constructor(private ctx: Ctx) {
-    this.timer = setInterval(() => { this.matchmake(); this.heartbeat(); }, 2000);
+    this.timer = setInterval(() => { this.matchmake(); this.heartbeat(); if (++this.ticks % 5 === 0) void this.settleDue(); }, 2000);
     this.timer.unref();
+  }
+  async settleDue() {
+    try { for (const id of await dueMatches(this.ctx)) this.announceResult(await settle(this.ctx, id)); }
+    catch (e: any) { this.ctx.log.error({ err: { message: e.message } }, 'settle failed'); }
+  }
+  private announceResult(r: Settled | null) {
+    if (!r) return;
+    for (const p of r.players) for (const c of this.conns) if (c.user?.id === p.uid)
+      this.send(c, { op: 'result', match: r.match, status: r.status, rated: r.rated, reason: r.reason, result: p.result, delta: p.delta });
+    // ratings changed: refresh what connected players see
+    if (r.rated) for (const p of r.players) void this.refreshUser(p.uid);
   }
   close() { clearInterval(this.timer); for (const c of this.conns) try { c.ws.close(1001, 'server shutting down'); } catch { /* */ } }
 
@@ -258,28 +271,16 @@ export class Hub {
     for (const m of [L.host, ...L.members.values()]) this.send(m, { op: 'ticket', ticket: L.ticket, match: L.matchId });
   }
   private async end(c: Conn, m: any) {
-    const L = c.lobby; if (!L || c !== L.host || !L.matchId) return;
-    const mid = L.matchId; L.matchId = null;
-    const duration = Math.max(0, Math.min(24 * 3600, Math.round(Number(m.duration) || 0)));
-    const winnerTeam = Number.isInteger(m.winnerTeam) ? m.winnerTeam : null;
-    await this.ctx.db.query(`update matches set ended_at = now(), duration_s = $2, winner_team = $3 where id = $1 and ended_at is null`, [mid, duration, winnerTeam]);
-    const results: { id: number; result: string }[] = Array.isArray(m.results) ? m.results.slice(0, MAX_PLAYERS) : [];
-    const seat = new Map<number, string>([[0, L.host.user!.id], ...[...L.seats.entries()].map(([uid, lid]) => [lid, uid] as [number, string])]);
-    const rows: { uid: string; won: boolean; rating: number }[] = [];
-    for (const r of results) {
-      const uid = seat.get(Number(r.id)); if (!uid || !['win', 'loss', 'draw'].includes(r.result)) continue;
-      await this.ctx.db.query(`update match_players set result = $3 where match_id = $1 and user_id = $2`, [mid, uid, r.result]);
-      const u = await this.ctx.db.one<any>(`update users set matches = matches + 1, wins = wins + $2 where id = $1 returning rating`, [uid, r.result === 'win' ? 1 : 0]);
-      if (u) rows.push({ uid, won: r.result === 'win', rating: u.rating });
+    // builds before protocol 2 sent only the host's view, keyed by lobby seat
+    if (!m.match) {
+      const L = c.lobby; if (!L || c !== L.host || !L.matchId) return;
+      const seat = new Map<number, string>([[0, L.host.user!.id], ...[...L.seats.entries()].map(([uid, lid]) => [lid, uid] as [number, string])]);
+      m = { match: L.matchId, kind: 'final', winnerTeam: m.winnerTeam, results: (Array.isArray(m.results) ? m.results : []).map((r: any) => ({ uid: seat.get(Number(r?.id)), result: r?.result })) };
     }
-    // Elo for ranked matches: every winner against the average loser, and vice versa
-    if (L.ranked && rows.some(r => r.won) && rows.some(r => !r.won)) {
-      const avg = (a: typeof rows) => a.reduce((s, r) => s + r.rating, 0) / a.length;
-      const W = rows.filter(r => r.won), Lo = rows.filter(r => !r.won), aw = avg(W), al = avg(Lo), K = 24;
-      for (const r of W) await this.ctx.db.query('update users set rating = rating + $2 where id = $1', [r.uid, Math.round(K * (1 - 1 / (1 + Math.pow(10, (al - r.rating) / 400))))]);
-      for (const r of Lo) await this.ctx.db.query('update users set rating = greatest(100, rating - $2) where id = $1', [r.uid, Math.round(K * (1 / (1 + Math.pow(10, (aw - r.rating) / 400))))]);
-    }
-    await bump(this.ctx, 'matches_ended');
+    const r = await recordClaim(this.ctx, c.user!.id, m);
+    if (c.lobby && c.lobby.matchId === r.match && c === c.lobby.host && m.kind !== 'disconnected') c.lobby.matchId = null;
+    if (r.ok && r.complete) this.announceResult(await settle(this.ctx, r.match!));
+    if (r.ok) await bump(this.ctx, 'match_claims');
   }
 
   // ── quick match ──────────────────────────────────────────────
