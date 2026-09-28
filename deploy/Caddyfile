@@ -46,9 +46,8 @@ www.{$DOMAIN} {
 {$DOMAIN} {
 	import common
 	root * /srv/site
-	# the web client: never cache the shell so updates land; the service worker handles offline
-	@shell path /play/ /play/index.html /play/sw.js
-	header @shell Cache-Control "no-cache"
+	# there is no browser version of the game: old /play/ links go to the platforms
+	redir /play* /#platforms permanent
 	@assets path /img/* /fonts/*
 	header @assets Cache-Control "public, max-age=604800"
 	try_files {path} {path}.html {path}/

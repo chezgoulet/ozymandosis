@@ -66,15 +66,15 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 | Server in the monorepo | `apps/play` (Fastify, Postgres), `apps/site`, `deploy/` (Caddy, coturn, Postgres, backups) |
 | Discovery and matching only; P2P encrypted games | WebRTC DataChannels (D11); LAN and online signaling |
 | Accounts: email + TOTP 2FA; Google, Apple, Steam | `apps/play/src/auth` |
-| Stripe, $1/month, >15-minute matches | `apps/play/src/billing`, signed tickets enforced by peers (D12) |
+| The scheme of record (`MONETIZATION.md`): $1 per platform, one free online match a day, $2/month · $12/year per platform | `apps/play/src/billing` (allowance, Play, App Store, Steam, ownership), D12, D20 |
 | Minimal PII in logs | D16, `docs/PLAY-SERVICE.md` → Privacy |
 | Crash and bug reports as reports | `js/core/crash.js`, `/api/reports`, admin → Crashes & bugs |
 | ozymandosis.com + www; play.ozymandosis.com | `apps/site`, `deploy/Caddyfile` |
 | Moderation, announcements, admin tooling | admin console, sanctions, player reports, live config, audit log, operator CLI, backups, dashboards |
 
 ## Known limits
-- The time limit is enforced by honest clients (D12).
-- Membership is sold on the web; app-store and Steam billing rules need review before store submission (`docs/DEPLOY.md` §5).
+- "The match started" is reported by the host's client; the count is a nudge, not DRM (D12).
+- The store integrations are built and tested against doubles and a generated certificate chain; the real stores are proved on devices (docs/LAUNCH.md).
 - The desktop shell is written but was not launched here (no display); the Steamworks SDK is not yet integrated.
 - The soundtrack was checked by recording it in headless Chromium and measuring spectra and levels, not by ear. Tune by listening.
 - `@capacitor/cli` 6 pulls a vulnerable `tar` (build tooling only); upgrading Capacitor needs JDK 21 (D7).

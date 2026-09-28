@@ -479,8 +479,6 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 .news-item.sev-warning { border-color: rgba(255, 179, 71, .55); }
 .news-item.sev-critical { border-color: rgba(255, 110, 110, .7); background: rgba(40, 8, 10, .9); }
 .news-item .btn svg { width: 16px; height: 16px; }
-.chip.limit { color: #ffe9a8; }
-.chip.limit.warn { border-color: rgba(255, 110, 110, .7); color: #ffb3b3; animation: threatpulse 1s ease-in-out infinite; }
 .modal.signin { max-width: 400px; }
 .si-note { margin: 0; color: var(--ink-soft); font-size: .92em; line-height: 1.45; }
 .si-form { display: grid; gap: 10px; }

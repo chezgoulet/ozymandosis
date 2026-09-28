@@ -10,7 +10,7 @@
   };
   const q = new URLSearchParams(location.search);
   const handoff = q.get('handoff');
-  let cfg = { providers: [], billing: false, freeMatchMinutes: 15 }, me = null;
+  let cfg = { providers: [], billing: false, freeMatchesPerDay: 1 }, me = null;
   const PROVIDER = { google: 'Google', apple: 'Apple', steam: 'Steam', dev: 'Dev account' };
 
   async function api(method, url, body) {
@@ -49,7 +49,7 @@
     const path = location.pathname;
     if (path === '/verify') return verify();
     if (path === '/reset') return reset();
-    try { me = await api('GET', '/api/me'); } catch (e) { me = null; }
+    try { me = await api('GET', '/api/me?platform=*'); } catch (e) { me = null; }
     if (q.get('mfa')) return mfaStep(q.get('mfa'));
     if (q.get('done')) return handoffDone();
     if (me && me.user.needsAge) return askAge();
@@ -85,7 +85,7 @@
     email.focus();
   }
   async function after(note) {
-    me = await api('GET', '/api/me');
+    me = await api('GET', '/api/me?platform=*');
     if (handoff) return handoffDone();
     history.replaceState(null, '', '/account'); account(); if (note) flash(note, 'ok');
   }
@@ -142,7 +142,7 @@
       if (!age.value()) throw new Error('Choose a month and a year.');
       try { await api('POST', '/api/me/age', age.value()); }
       catch (x) { if (x.status === 403) { me = null; show(h('div', { class: 'card' }, h('h2', null, 'Sorry'), h('p', null, x.message))); return; } throw x; }
-      me = await api('GET', '/api/me'); handoff ? approve() : account();
+      me = await api('GET', '/api/me?platform=*'); handoff ? approve() : account();
     }); };
     show(h('div', { class: 'card' }, h('h2', null, 'Before you play online'), form));
   }
@@ -162,28 +162,23 @@
     cards.push(h('div', { class: 'card' }, h('h2', null, 'Profile'),
       h('label', null, 'Display name'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, name, save),
       h('dl', { class: 'kv', style: 'margin-top:16px' }, h('dt', null, 'Rating'), h('dd', null, u.rating), h('dt', null, 'Matches'), h('dd', null, `${u.matches} played, ${u.wins} won`), h('dt', null, 'Email'), h('dd', null, u.email || 'none'), h('dt', null, 'Sign-ins'), h('dd', null, [u.hasPassword ? 'Email' : null, ...me.identities.map(p => PROVIDER[p] || p)].filter(Boolean).join(', ') || 'none'))));
-    // membership
-    const mem = h('div', { class: 'card' }, h('h2', null, 'Membership'));
+    // membership: bought per platform, in that platform's store (docs/MONETIZATION.md)
+    const STORE = { android: 'Google Play (Android)', ios: 'the App Store (iOS)', steam: 'Steam' };
+    const mem = h('div', { class: 'card' }, h('h2', null, 'Online play'));
+    const f = ent.freeMatches;
+    mem.append(h('p', null, `Every account gets ${f && f.perDay !== 1 ? f.perDay + ' full online matches' : 'one full online match'} every 24 hours, free: hosting or joining, however long it runs.` + (f ? (f.left > 0 ? ` You have ${f.left} left.` : f.nextAt ? ` Your next one: ${new Date(f.nextAt).toLocaleString()}.` : '') : '')));
     if (ent.subscriber) {
-      const until = ent.lifetime ? 'Lifetime membership' : !ent.until ? null : ent.source === 'stripe' ? (ent.cancelAtPeriodEnd ? 'Ends ' : 'Renews ') + new Date(ent.until).toLocaleDateString() : 'Free membership until ' + new Date(ent.until).toLocaleDateString();
-      add(mem, h('p', null, h('span', { class: 'pill good' }, ent.lifetime ? 'Lifetime member' : 'Member'), ' Online matches have no time limit.'), until ? h('p', { class: 'soft' }, until) : null);
+      const until = ent.lifetime ? 'Lifetime membership' : !ent.until ? null : (ent.cancelAtPeriodEnd ? 'Ends ' : ent.platform ? 'Renews ' : 'Until ') + new Date(ent.until).toLocaleDateString();
+      add(mem, h('p', null, h('span', { class: 'pill good' }, ent.lifetime ? 'Lifetime member' : 'Member'), ent.platform ? ` Unlimited online play on ${STORE[ent.platform] || ent.platform}. Manage or cancel it there.` : ' Unlimited online play.'), until ? h('p', { class: 'soft' }, until) : null);
       if (cfg.billing && ent.billing) { const b = h('button', { class: 'btn' }, 'Manage billing'); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/portal')).url; }); mem.append(b); }
-    } else {
-      const year = price('year');
-      mem.append(h('p', null, `Free players can play online matches of up to ${ent.freeMatchMinutes} minutes. Membership removes the limit for ${price('month')} a month${year ? ` or ${year} a year` : ''} and keeps the servers running. Prices include any tax.`));
-      if (cfg.billing) {
-        const buy = (plan, label, primary) => { const b = h('button', { class: 'btn' + (primary ? ' primary' : '') }, label); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/checkout', { plan })).url; }); return b; };
-        mem.append(h('div', { class: 'row' }, buy('month', `Become a member · ${price('month')}/month`, true), year ? buy('year', `${year}/year`) : null));
-      }
-      else mem.append(h('p', { class: 'muted' }, 'Membership is not available on this server.'));
-    }
+    } else mem.append(h('p', { class: 'soft' }, 'For unlimited online play, become a member in the game, through the store of the platform you play on: $2 a month or $12 a year on iOS and Android, a $12 season on Steam. A membership applies on the platform where it was bought.'));
     // promo codes: a month, a year or life
     const code = h('input', { placeholder: 'OZY-XXXX-XXXX-XXXX', maxlength: 40, autocapitalize: 'characters', spellcheck: 'false', 'aria-label': 'Promo code', style: 'text-transform:uppercase;letter-spacing:.08em' });
     const use = h('button', { class: 'btn small' }, 'Redeem');
     use.onclick = () => busy(use, async () => {
       const r = await api('POST', '/api/billing/redeem', { code: code.value });
-      me = await api('GET', '/api/me'); account();
-      flash(r.lifetime ? 'Code accepted: you are a member for life.' : `Code accepted: membership until ${new Date(r.until).toLocaleDateString()}.` + (r.stripeActive ? ' Your paid subscription is still active; cancel it under Manage billing if you like.' : ''), 'ok');
+      me = await api('GET', '/api/me?platform=*'); account();
+      flash(r.lifetime ? 'Code accepted: you are a member for life.' : `Code accepted: membership until ${new Date(r.until).toLocaleDateString()}.`, 'ok');
     });
     add(mem, h('details', { style: 'margin-top:14px' }, h('summary', null, 'Have a code?'), h('div', { class: 'row', style: 'flex-wrap:nowrap;margin-top:10px' }, code, use)));
     cards.push(mem);
@@ -194,7 +189,7 @@
         sec.append(h('p', null, h('span', { class: 'pill good' }, 'Two-factor on'), ' Your authenticator app is required to sign in.'));
         const [lc, c] = field('Current code', { inputmode: 'numeric', maxlength: 6 });
         const off = h('button', { class: 'btn danger small' }, 'Turn off'), regen = h('button', { class: 'btn small' }, 'New recovery codes');
-        off.onclick = () => busy(off, async () => { await api('POST', '/api/me/mfa/disable', { code: c.value }); me = await api('GET', '/api/me'); account(); flash('Two-factor sign-in is off.', 'ok'); });
+        off.onclick = () => busy(off, async () => { await api('POST', '/api/me/mfa/disable', { code: c.value }); me = await api('GET', '/api/me?platform=*'); account(); flash('Two-factor sign-in is off.', 'ok'); });
         regen.onclick = () => busy(regen, async () => { const r = await api('POST', '/api/me/mfa/recovery', { code: c.value }); showCodes(r.recoveryCodes); });
         sec.append(lc, c, h('div', { class: 'row', style: 'margin-top:10px' }, regen, off));
       } else {
@@ -244,7 +239,7 @@
     const form = h('form', { class: 'stack' }, h('h2', null, 'Two-factor sign-in'), h('p', null, '1. Scan this with your authenticator app.'), qr,
       h('p', { class: 'soft', style: 'font-size:.9rem' }, 'Cannot scan? Enter this key: ', h('span', { class: 'mono' }, s.secret.replace(/(.{4})/g, '$1 ').trim())), h('p', null, '2. Then:'), lc, code, go,
       h('button', { class: 'btn block', type: 'button', onclick: () => account() }, 'Cancel'));
-    form.onsubmit = e => { e.preventDefault(); busy(go, async () => { const r = await api('POST', '/api/me/mfa/enable', { code: code.value }); me = await api('GET', '/api/me'); showCodes(r.recoveryCodes); }); };
+    form.onsubmit = e => { e.preventDefault(); busy(go, async () => { const r = await api('POST', '/api/me/mfa/enable', { code: code.value }); me = await api('GET', '/api/me?platform=*'); showCodes(r.recoveryCodes); }); };
     show(h('div', { class: 'card' }, form)); code.focus();
   }
   function showCodes(codes) {

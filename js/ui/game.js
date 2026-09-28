@@ -40,10 +40,10 @@
       if (this.tutorial) { E.Settings.guideStep = 0; E.Settings.tips = true; }
       this.netMode = o.mode || 'local';
       this.local = o.local || 0; this.relay = o.relay || null; this.peers = o.peers || new Map();
-      this.online = !!o.online; this.slotUid = o.slotUid || {}; this.ticket = null; this.limitNote = {}; this.reported = false;
+      this.online = !!o.online; this.slotUid = o.slotUid || {}; this.ticket = null; this.reported = false;
       this.claimed = null; this.onAudit = null; this.auditHost = null; this.auditGuest = null;
       this.reconnecting = false; this.resuming = false; $('net-banner').hidden = true;
-      $('h-limit').hidden = true; $('p-report').hidden = !this.online; $('end-online').hidden = true; this.endNote('');
+      $('p-report').hidden = !this.online; $('end-online').hidden = true; this.endNote('');
       if (this.netMode === 'guest') { this.world = E.NetPack.mirror(o.init); this.local = o.init.you; this.snapT = performance.now(); this.snapDt = 125; this.waiting = true; }
       else this.world = o.save ? new E.World({ state: o.save }) : new E.World({ cfg: o.cfg });
       const w = this.world;
@@ -103,7 +103,7 @@
     stop() {
       this.autosave();
       this.perfRun = E.FrameStats.end(this.governor && this.governor.current());
-      if (this.online && this.world && !this.world.s.over && !this.limitHit) this.claim('forfeit');
+      if (this.online && this.world && !this.world.s.over) this.claim('forfeit');
       this.running = false; this.root.hidden = true; $('bg').hidden = false;
       if (this.relay) {
         const r = this.relay; this.relay = null; this.lastRelay = null;
@@ -168,7 +168,6 @@
         // mid-game rejoin: reclaim a dropped human slot with the same name, else any bot slot marked open
         const p = this.world.s.players.find(p => p.dropped && p.name === m.name) || this.world.s.players.find(p => p.dropped);
         if (!p) { this.relay.kick(m.id); return; }
-        if (this.expired(this.uidOfSlot(p.idx))) { this.relay.send(m.id, { k: 'limit', who: 'you' }); this.relay.kick(m.id); return; }
         p.dropped = false; this.world.command(p.idx, { c: 'seat', kind: 'remote' }); this.peers.set(m.id, { slot: p.idx, name: m.name, muted: m.muted });
         if (m.uid) this.slotUid[p.idx] = m.uid;
         this.notify(`${m.name} rejoined`, 'good'); this.sendInit(m.id);
@@ -199,7 +198,6 @@
         else if (d.k === 'audit' && this.onAudit) this.onAudit(d);
         else if (d.k === 'chat' && !this.online) this.chat(d.from, E.filterChat(d.text));
         else if (d.k === 'pause') { this.remotePaused = d.on; $('ov-pause').hidden = !d.on; $('pause-note').textContent = d.on ? 'Paused by the host' : ''; }
-        else if (d.k === 'limit') this.limitReached(d.who === 'host' ? 'host' : 'you');
       });
       r.on('ticket', m => this.onTicket(m.ticket));
       if (r.ticket) this.onTicket(r.ticket.ticket);
@@ -248,7 +246,7 @@
     // A guest who lost the host keeps trying to get back into the match (same room,
     // same seat) for a while, then leaves; the server hears it lost the connection.
     async reconnect() {
-      if (this.reconnecting || this.limitHit) return;
+      if (this.reconnecting) return;
       const w = this.world, old = this.relay;
       if (!w || w.s.over) { this.notify('The host left.', 'info'); return; }
       this.reconnecting = true;
@@ -279,51 +277,20 @@
       this.resuming = false;
     }
 
-    // ── online: tickets and the free time limit ──────────────────
-    // Every player holds the same server-signed ticket saying until when each may
-    // play. Honest clients enforce it on each other: the host hands an expired
-    // guest's colony to a bot; guests leave when the host's free time ends.
+    // ── online: tickets ─────────────────────────────────────────
+    // Every player holds the same server-signed ticket: who is in the match, who is
+    // a member, and how many free matches each has left. The free allowance is one
+    // match per rolling 24 hours, counted by the service when the match starts
+    // (docs/MONETIZATION.md); there is no time limit inside a match, so nothing
+    // here ends one early.
     async onTicket(t) {
       const p = await E.Online.verifyTicket(t);
-      if (!p) { this.notify('Could not verify this match with the server. Online limits may not apply.', 'info'); return; }
-      this.ticket = p; this.ticketOffset = p.iat - Date.now();
+      if (!p) { this.notify('Could not verify this match with the server.', 'info'); return; }
+      this.ticket = p;
       for (const pl of p.players) { const slot = this.slotOfUid(pl.uid); if (slot >= 0) this.slotUid[slot] = pl.uid; }
     }
-    serverNow() { return Date.now() + (this.ticketOffset || 0); }
     uidOfSlot(i) { return this.slotUid[i] || null; }
     slotOfUid(uid) { for (const k in this.slotUid) if (this.slotUid[k] === uid) return +k; const p = this.ticket && this.ticket.players.find(x => x.uid === uid); return p ? this.world.s.players.findIndex(q => q.name === p.name) : -1; }
-    untilOf(uid) { const p = this.ticket && uid && this.ticket.players.find(x => x.uid === uid); return p ? p.until : null; }
-    expired(uid) { const u = this.untilOf(uid); return !!u && this.serverNow() >= u; }
-    limitTick() {
-      if (!this.online || !this.ticket || this.ended || this.limitHit) return;
-      const meUid = E.Online.me && E.Online.me.id, mine = this.untilOf(meUid), now = this.serverNow();
-      const chip = $('h-limit');
-      if (mine) {
-        const left = Math.max(0, mine - now); chip.hidden = false;
-        $('h-limit-t').textContent = E.fmtTime(left / 1000); chip.classList.toggle('warn', left < 120e3);
-        for (const [k, ms, text] of [['5', 300e3, 'Five minutes of free online time left in this match.'], ['1', 60e3, 'One minute of free online time left.']])
-          if (left <= ms && !this.limitNote[k]) { this.limitNote[k] = true; this.notify(text + (E.Online.ent && !E.Online.ent.subscriber ? ' Membership removes the limit.' : ''), 'info'); }
-        if (left <= 0) { if (this.netMode === 'host') this.relay.send('all', { k: 'limit', who: 'host' }); this.limitReached(this.netMode === 'host' ? 'self-host' : 'you'); return; }
-      } else chip.hidden = true;
-      if (this.netMode === 'host') {
-        for (const [id, peer] of this.peers) {
-          if (!this.expired(this.uidOfSlot(peer.slot))) continue;
-          this.relay.send(id, { k: 'limit', who: 'you' });
-          const p = this.world.s.players[peer.slot]; p.dropped = true; this.world.command(peer.slot, { c: 'seat', kind: 'bot', diff: p.diff || 'normal', income: 1 });
-          this.peers.delete(id); setTimeout(() => this.relay && this.relay.kick(id), 500);
-          this.notify(`${peer.name}'s free match time ended. A bot takes over their colony.`, 'info');
-        }
-      } else if (this.netMode === 'guest') {
-        const hostUid = this.ticket.players.find(x => x.id === 0);
-        if (hostUid && hostUid.until && now >= hostUid.until) this.limitReached('host');
-      }
-    }
-    limitReached(who) {
-      if (this.limitHit) return; this.limitHit = true;
-      const why = who === 'host' ? "The host's free match time ran out, so the match has ended." : who === 'self-host' ? 'Your free match time ran out, so the match has ended for everyone.' : 'Your free match time ran out. A bot takes over your colony.';
-      this.notify(why, 'alert');
-      setTimeout(() => { this.quit(); E.Online.membershipDialog(why); }, 1800);
-    }
     // ── online results ──────────────────────────────────────────
     // Every player reports what they saw; the server only counts results that
     // agree (apps/play/src/realtime/results.ts). Guests first check the host's
@@ -1025,7 +992,7 @@
       this.guideTick();
       this.updateThreats(); this.updateObjective();
       this.measT = (this.measT || 0) - 0.1; if (this.measT <= 0) { this.measT = 1; this.measureSheet(); }
-      this.musicTick(); this.limitTick();
+      this.musicTick();
       // the HUD membrane takes on the colony's live palette (fever, starvation, blight)
       if (me) { const pal = E.playerPalette(w, me), rs = document.documentElement.style; rs.setProperty('--pal-p', E.toHex(pal.primary)); rs.setProperty('--pal-a', E.toHex(pal.accent)); rs.setProperty('--fever', me.fever.toFixed(2)); rs.setProperty('--energy', me.energy.toFixed(2)); }
     }

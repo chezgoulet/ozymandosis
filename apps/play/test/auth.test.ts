@@ -13,7 +13,7 @@ test('sign up, verify email, sign in, and see the account', async () => {
   assert.equal(me.status, 200);
   assert.equal(me.json.user.emailVerified, true);
   assert.equal(me.json.entitlements.subscriber, false);
-  assert.equal(me.json.entitlements.freeMatchMinutes, 15);
+  assert.deepEqual(me.json.entitlements.freeMatches, { perDay: 1, used: 0, left: 1, nextAt: null });
   const bad = await t.api('POST', '/api/auth/login', { email: u.email, password: 'wrong password!!', client: 'game' });
   assert.equal(bad.status, 401);
   const ok = await t.api('POST', '/api/auth/login', { email: u.email.toUpperCase(), password: u.password, client: 'game' });

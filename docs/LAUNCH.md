@@ -4,20 +4,14 @@ The code handles what code can. These need a person, an account, a signature or 
 
 ## Decisions
 
-### Price
-Stripe's standard card fee is 2.9% + 30¢, and prices now include tax (EU and UK law require tax-inclusive consumer prices). The settled prices are **$2/month and $12/year**:
+### Prices and stores
+The scheme is `docs/MONETIZATION.md` (implemented: D20). Set in each store, since the stores own the prices:
 
-| Plan | You receive (US, no tax) | You receive (EU, ~20% VAT) |
-|---|---|---|
-| $2/month | ~$1.64 | ~$1.31 |
-| $12/year | ~$11.35 | ~$9.35 |
-
-(Before Stripe Tax's own fee of about 0.5% per transaction, and extra fees on international cards.) The monthly price was raised from $1 to $2 and the yearly plan added at $12 — create it with `stripe:setup 1200`; the game and portal offer it automatically once it exists. The annual plan is where the fee stops dominating: Stripe takes 17.9% of a $2 month but only 5.4% of a $12 year.
-
-Still worth asking Stripe support for **micropayment pricing** (about 5% + 5¢), which would lift the $2 month from ~$1.64 to ~$1.85 — but confirm the current eligibility terms rather than relying on these figures. Prices shown to players come from Stripe, so changing them needs no release.
-
-### Store billing
-The scheme is `docs/MONETIZATION.md`. **Android is built**: Google Play Billing sells the subscription in the app (prices come from Play), and the service validates every purchase with the Play Developer API before granting it; the entitlement counts only on Android. What needs a person: the Play Console product and base plans, the service account and the notification topic (docs/RELEASE-ANDROID.md, "Play Billing"). **iOS and Steam are not built yet**: iOS needs StoreKit plus App Store Server API validation as another entitlement source (the same shape as `apps/play/src/billing/play.ts`), Steam an ownership check. Until then those builds show no prices or checkout.
+- [ ] **The game at $1** (price tier 1 or the local equivalent) on Google Play, the App Store and Steam. No free build, no web build.
+- [ ] **Google Play**: subscription `ozymandosis_membership` with base plans `monthly` ($2) and `annual` ($12); the service account (Play Developer API and Play Integrity); real-time notifications — docs/RELEASE-ANDROID.md.
+- [ ] **App Store**: subscription group with `ozymandosis.membership.monthly` ($2) and `ozymandosis.membership.annual` ($12); App Store Server Notifications V2 URL; Sign in with Apple on the service — docs/STORES.md.
+- [ ] **Steam**: the season DLC ($12) for each year, its app id and end date in `STEAM_SEASONS`; a publisher Web API key in `STEAM_API_KEY` — docs/STORES.md.
+- [ ] `deploy/.env`: `REQUIRE_STORE_CLIENT` stays on (the default in production); `WEB_BILLING` stays off.
 
 ## Legal
 

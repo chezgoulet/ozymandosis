@@ -10,6 +10,8 @@ import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.QueryPurchasesParams;
 import com.getcapacitor.JSArray;
+import com.google.android.play.core.integrity.IntegrityManagerFactory;
+import com.google.android.play.core.integrity.IntegrityTokenRequest;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -121,6 +123,23 @@ public class PlayBillingPlugin extends Plugin {
         if (code != BillingClient.BillingResponseCode.OK || purchases == null || purchases.isEmpty()) { call.reject("The purchase did not complete: " + r.getDebugMessage(), "failed"); return; }
         Purchase p = purchases.get(0);
         call.resolve(new JSObject().put("purchaseToken", p.getPurchaseToken()).put("pending", p.getPurchaseState() == Purchase.PurchaseState.PENDING));
+    }
+
+    /**
+     * Proof that this copy was bought on Google Play (the $1 purchase, bound to the account):
+     * a Play Integrity token for the service's nonce. The service decodes it with Google and
+     * checks the app is Play-recognised and the Google account holds a licence.
+     */
+    @PluginMethod
+    public void integrity(PluginCall call) {
+        String nonce = call.getString("nonce");
+        if (nonce == null || nonce.isEmpty()) { call.reject("No nonce", "failed"); return; }
+        IntegrityTokenRequest.Builder b = IntegrityTokenRequest.builder().setNonce(nonce);
+        Long project = call.getLong("cloudProjectNumber");
+        if (project != null && project > 0) b.setCloudProjectNumber(project);
+        IntegrityManagerFactory.create(getContext()).requestIntegrityToken(b.build())
+            .addOnSuccessListener(r -> call.resolve(new JSObject().put("token", r.token())))
+            .addOnFailureListener(e -> call.reject("Google Play could not check this copy: " + e.getMessage(), "failed"));
     }
 
     /** What Play says this Google account owns (after a reinstall): the service re-verifies each. */

@@ -81,7 +81,10 @@ docker compose -f deploy/docker-compose.yml exec play node apps/play/dist/cli.js
 
 Sign in at https://play.ozymandosis.com, turn on two-factor sign-in (required for staff tools in production), sign out and back in, then open https://play.ozymandosis.com/admin. Promote moderators with `cli.js promote <email|name> moderator` or from their player page.
 
-## 7. Stripe
+## 7. Stripe (off by default)
+
+Memberships are sold in each platform's store (docs/MONETIZATION.md, D20), so web checkout is off (`WEB_BILLING=false`) and none of this is needed. Only if an operator decides to sell on the web:
+
 
 1. Create the product and prices: `… exec play node apps/play/dist/cli.js stripe:setup` creates $2/month (tax included); `stripe:setup 1200` also creates a $12/year plan. Or create your own and set `STRIPE_PRICE_ID` / `STRIPE_PRICE_ID_YEARLY`.
 2. **Tax**: Dashboard → Tax → activate Stripe Tax, set your origin address, and add registrations where you must collect (EU One-Stop Shop, UK, and US states as you cross thresholds). Checkout computes tax automatically (`STRIPE_TAX=true`); if Stripe Tax is not active, checkout still works and the admin console raises an alert.
@@ -113,6 +116,6 @@ It backs up the database, builds, starts the new release, waits for it to be hea
 
 ## Mobile and desktop builds
 
-- Web and PWA: served at https://ozymandosis.com/play/.
-- Android and iOS: `npm run android:apk`, `npm run ios:open` (Capacitor 8; Android targets API 36). The native apps talk to play.ozymandosis.com. Store builds never show prices or checkout (see [LAUNCH.md](LAUNCH.md#store-billing)).
+- There is no browser version (docs/MONETIZATION.md); the website links to the stores.
+- Android and iOS: `npm run android:aab` (docs/RELEASE-ANDROID.md), `npm run ios:open` (Capacitor 8; Android targets API 36). The apps sell memberships through their own stores (docs/STORES.md).
 - Desktop: `cd apps/desktop && npm install && npm run package` (Electron; launches fullscreen). Launched from Steam (or with `steam_appid.txt` beside it) it behaves as a Steam build. Signing and notarization: [LAUNCH.md](LAUNCH.md#code-signing).

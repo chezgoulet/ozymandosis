@@ -78,6 +78,8 @@ export default async function billingRoutes(app: FastifyInstance, ctx: Ctx) {
 
   app.post('/api/billing/checkout', async req => {
     const a = requireUser(req), stripe = need();
+    // Memberships are sold in each platform's store (docs/MONETIZATION.md); web checkout is off unless an operator turns it on.
+    if (!ctx.cfg.WEB_BILLING) throw new HttpError(410, 'Membership is bought in the game, through the store of the platform you play on.', 'store_only');
     const plan: Plan = (req.body as any)?.plan === 'year' ? 'year' : 'month';
     if (a.user.status !== 'active') throw bad('This account cannot subscribe right now.');
     const active = await ctx.db.one(`select 1 from subscriptions where user_id = $1 and status in ('active', 'trialing', 'past_due') and current_period_end > now()`, [a.user.id]);

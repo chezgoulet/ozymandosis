@@ -50,32 +50,38 @@ test('lobby: host, list, join, signaling relay, kick', async () => {
   A.close(); B.close(); X.close();
 });
 
-test('match tickets: free players get the time limit, members do not; rejoin keeps the clock', async () => {
+test('match tickets carry a count, not a deadline; members are not counted; a rejoin is not counted again', async () => {
   const host = await signup(t), free = await signup(t), member = await signup(t);
   await t.api('POST', `/api/admin/users/${member.id}/grant`, { days: 30 }); // unauthenticated: refused
   await t.ctx.db.query(`insert into subscriptions (id, user_id, status, current_period_end) values ('sub_m', $1, 'active', now() + interval '20 days')`, [member.id]);
   const H = await Client.open(t, host.token), F = await Client.open(t, free.token), M = await Client.open(t, member.token);
+  assert.deepEqual(F.hello.ent.freeMatches, { perDay: 1, used: 0, left: 1, nextAt: null });
   H.send({ op: 'host' }); const { room } = await H.wait('hosted');
   F.send({ op: 'join', room }); await F.wait('joined'); await H.wait('peer');
   M.send({ op: 'join', room }); await M.wait('joined'); const mp = await H.wait('peer', m => m.uid === member.id);
   assert.equal(mp.sub, true);
+  const before = await t.ctx.db.one<any>(`select count(*)::int as n from match_players where user_id = $1`, [free.id]);
+  assert.equal(before.n, 0, 'a lobby is not a match: nothing counted yet');
   H.send({ op: 'start' });
   const [th, tf] = await Promise.all([H.wait('ticket'), F.wait('ticket')]);
   assert.equal(th.ticket, tf.ticket, 'everyone holds the same ticket');
   const p = t.ctx.signer.verify(th.ticket);
-  assert.ok(p, 'ticket verifies with the server key');
+  assert.ok(p, 'ticket verifies with the server key'); assert.equal(p.v, 2);
   const by = (uid: string) => p.players.find((x: any) => x.uid === uid);
-  const mins = (by(free.id).until - p.iat) / 60e3;
-  assert.ok(mins > 14.9 && mins <= 15.01, 'free player: 15 minutes');
-  assert.equal(by(member.id).until, null, 'member: no limit');
-  // free player drops (signaling only) and comes back: same seat, same deadline
+  assert.equal(by(free.id).free, 0, 'the free player has used today\'s match');
+  assert.equal(by(host.id).free, 0, 'hosting counts the same as joining');
+  assert.equal(by(member.id).free, null, 'members are not counted');
+  assert.ok(p.players.every((x: any) => x.until === undefined), 'no deadline inside a match');
+  // free player drops (signaling only) and comes back: same seat, not counted again
   F.close(); await new Promise(r => setTimeout(r, 100));
   const F2 = await Client.open(t, free.token);
   F2.send({ op: 'join', room });
   const j2 = await F2.wait('joined');
-  assert.equal(j2.id, 1, 'same seat');
-  const t2 = t.ctx.signer.verify((await F2.wait('ticket')).ticket);
-  assert.equal(t2.players.find((x: any) => x.uid === free.id).until, by(free.id).until, 'deadline unchanged');
+  assert.equal(j2.id, 1, 'same seat, although the allowance is used');
+  await F2.wait('ticket');
+  const counted = await t.ctx.db.query<any>(`select free_used from match_players where user_id = $1`, [free.id]);
+  assert.deepEqual(counted.map(r => r.free_used), [true], 'counted once');
+  assert.equal(Number((await t.ctx.db.one<any>(`select count(*)::int as n from match_players where user_id = $1 and free_used`, [member.id])).n), 0);
   // every player reports; the match settles once all have, and each hears the outcome
   const results = [{ uid: host.id, result: 'win' }, { uid: free.id, result: 'loss' }, { uid: member.id, result: 'loss' }];
   for (const c of [H, F2, M]) c.send({ op: 'end', match: p.mid, kind: 'final', winnerTeam: 0, results });

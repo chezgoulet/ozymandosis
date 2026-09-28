@@ -12,7 +12,7 @@
 //   → meta {title?, public?, mode?, players?, max?} (host: lobby listing)
 //   → lobbies                                     ← lobbies {list}
 //   → kick {id} | leave                            ← left {id} | closed
-//   → start                                       ← ticket {ticket, match}  (to everyone in the lobby)
+//   → start                                       ← ticket {ticket, match}  (to everyone in the lobby; the free allowance is counted here)
 //   → end {match, kind, winnerTeam, results, audit} (every player reports; results.ts settles) ← result {match, status, rated, result, delta}
 //   → queue {mode} | unqueue                      ← queued {mode} | matched {room, role, mode}
 //   → chat {text} | chat {q}                     ← chat {from, uid, text, q?, at}  (lobby and match chat, filtered here)
@@ -22,6 +22,8 @@ import type { WebSocket } from 'ws';
 import { createHmac, randomInt } from 'node:crypto';
 import type { Ctx, UserRow } from '../context.js';
 import { entitlements, sessionUser, bump, type Entitlements } from '../auth/service.js';
+import { allowance, allowanceMessage, countPlayer, freeMatchesPerDay } from '../billing/allowance.js';
+import { owns, STORE_PLATFORMS } from '../billing/ownership.js';
 import { userTag } from '../lib/privacy.js';
 import { filterChat } from '../lib/names.js';
 import { activeAnnouncements } from '../routes/public.js';
@@ -113,13 +115,19 @@ export class Hub {
     const cfg = await this.remote();
     if (cmpVersion(c.version, cfg.minClientVersion) < 0) { this.send(c, { op: 'upgrade', msg: 'A new version of Ozymandosis is out. Please update to play online.', min: cfg.minClientVersion }); c.ws.close(4010, 'upgrade'); return; }
     if (!a.user.age_band) { this.send(c, { op: 'error', code: 'age', msg: 'Before you play online, tell us your age.' }); c.ws.close(4012, 'age'); return; }
+    // No browser version, and the $1 purchase gates online play (docs/MONETIZATION.md):
+    // only the store apps, each with a store-verified purchase on its own platform.
+    if (this.ctx.cfg.requireStoreClient && a.user.role === 'player') {
+      if (!(STORE_PLATFORMS as readonly string[]).includes(c.platform)) { this.send(c, { op: 'error', code: 'app_only', msg: 'Online play is in the Ozymandosis app, on Steam, iOS and Android.' }); c.ws.close(4013, 'app_only'); return; }
+      if (!(await owns(this.ctx, a.user.id, c.platform))) { this.send(c, { op: 'error', code: 'ownership', platform: c.platform, msg: 'Checking your copy of Ozymandosis with the store…' }); c.ws.close(4014, 'ownership'); return; }
+    }
     if (cfg.maintenance?.on && a.user.role === 'player') { this.send(c, { op: 'maintenance', msg: cfg.maintenance.message || 'Online play is down for maintenance. Back soon.' }); c.ws.close(4011, 'maintenance'); return; }
     c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user, c.platform);
     this.send(c, {
       op: 'hello', user: this.pub(c), ent: c.ent, ice: this.ice(c),
       key: { kid: this.ctx.signer.id, x: this.ctx.signer.publicRaw }, keys: this.ctx.signer.publicKeys(),
       announcements: await activeAnnouncements(this.ctx, c.ent.subscriber),
-      config: { freeMatchMinutes: c.ent.freeMatchMinutes, needsVerify: this.needsVerify(a.user), mutedUntil: a.user.muted_until, chat: this.chatMode(a.user), quickChat: QUICK_CHAT },
+      config: { freeMatchesPerDay: await freeMatchesPerDay(this.ctx), needsVerify: this.needsVerify(a.user), mutedUntil: a.user.muted_until, chat: this.chatMode(a.user), quickChat: QUICK_CHAT },
     });
     await bump(this.ctx, 'ws_sessions');
   }
@@ -150,8 +158,17 @@ export class Hub {
     switch (m.op) {
       case 'ping': return this.send(c, { op: 'pong', t: m.t });
       case 'lobbies': return this.send(c, { op: 'lobbies', list: this.listing(c) });
-      case 'host': case 'lobby.create': return this.host(c, m);
-      case 'join': case 'lobby.join': return this.join(c, String(m.room || '').toUpperCase().trim());
+      case 'host': case 'lobby.create':
+        // resuming or claiming a match already arranged is not a new match
+        if (!m.resume && !m.claim && !(await this.mayPlay(c))) return;
+        return this.host(c, m);
+      case 'join': case 'lobby.join': {
+        const code = String(m.room || '').toUpperCase().trim(), J = this.lobbies.get(code);
+        // back into a match this account is already counted in: no allowance needed
+        const back = !!(J && J.started && J.seats.has(c.user!.id));
+        if (!back && !(await this.mayPlay(c))) return;
+        return this.join(c, code);
+      }
       case 'signal': {
         if (!L || !m.data || typeof m.data !== 'object') return;
         if (JSON.stringify(m.data).length > 16000) return;
@@ -183,6 +200,7 @@ export class Hub {
       case 'queue': {
         const mode = QUEUE_MODES[m.mode] ? m.mode : 'duel';
         if (this.needsVerify(c.user!)) return this.send(c, { op: 'error', msg: 'Confirm your email to play online. Check your inbox.', code: 'verify' });
+        if (!(await this.mayPlay(c))) return;
         this.unqueue(c); if (c.lobby) this.leaveLobby(c, true);
         c.queued = mode; c.queuedAt = Date.now();
         const key = `${mode}:${c.proto}`; // players only meet others on the same peer protocol
@@ -325,25 +343,46 @@ export class Hub {
     return out.sort((a, b) => a.age - b.age).slice(0, 100);
   }
 
+  // ── the free allowance (docs/MONETIZATION.md) ─────────────────
+  // Members play without limit; everyone else has FREE_MATCHES_PER_DAY matches per
+  // rolling 24 hours. Checked (fresh from the database) before hosting, joining or
+  // queueing, and again when the match starts, which is when it is counted.
+  private async mayPlay(c: Conn): Promise<boolean> {
+    c.ent = await entitlements(this.ctx, c.user!, c.platform);
+    if (c.ent.subscriber || !c.ent.freeMatches || c.ent.freeMatches.left > 0) return true;
+    this.send(c, { op: 'error', code: 'allowance', msg: allowanceMessage(c.ent.freeMatches), allowance: c.ent.freeMatches });
+    return false;
+  }
+
   // ── matches and tickets ──────────────────────────────────────
   private async start(c: Conn) {
     const L = c.lobby; if (!L || c !== L.host || L.started) return;
+    // the host's own allowance first: nothing is counted for anyone if the host cannot play
+    if (!(await this.mayPlay(c))) return;
+    // a guest who used their free match elsewhere since joining leaves before it is counted
+    for (const [id, m] of [...L.members]) if (!(await this.mayPlay(m))) { this.send(m, { op: 'closed', reason: 'allowance' }); m.lobby = null; L.members.delete(id); this.send(L.host, { op: 'left', id }); }
     L.started = true;
     const row = await this.ctx.db.one<any>(`insert into matches (code, mode, host_id, started_at) values ($1, $2, $3, now()) returning id`, [L.code, L.ranked ? 'ranked:' + L.mode : L.mode, c.user!.id]);
     L.matchId = row.id;
     await bump(this.ctx, 'matches_started');
     await this.reticket(L);
   }
-  // Every player gets the same signed ticket: who is in the match, and until when each may play.
+  // Every player gets the same signed ticket: who is in the match, whether each is a
+  // member, and how many free matches each has left after this one (a count, not a
+  // deadline: there is no time limit inside a match). Each player is counted once,
+  // when first in a started match; a rejoin is not counted again.
   private async reticket(L: Lobby) {
-    const free = (await entitlements(this.ctx, L.host.user!)).freeMatchMinutes;
-    const iat = Date.now(), started = L.matchId ? iat : iat;
-    const players = [[0, L.host] as const, ...[...L.members.entries()]].map(([id, m]) => ({ id, uid: m.user!.id, name: m.user!.display_name, sub: !!m.ent?.subscriber, until: m.ent?.subscriber ? null : started + free * 60e3 }));
-    // keep earlier deadlines when re-issuing (a rejoin must not reset the clock)
-    const prev = L.ticket ? this.ctx.signer.verify(L.ticket) : null;
-    if (prev) for (const p of players) { const o = prev.players.find((x: any) => x.uid === p.uid); if (o) p.until = o.until; }
-    for (const p of players) if (L.matchId) await this.ctx.db.query(`insert into match_players (match_id, user_id, slot, until) values ($1, $2, $3, $4) on conflict (match_id, user_id) do nothing`, [L.matchId, p.uid, p.id, p.until ? new Date(p.until) : null]);
-    L.ticket = this.ctx.signer.sign({ v: 1, mid: L.matchId, room: L.code, iat, exp: iat + 12 * 3600e3, host: L.host.user!.id, ranked: L.ranked, players });
+    const iat = Date.now(), seats = [[0, L.host] as const, ...[...L.members.entries()]];
+    const players = [];
+    for (const [id, m] of seats) {
+      const member = !!m.ent?.subscriber;
+      if (L.matchId && await countPlayer(this.ctx, L.matchId, m.user!.id, id, member) && !member) {
+        m.ent = await entitlements(this.ctx, m.user!, m.platform);
+        this.send(m, { op: 'me', user: this.pub(m), ent: m.ent, config: {} });
+      }
+      players.push({ id, uid: m.user!.id, name: m.user!.display_name, sub: member, free: member ? null : (m.ent?.freeMatches?.left ?? (await allowance(this.ctx, m.user!.id)).left) });
+    }
+    L.ticket = this.ctx.signer.sign({ v: 2, mid: L.matchId, room: L.code, iat, exp: iat + 12 * 3600e3, host: L.host.user!.id, ranked: L.ranked, players });
     for (const m of [L.host, ...L.members.values()]) this.send(m, { op: 'ticket', ticket: L.ticket, match: L.matchId });
   }
   private async end(c: Conn, m: any) {
@@ -377,7 +416,7 @@ export class Hub {
         const oldest = Math.max(...group.map(c => (now - c.queuedAt) / 1000));
         if (group.length < spec.size && !(group.length >= spec.min && oldest >= spec.waitMin)) break;
         q = q.filter(c => !group.includes(c));
-        // a subscriber hosts when possible, so free time limits never end the match for everyone
+        // a member hosts when possible (steadier: members are not counted against an allowance)
         const host = group.find(c => c.ent?.subscriber) || group[0];
         for (const c of group) c.queued = null;
         const L = this.host(host, { title: 'Quick match' }, { reserved: new Set(group.map(c => c.user!.id)), ranked: true, mode, pending: true });

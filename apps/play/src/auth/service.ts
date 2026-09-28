@@ -5,6 +5,7 @@ import type { Ctx, UserRow, Authed } from '../context.js';
 import { HttpError, unauthorized } from '../context.js';
 import { randomToken, sha256 } from '../lib/crypto.js';
 import { nameKey, validateName } from '../lib/names.js';
+import { allowance, type Allowance } from '../billing/allowance.js';
 
 const ARGON = { memoryCost: 19456, timeCost: 2, parallelism: 1 } as const; // OWASP 2023 baseline for argon2id
 export const hashPassword = (pw: string) => argonHash(pw, ARGON);
@@ -85,7 +86,7 @@ export function assertCanPlay(u: UserRow) {
 }
 
 // ── entitlements ─────────────────────────────────────────────────
-export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatchMinutes: number; lifetime: boolean; source: 'stripe' | 'promo' | 'gift' | 'play' | 'staff' | null; billing: boolean; platform: string | null }
+export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatches: Allowance | null; lifetime: boolean; source: 'stripe' | 'promo' | 'gift' | 'play' | 'staff' | null; billing: boolean; platform: string | null }
 // Entitlements are per platform (docs/MONETIZATION.md): a store subscription counts
 // only on its own platform; Stripe, promo codes and gifts (platform null) count
 // everywhere. `platform` is the client asking ('android', 'ios', 'web'…); '*' is the
@@ -99,15 +100,10 @@ export async function entitlements(ctx: Ctx, u: UserRow, platform?: string): Pro
   // active or trialing while paid up; past_due keeps access for a three-day grace
   const paid = !!sub && ((['active', 'trialing'].includes(sub.status) && end > ctx.now()) || (sub.status === 'past_due' && end + 3 * 864e5 > ctx.now()));
   const staff = u.role !== 'player';
-  const free = await freeMinutes(ctx);
   const lifetime = paid && end >= Date.UTC(9999, 0, 1);
   const id = String(sub?.id || '');
   const source = paid ? (id.startsWith('promo_') ? 'promo' : id.startsWith('comp_') ? 'gift' : id.startsWith('gp_') ? 'play' : 'stripe') : staff ? 'staff' : null;
-  return { subscriber: paid || staff, until: sub?.current_period_end ? new Date(sub.current_period_end).toISOString() : null, status: sub?.status ?? null, cancelAtPeriodEnd: !!sub?.cancel_at_period_end, freeMatchMinutes: free, lifetime, source, billing, platform: sub?.platform ?? null };
-}
-export async function freeMinutes(ctx: Ctx): Promise<number> {
-  const r = await ctx.db.one<any>(`select value from remote_config where key = 'freeMatchMinutes'`);
-  return typeof r?.value === 'number' ? r.value : ctx.cfg.FREE_MATCH_MINUTES;
+  return { subscriber: paid || staff, until: sub?.current_period_end ? new Date(sub.current_period_end).toISOString() : null, status: sub?.status ?? null, cancelAtPeriodEnd: !!sub?.cancel_at_period_end, freeMatches: paid || staff ? null : await allowance(ctx, u.id), lifetime, source, billing, platform: sub?.platform ?? null };
 }
 
 // ── MFA challenge: short-lived, encrypted, bound to one user ─────

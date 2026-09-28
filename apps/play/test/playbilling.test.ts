@@ -156,7 +156,7 @@ test('the Play client: service-account JWT, token exchange, subscriptionsv2 and 
       const jwt = new URLSearchParams(String(init.body)).get('assertion')!, [h, p, s] = jwt.split('.');
       assert.ok(createVerify('RSA-SHA256').update(`${h}.${p}`).verify(publicKey, Buffer.from(s, 'base64url')), 'JWT signed by the service account');
       const claims = JSON.parse(Buffer.from(p, 'base64url').toString());
-      assert.equal(claims.scope, 'https://www.googleapis.com/auth/androidpublisher'); assert.equal(claims.iss, 'ozy@test.iam.gserviceaccount.com');
+      assert.equal(claims.scope, 'https://www.googleapis.com/auth/androidpublisher https://www.googleapis.com/auth/playintegrity'); assert.equal(claims.iss, 'ozy@test.iam.gserviceaccount.com');
       return new Response(JSON.stringify({ access_token: 'at-1', expires_in: 3600 }));
     }
     assert.equal(init.headers.authorization, 'Bearer at-1');

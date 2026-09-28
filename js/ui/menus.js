@@ -220,6 +220,7 @@
   function onlineError(e) {
     if (e.code === 'signin' || e.code === 'unauthorized') { renderOnline(); E.Online.signInDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
     if (e.code === 'upgrade') { E.modal('Update Ozymandosis', e.message); return; }
+    if (onlineRefusal({ code: e.code, msg: e.message })) { onlineStatus(e.message); return; }
     if (e.code === 'age') { E.Online.ageDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
     onlineStatus(e.message); E.toast(e.message);
   }
@@ -293,7 +294,7 @@
       else if (d.k === 'hello') broadcastLobby();
     });
     r.on('close', () => { if (lobby) { E.toast('Disconnected from the lobby'); lobby = null; E.Screens.show('scr-mp'); } });
-    r.on('error', m => { onlineStatus(m.msg); E.toast(m.msg); });
+    r.on('error', m => { onlineStatus(m.msg); if (!onlineRefusal(m)) E.toast(m.msg); if (m.code === 'allowance' && lobby && lobby.relay === r) { r.close(); lobby = null; E.Screens.show('scr-mp'); } });
     if (online) r.host(playerName(), opts.claim ? { claim: opts.claim } : { public: !$('mp-private').checked, title: `${E.Online.me ? E.Online.me.name : 'A'}'s bloom` });
     else r.host(playerName());
   }
@@ -314,7 +315,7 @@
     if (opts.relay) E.Online.wire(r);
     r.on('chat', m => { if (lobby) lobbyLog(m.from, m.text); });
     r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id, online }; renderLobbyChat.done = false; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
-    r.on('error', m => { $('mp-status').textContent = m.msg; onlineStatus(m.msg); E.toast(m.msg); if (!lobby && online) E.Screens.show('scr-mp'); });
+    r.on('error', m => { $('mp-status').textContent = m.msg; onlineStatus(m.msg); if (!(online && onlineRefusal(m))) E.toast(m.msg); if (!lobby && online) E.Screens.show('scr-mp'); });
     r.on('msg', m => {
       const d = m.data;
       if (d.k === 'lobby' && lobby) { setup = d.setup; lobby.save = d.save; renderSetup(); }
@@ -325,7 +326,7 @@
         lobby = null; game.start({ mode: 'guest', init: d, relay: rl, online, slotUid });
       }
     });
-    r.on('closed', m => { if (!(m && m.reason === 'version')) E.toast('The host closed the room.'); lobby = null; E.Screens.show('scr-mp'); });
+    r.on('closed', m => { if (!(m && (m.reason === 'version' || m.reason === 'allowance'))) E.toast('The host closed the room.'); lobby = null; E.Screens.show('scr-mp'); });
     r.join(code, playerName());
   }
 
@@ -340,13 +341,25 @@
     }
     $('mp-online-play').hidden = false;
     const ent = O.ent || {};
-    acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.lifetime ? 'Lifetime member' : ent.subscriber ? 'Member' : `Free · ${ent.freeMatchMinutes || 15}-minute matches`),
+    acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.lifetime ? 'Lifetime member' : ent.subscriber ? 'Member' : freePill(ent.freeMatches)),
       h('span', { class: 'mono', title: 'Rating' }, '◆ ' + (O.me.rating || 1200))),
       h('div', { class: 'row' }, ent.subscriber || !O.canPurchase() ? null : h('button', { class: 'btn small', onclick: () => O.membershipDialog() }, `Membership · ${O.priceLabel()}`),
         ent.lifetime || !O.canRedeem() ? null : h('button', { class: 'btn small ghost', onclick: async () => { if (await O.redeemDialog()) renderOnline(); } }, 'Redeem a code'),
         h('button', { class: 'btn small ghost', onclick: () => O.openExternal(O.accountUrl()) }, 'Account'),
         h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); if (browse) { browse.close(); browse = null; } renderOnline(); } }, 'Sign out')));
     if (O.hello && O.hello.config && O.hello.config.needsVerify) acc.append(h('p', { class: 'hint-s warn' }, 'Confirm your email to play online. Check your inbox for the link.'));
+  }
+  // one free online match per rolling 24 hours (docs/MONETIZATION.md)
+  function freePill(f) {
+    if (!f) return 'Free';
+    if (f.left > 0) return `Free · ${f.left} online match${f.left === 1 ? '' : 'es'} left today`;
+    return f.nextAt ? `Free match used · next at ${new Date(f.nextAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Free match used';
+  }
+  // what the service says when this account cannot play online right now
+  function onlineRefusal(m) {
+    if (m.code === 'allowance') { E.Online.membershipDialog(m.msg); return true; }
+    if (m.code === 'app_only') { E.modal('Online play', m.msg); return true; }
+    return false;
   }
   function renderLobbies(list) {
     const box = $('mp-lobbies'); box.innerHTML = '';
@@ -376,7 +389,7 @@
       if (m.role === 'host') hostGame(null, { src: 'online', relay: r, claim: m.room, quick: { mode: m.mode, players: m.players.length } });
       else joinGame(m.room, { src: 'online', relay: r });
     });
-    r.on('error', m => { stop(); onlineStatus(m.msg); E.toast(m.msg); });
+    r.on('error', m => { stop(); onlineStatus(m.msg); if (!onlineRefusal(m)) E.toast(m.msg); });
     r.raw({ op: 'queue', mode });
   }
   E.Online.on(() => { if (!$('scr-mp').hidden) renderOnline(); renderNews(); });
@@ -447,6 +460,7 @@
       O.me ? h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.subscriber ? 'Member' : 'Free')) : h('p', { class: 'hint-s' }, 'Not signed in. Online play needs a free account.'),
       h('div', { class: 'row' }, O.me ? [h('button', { class: 'btn small', onclick: () => O.openExternal(O.accountUrl()) }, 'Manage account'), h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); renderSettings(); } }, 'Sign out')]
         : h('button', { class: 'btn small primary', onclick: async () => { if (await O.signInDialog()) renderSettings(); } }, 'Sign in')),
+      O.me ? h('button', { class: 'btn small ghost danger', style: 'margin-top:8px', onclick: async () => { if (await O.deleteAccountDialog()) renderSettings(); } }, 'Delete account…') : null,
       O.me ? chatPref(O) : null,
       O.me ? cloudRow() : null,
       tog('Send automatic crash and performance reports (nothing personal)', 'crashReports'),

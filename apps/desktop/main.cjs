@@ -9,8 +9,9 @@ const lan = require('./lan.cjs');
 app.commandLine.appendSwitch('enable-features', 'Vulkan,WebGPU');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
-// Which storefront this copy came from: Steam builds may not sell outside Steam, so
-// the game hides prices and checkout there (OZY_STORE overrides for other stores).
+// Which storefront this copy came from. The desktop game is sold on Steam only
+// (docs/MONETIZATION.md): a Steam build proves ownership with Steam and sells the
+// season there. 'direct' is a development build, which cannot play online in production.
 function store() {
   if (process.env.OZY_STORE) return process.env.OZY_STORE;
   const fs = require('fs'), dir = app.isPackaged ? path.dirname(process.execPath) : __dirname;

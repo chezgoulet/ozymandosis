@@ -2,7 +2,9 @@
 import type { FastifyInstance } from 'fastify';
 import type { Ctx } from '../context.js';
 import { enabledProviders } from '../auth/oauth.js';
-import { entitlements, freeMinutes } from '../auth/service.js';
+import { entitlements } from '../auth/service.js';
+import { freeMatchesPerDay } from '../billing/allowance.js';
+import { steamSeasons } from '../billing/ownership.js';
 import { plans } from '../billing/stripe.js';
 
 export async function activeAnnouncements(ctx: Ctx, subscriber: boolean | null) {
@@ -27,10 +29,12 @@ export default async function publicRoutes(app: FastifyInstance, ctx: Ctx) {
     return {
       minClientVersion: rc.minClientVersion || ctx.cfg.MIN_CLIENT_VERSION,
       maintenance: rc.maintenance || { on: false },
-      freeMatchMinutes: await freeMinutes(ctx),
-      priceUsd: 1,
+      freeMatchesPerDay: await freeMatchesPerDay(ctx),
+      // the store products the apps sell (prices themselves come from each store)
+      appstore: { monthly: ctx.cfg.APPSTORE_PRODUCT_MONTHLY, annual: ctx.cfg.APPSTORE_PRODUCT_ANNUAL },
+      steamSeason: steamSeasons(ctx).filter(s => Date.parse(s.until) > Date.now()).map(s => s.appid)[0] || null,
       providers: enabledProviders(ctx),
-      billing: !!ctx.stripe,
+      billing: !!ctx.stripe && ctx.cfg.WEB_BILLING,
       // what membership costs, from Stripe (amounts in minor units, tax included)
       plans: Object.entries(await plans(ctx)).map(([plan, p]) => ({ plan, amount: p!.amount, currency: p!.currency })),
       turnstileSiteKey: rc.turnstileSiteKey || null,

@@ -54,17 +54,14 @@ The server never sees a match, and the host runs its only simulation, so results
 - **Guests audit the host.** The sim is deterministic. Every 20 s the host commits to the SHA-256 of its full world state (in the snapshot stream; a hash reveals nothing). After the match each guest walks the windows between commitments in a random order, for about nine seconds: the host sends the two bounding states and the commands it applied in between; the guest checks the hashes, re-simulates the window, compares per-player facts (lumen, spore, creatures, health, structures, evolutions) with tolerances wide enough for cross-browser float drift, checks that every order it sent was applied, that its colony was never handed to a bot while connected, and that the committed states agree with what it was shown live. A `tamper` verdict disputes the match and files an automatic cheating report against the host with the evidence. Full states are only revealed after the match, so the audit leaks nothing during play.
 - **Ratings are harder to farm.** Ranked Elo moves only for confirmed matches with a result for every player, at least 120 s long (measured by the server, not claimed), and at most three rated matches a day between the same group of players. Anyone in three disputes within a week is flagged for review.
 
-## The free time limit
+## The free allowance, and who may play online
 
-Free players' online matches last `freeMatchMinutes` (15 by default, live-configurable). The service cannot see inside a peer-to-peer match, so the limit is a signed ticket enforced by the players' clients:
+The scheme is `docs/MONETIZATION.md`; how it is implemented is D20.
 
-- every client verifies the ticket's Ed25519 signature (WebCrypto) and corrects for clock skew using the ticket's issue time;
-- a free player sees a countdown chip and warnings at 5 and 1 minutes;
-- the host hands an expired guest's colony to a bot and removes them; a rejoin after the deadline is refused;
-- when the host's own time ends, the match ends for everyone (quick match makes a member host when there is one);
-- the player is offered membership.
-
-A player running a modified client can ignore the limit only if every other player in that match also runs a modified client. That trade-off keeps matches peer to peer and private.
+- **One full online match per rolling 24 hours, per account** (`freeMatchesPerDay`, live-configurable). The service counts it when the host starts the match, once per player, whichever side; a rejoin is not counted again; members are never counted. A free player with none left is refused before hosting, joining or queueing (`error {code: 'allowance', allowance}`), with when the next one comes. There is no time limit inside a match.
+- **Tickets** (v2) say who is in the match, who is a member and how many free matches each has left. Clients verify the Ed25519 signature.
+- **Store apps only, with a verified purchase** (production): the client says its platform (`android`, `ios`, `steam`) and must hold a current proof of purchase for it (`/api/ownership/*`), checked with that store. Otherwise `error {code: 'app_only' | 'ownership'}`; the app proves ownership and reconnects by itself.
+- **Memberships per platform**: Google Play (`billing/play.ts`), the App Store (`billing/appstore.ts`), Steam seasons (`billing/ownership.ts`). Each counts only on its own platform.
 
 ## Security
 

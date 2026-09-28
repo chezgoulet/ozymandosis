@@ -19,7 +19,16 @@ const fake: any = {
 };
 
 let t: T;
-test('boot', async () => { resetPriceCache(); t = await boot({}, { stripe: fake }); });
+test('boot', async () => { resetPriceCache(); t = await boot({ WEB_BILLING: 'true' }, { stripe: fake }); });
+
+test('web checkout is off unless an operator turns it on: memberships are sold per platform, in its store', async () => {
+  const off = await boot({}, { stripe: fake });
+  const u = await signup(off);
+  const r = await off.api('POST', '/api/billing/checkout', { plan: 'year' }, u.token);
+  assert.equal(r.status, 410); assert.equal(r.json.code, 'store_only');
+  assert.equal((await off.api('GET', '/api/config')).json.billing, false);
+  await off.app.close();
+});
 after(async () => { await t.app.close(); });
 
 test('prices come from Stripe and are shown tax-inclusive', async () => {

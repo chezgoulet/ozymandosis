@@ -28,6 +28,8 @@ import meRoutes from './auth/me.js';
 import billingRoutes from './billing/stripe.js';
 import promoRoutes from './billing/promo.js';
 import playRoutes, { googlePlayApi, type PlayApi } from './billing/play.js';
+import appStoreRoutes from './billing/appstore.js';
+import ownershipRoutes from './billing/ownership.js';
 import reportRoutes from './reports/routes.js';
 import perfRoutes from './reports/perf.js';
 import moderationRoutes from './moderation/routes.js';
@@ -155,6 +157,8 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   await billingRoutes(app, ctx);
   await promoRoutes(app, ctx);
   await playRoutes(app, ctx);
+  await appStoreRoutes(app, ctx);
+  await ownershipRoutes(app, ctx);
   await reportRoutes(app, ctx);
   await perfRoutes(app, ctx);
   await moderationRoutes(app, ctx);

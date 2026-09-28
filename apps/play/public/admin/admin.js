@@ -315,16 +315,16 @@
     const mOn = h('input', { type: 'checkbox', style: 'width:auto;min-height:0' }); mOn.checked = !!m.on;
     const mMsg = h('input', { value: m.message || '', placeholder: 'Message shown to players' });
     const minV = h('input', { value: get('minClientVersion') || '', placeholder: '0.5.0' });
-    const free = h('input', { type: 'number', min: 1, max: 600, value: get('freeMatchMinutes') || 15 });
+    const free = h('input', { type: 'number', min: 0, max: 20, value: get('freeMatchesPerDay') ?? 1 });
     const feats = h('textarea', { rows: 4 }, JSON.stringify(get('features') || {}, null, 2));
     const put = (key, value, btn) => act(btn, () => api('PUT', '/api/admin/config/' + key, { value }), 'Saved');
     const b1 = h('button', { class: 'btn small' + (mOn.checked ? '' : ' danger') }, 'Save maintenance'); b1.onclick = () => { if (mOn.checked && !confirm('Turn on maintenance? Players (not staff) will be disconnected from matchmaking. Matches in progress continue peer to peer.')) return; put('maintenance', { on: mOn.checked, message: mMsg.value || undefined }, b1); };
     const b2 = h('button', { class: 'btn small' }, 'Save'); b2.onclick = () => put('minClientVersion', minV.value, b2);
-    const b3 = h('button', { class: 'btn small' }, 'Save'); b3.onclick = () => put('freeMatchMinutes', +free.value, b3);
+    const b3 = h('button', { class: 'btn small' }, 'Save'); b3.onclick = () => put('freeMatchesPerDay', +free.value, b3);
     const b4 = h('button', { class: 'btn small' }, 'Save'); b4.onclick = () => { let v; try { v = JSON.parse(feats.value); } catch (e) { return toast('Features must be JSON.', 'error'); } put('features', v, b4); };
     main(h('div', { class: 'card stack' }, h('h2', null, 'Maintenance'), h('label', { style: 'display:flex;gap:10px;align-items:center;color:var(--ink)' }, mOn, 'Online play is under maintenance'), mMsg, b1),
       h('div', { class: 'card stack' }, h('h2', null, 'Minimum client version'), h('p', { class: 'muted' }, 'Older clients are asked to update before they can go online.'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, minV, b2)),
-      h('div', { class: 'card stack' }, h('h2', null, 'Free match length (minutes)'), h('p', { class: 'muted' }, 'Applies to tickets issued from now on.'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, free, b3)),
+      h('div', { class: 'card stack' }, h('h2', null, 'Free online matches per 24 hours'), h('p', { class: 'muted' }, 'Per account, rolling window, counted when a match starts (docs/MONETIZATION.md). Members are not counted; LAN play never is.'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, free, b3)),
       h('div', { class: 'card stack' }, h('h2', null, 'Feature flags'), h('p', { class: 'muted' }, 'Sent to every client in /api/config.'), feats, b4));
   }
 

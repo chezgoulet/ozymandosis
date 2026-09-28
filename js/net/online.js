@@ -7,32 +7,44 @@
   const O = E.Online = { me: null, ent: null, config: null, announcements: [], chatLog: [], listeners: new Set() };
   const TOKEN = 'efl.session';
 
-  // Where this copy came from decides whether it may sell anything. App stores and
-  // Steam require their own payment systems for digital goods, so store builds never
-  // show prices, checkout or code redemption; memberships bought on the web still apply.
+  // docs/MONETIZATION.md is the scheme. The game is $1 on Steam, iOS and Android, and
+  // there is no browser version. Online: one free match per rolling 24 hours (the
+  // service counts it), then a membership bought in the store of the platform being
+  // played on: $2/month or $12/year on iOS and Android, a $12 season on Steam. A
+  // membership does not cross platforms, and neither does the proof of purchase:
+  // each store vouches for its own copy (O.proveOwnership).
   O.store = (() => {
     const q = new URLSearchParams(location.search).get('store');
-    if (q) return q;
-    if (E.Native && E.Native.is) return E.Native.platform; // 'ios' | 'android'
-    return 'web';
+    if (q) return q;                                        // the desktop shell says 'steam' (or 'direct' for a development build)
+    if (E.Native && E.Native.is) return E.Native.platform;  // 'ios' | 'android'
+    return 'web';                                           // development only: there is no browser version
   })();
-  // Android sells through Google Play Billing (PlayBillingPlugin); the service
-  // verifies every purchase with Google and binds it to the account. Other store
-  // builds (iOS, Steam) do not sell yet, and no store build redeems codes.
-  O.play = () => O.store === 'android' && window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.PlayBilling;
-  O.canPurchase = () => O.store === 'web' || O.store === 'direct' || !!O.play();
-  O.canRedeem = () => O.store === 'web' || O.store === 'direct';
-  O.platform = () => (E.Native && E.Native.is ? E.Native.platform : 'web');
-  const PLAY_PLAN = { month: 'monthly', year: 'annual' };
-  O.playPlans = null;
-  // Prices from the store on mobile (Play formats them), from the service (Stripe) elsewhere; tax included.
-  O.price = plan => {
-    if (O.play()) { const p = (O.playPlans || []).find(x => x.plan === PLAY_PLAN[plan || 'month']); return p ? p.price : null; }
-    const p = O.config && (O.config.plans || []).find(x => x.plan === (plan || 'month'));
-    if (!p) return plan === 'year' ? null : '$2';
-    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: p.currency.toUpperCase(), minimumFractionDigits: p.amount % 100 ? 2 : 0 }).format(p.amount / 100); } catch (e) { return '$' + (p.amount / 100); }
+  O.STORES = ['android', 'ios', 'steam'];
+  O.platform = () => O.store;
+  const plugins = () => (window.Capacitor && Capacitor.Plugins) || {};
+  O.play = () => O.store === 'android' && plugins().PlayBilling;
+  O.appstore = () => O.store === 'ios' && plugins().StoreKit;
+  O.storeName = () => ({ android: 'Google Play', ios: 'the App Store', steam: 'Steam' })[O.store] || 'your store';
+  O.platformName = () => ({ android: 'Android', ios: 'iOS', steam: 'Steam' })[O.store] || 'this platform';
+  // what this platform sells: iOS and Android monthly and yearly; Steam a yearly season
+  O.plans = () => O.play() || O.appstore() ? ['month', 'year'] : O.store === 'steam' ? ['year'] : [];
+  O.canPurchase = () => O.plans().length > 0;
+  O.canRedeem = () => O.store === 'web';                    // codes are redeemed on the account page, never in a store build
+  const STORE_PLAN = { month: 'monthly', year: 'annual' };
+  O.prices = null; // { month: '$2.00', year: '$12.00' } in the player's currency, from the store
+  O.loadPrices = async function () {
+    try {
+      if (O.play()) { const r = await O.play().products({}); O.prices = {}; for (const p of r.plans || []) for (const k in STORE_PLAN) if (STORE_PLAN[k] === p.plan) O.prices[k] = p.price; }
+      else if (O.appstore()) {
+        const ids = (O.config && O.config.appstore) || {}, r = await O.appstore().products({ ids: [ids.monthly, ids.annual].filter(Boolean) });
+        O.prices = {}; for (const p of r.products || []) { if (p.id === ids.monthly) O.prices.month = p.price; if (p.id === ids.annual) O.prices.year = p.price; }
+      }
+    } catch (e) { O.prices = O.prices || null; }
+    changed();
   };
-  O.priceLabel = () => O.price('month') ? `${O.price('month')}/month` + (O.price('year') ? ` or ${O.price('year')}/year` : '') : 'prices in Google Play';
+  // Prices always come from the store (tax as the store shows it); Steam shows its own on the season's page.
+  O.price = plan => (O.prices && O.prices[plan || 'month']) || null;
+  O.priceLabel = () => O.store === 'steam' ? 'a season on Steam' : O.price('month') ? `${O.price('month')}/month` + (O.price('year') ? ` or ${O.price('year')}/year` : '') : `prices in ${O.storeName()}`;
 
   // Chat words blocked in local-network games (online chat is filtered by the service).
   const BLOCK = ['fuck', 'shit', 'nigg', 'fagot', 'faggot', 'retard', 'hitler', 'kike', 'trany', 'whore', 'motherfuck'];
@@ -82,20 +94,38 @@
       try { const r = await O.api('GET', '/api/me?platform=' + O.platform()); O.me = r.user; O.ent = r.entitlements; O.notice = r.notice; } catch (e) { if (e.status === 401) { O.me = null; O.ent = null; } }
     }
     try { O.announcements = (await O.api('GET', '/api/announcements')).announcements || []; } catch (e) { /* offline */ }
-    if (O.play()) {
-      if (!O.playPlans) O.play().products({}).then(r => { O.playPlans = r.plans || []; changed(); }).catch(() => {});
-      if (O.signedIn() && O.me && !O.restored) { O.restored = true; O.restorePlay().catch(() => {}); }
-    }
+    if (O.canPurchase() && !O.prices) O.loadPrices();
+    // once a session: the store confirms this copy, and any membership it holds reaches the service
+    if (O.signedIn() && O.me && O.STORES.includes(O.store) && !O.checked) { O.checked = true; O.proveOwnership().catch(() => {}).then(() => O.restore()).catch(() => {}); }
     changed();
     return O;
   };
-  // Hand every purchase Play knows about to the service (a reinstall, a new phone, a
-  // purchase that finished while the game was closed). The service decides; this never grants.
-  O.restorePlay = async function () {
-    const P = O.play(); if (!P || !O.signedIn()) return;
-    const r = await P.restore(); let any = false;
-    for (const p of r.purchases || []) { try { await O.api('POST', '/api/billing/play/verify', { purchaseToken: p.purchaseToken }); any = true; } catch (e) { /* another account's, or not a membership */ } }
-    if (any) { const m = await O.api('GET', '/api/me?platform=' + O.platform()); O.me = m.user; O.ent = m.entitlements; changed(); }
+  const reloadMe = async () => { const m = await O.api('GET', '/api/me?platform=' + O.platform()); O.me = m.user; O.ent = m.entitlements; changed(); };
+  // Hand every membership the store knows about to the service (a reinstall, a new
+  // device, a renewal while the game was closed). The service checks each with the store.
+  O.restore = async function () {
+    if (!O.signedIn()) return;
+    let any = false;
+    const send = async (path, body) => { try { await O.api('POST', path, body); any = true; } catch (e) { /* another account's, or not a membership */ } };
+    if (O.play()) { const r = await O.play().restore(); for (const p of r.purchases || []) await send('/api/billing/play/verify', { purchaseToken: p.purchaseToken }); }
+    else if (O.appstore()) { const r = await O.appstore().restore(); for (const t of r.transactions || []) await send('/api/billing/appstore/verify', { signedTransaction: t }); }
+    else if (O.store === 'steam') await send('/api/ownership/steam', {}); // also finds the current season
+    if (any) await reloadMe();
+  };
+  O.restorePlay = O.restore;
+  if (O.appstore() && O.appstore().addListener) O.appstore().addListener('transaction', t => { if (O.signedIn()) O.api('POST', '/api/billing/appstore/verify', { signedTransaction: t.signedTransaction }).then(reloadMe).catch(() => {}); });
+  // Proof that this account bought the game on this platform ($1, docs/MONETIZATION.md):
+  // the store vouches, the service checks with the store and binds it to the account.
+  O.proveOwnership = async function () {
+    if (O.store === 'android') {
+      if (!O.play() || !O.play().integrity) throw new Error('Google Play is not available.');
+      const n = await O.api('GET', '/api/ownership/nonce');
+      const r = await O.play().integrity({ nonce: n.nonce, cloudProjectNumber: n.cloudProjectNumber || undefined });
+      return O.api('POST', '/api/ownership/android', { nonce: n.nonce, integrityToken: r.token });
+    }
+    if (O.store === 'ios') { if (!O.appstore()) throw new Error('The App Store is not available.'); const r = await O.appstore().appTransaction(); return O.api('POST', '/api/ownership/ios', { appTransaction: r.jws }); }
+    if (O.store === 'steam') return O.api('POST', '/api/ownership/steam', {});
+    throw new Error('Online play is in the Ozymandosis app, on Steam, iOS and Android.');
   };
   O.login = async function (email, password) {
     const r = await O.api('POST', '/api/auth/login', { email, password, client: 'game' });
@@ -139,27 +169,39 @@
     try {
       const r = await O.api('POST', '/api/billing/redeem', { code });
       await O.refresh();
-      E.modal('Welcome, member', r.lifetime ? 'Your code gives you membership for life. Online matches have no time limit.' : `Your code gives you membership until ${new Date(r.until).toLocaleDateString()}. Online matches have no time limit.`);
+      E.modal('Welcome, member', r.lifetime ? 'Your code gives you membership for life: unlimited online matches.' : `Your code gives you membership until ${new Date(r.until).toLocaleDateString()}: unlimited online matches.`);
       return true;
     } catch (e) { E.toast(e.message, 4000); return false; }
   };
   O.accountUrl = (path) => O.base() + (path || '/account');
   O.subscribe = async function (plan) {
-    if (!O.canPurchase()) throw new Error('Membership is not sold in this version of the game.');
+    if (!O.canPurchase()) throw new Error('Membership is bought in the Ozymandosis app, through its store.');
     if (!O.signedIn()) throw new Error('Sign in first.');
+    const welcome = async () => { await O.refresh(); E.toast('Welcome, member. Thank you.', 4000); };
     if (O.play()) {
       const acct = await O.api('GET', '/api/billing/play/account');
-      const r = await O.play().purchase({ productId: acct.productId, plan: PLAY_PLAN[plan || 'month'], obfuscatedAccountId: acct.obfuscatedAccountId });
+      const r = await O.play().purchase({ productId: acct.productId, plan: STORE_PLAN[plan || 'month'], obfuscatedAccountId: acct.obfuscatedAccountId });
       if (r.cancelled) return;
-      if (r.owned) { await O.restorePlay(); return; }
+      if (r.owned) { await O.restore(); return; }
       if (r.pending) { E.toast('Google Play is waiting for your payment. Membership starts when it goes through.', 5000); return; }
       await O.api('POST', '/api/billing/play/verify', { purchaseToken: r.purchaseToken });
-      await O.refresh();
-      E.toast('Welcome, member. Thank you.', 4000);
-      return;
+      return welcome();
     }
-    const r = await O.api('POST', '/api/billing/checkout', { plan: plan || 'month' });
-    O.openExternal(r.url);
+    if (O.appstore()) {
+      const acct = await O.api('GET', '/api/billing/appstore/account');
+      const r = await O.appstore().purchase({ productId: acct.products[STORE_PLAN[plan || 'month']], appAccountToken: acct.appAccountToken });
+      if (r.cancelled) return;
+      if (r.pending) { E.toast('The App Store is waiting for approval. Membership starts when it goes through.', 5000); return; }
+      await O.api('POST', '/api/billing/appstore/verify', { signedTransaction: r.signedTransaction });
+      return welcome();
+    }
+    if (O.store === 'steam') {
+      // the season is sold on Steam; when the game next checks with Steam, it counts
+      const season = O.config && O.config.steamSeason;
+      O.openExternal(season ? `steam://store/${season}` : 'steam://store');
+      E.toast('Buy the season on Steam, then come back: the game checks with Steam when you next play online.', 6000);
+      O.checked = false;
+    }
   };
 
   // ── age ─────────────────────────────────────────────────────────
@@ -189,8 +231,16 @@
   };
 
   // ── lobby connection (one per lobby, authenticated) ──────────────
-  O.openRelay = async function () {
+  O.openRelay = async function (again) {
     if (!O.signedIn()) { const e = new Error('Sign in to play online.'); e.code = 'signin'; throw e; }
+    try { return await openRelayOnce(); }
+    catch (e) {
+      // the store has not vouched for this copy yet (or not lately): ask it, then try once more
+      if (e.code === 'ownership' && !again) { await O.proveOwnership(); return O.openRelay(true); }
+      throw e;
+    }
+  };
+  const openRelayOnce = async function () {
     const r = new E.Relay();
     await r.connect(O.wsUrl());
     return new Promise((res, rej) => {
@@ -198,7 +248,7 @@
       r.on('hello', m => { clearTimeout(to); O.me = m.user; O.ent = m.ent; O.key = m.key; O.announcements = m.announcements || O.announcements; O.hello = m; changed(); res(r); });
       const fail = m => { clearTimeout(to); r.close(); const e = new Error(m.msg || 'Could not connect.'); e.code = m.code || m.op; if (m.code === 'unauthorized') { O.setToken(null); changed(); } rej(e); };
       r.on('error', fail); r.on('upgrade', fail); r.on('maintenance', fail); r.on('kicked', fail);
-      r.raw({ op: 'auth', token: O.token(), version: E.VERSION, proto: E.PROTOCOL, platform: (E.Native && E.Native.is ? E.Native.platform : 'web') });
+      r.raw({ op: 'auth', token: O.token(), version: E.VERSION, proto: E.PROTOCOL, platform: O.platform() });
     });
   };
   // Reattach a host's existing relay (its peers stay connected) after its signaling
@@ -213,7 +263,7 @@
         r.on('error', fail); r.on('upgrade', fail); r.on('maintenance', fail); r.on('kicked', fail);
         r.on('hello', m => { O.me = m.user; O.ent = m.ent; O.key = m.key; changed(); r.raw({ op: 'host', resume: r.room }); });
         r.on('hosted', () => { clearTimeout(to); res(); });
-        r.raw({ op: 'auth', token: O.token(), version: E.VERSION, proto: E.PROTOCOL, platform: (E.Native && E.Native.is ? E.Native.platform : 'web') });
+        r.raw({ op: 'auth', token: O.token(), version: E.VERSION, proto: E.PROTOCOL, platform: O.platform() });
       });
     } catch (e) { if (r.ws) { const ws = r.ws; r.ws = null; ws.onclose = null; try { ws.close(); } catch (x) { /* */ } } throw e; }
     finally { r.handlers = keep; }
@@ -256,6 +306,27 @@
   O.visibleNews = () => { const d = dismissed(); return O.announcements.filter(a => !d.has(a.id)); };
   O.showAnnouncement = a => { if (E.game && E.game.running) E.game.notify(`${a.title}: ${a.body}`, a.severity === 'critical' ? 'alert' : 'info'); };
 
+  // Account deletion, started in the game (App Store guideline 5.1.1(v)): the same
+  // step-up the account page asks for, then the service erases the account.
+  O.deleteAccountDialog = async function () {
+    const h = E.h, me = O.me; if (!me) return false;
+    const pass = h('input', { type: 'password', autocomplete: 'current-password', placeholder: 'Password', 'aria-label': 'Password' });
+    const code = h('input', { inputmode: 'numeric', autocomplete: 'one-time-code', placeholder: 'Authenticator code', 'aria-label': 'Authenticator code', maxlength: 12 });
+    const word = h('input', { type: 'text', placeholder: 'Type DELETE', 'aria-label': 'Type DELETE to confirm', autocapitalize: 'characters' });
+    const store = O.ent && O.ent.subscriber && O.ent.platform ? h('p', { class: 'hint-s warn' }, `Your membership was bought in ${O.storeName()}. Cancel it there too, or it will keep renewing.`) : null;
+    const body = h('div', { class: 'si-form' }, h('p', null, 'This erases your email, sign-ins, name, two-factor data and cloud saves, and signs out every device. Match records stay, anonymised. Games on this device are kept.'), store,
+      me.mfa ? code : me.hasPassword ? pass : null, word);
+    const ok = await E.modal('Delete your account?', body, [{ label: 'Cancel', value: false }, { label: 'Delete account', value: true, primary: true }]);
+    if (!ok) return false;
+    if (word.value.trim().toUpperCase() !== 'DELETE') { E.toast('Type DELETE to confirm.'); return false; }
+    try {
+      await O.api('DELETE', '/api/me', { confirm: 'DELETE', password: pass.value || undefined, code: code.value || undefined });
+      O.setToken(null); O.me = null; O.ent = null; changed();
+      E.modal('Account deleted', 'Your account has been deleted. You can keep playing offline and on your local network.');
+      return true;
+    } catch (e) { E.toast(e.message, 5000); return false; }
+  };
+
   // Sign-in dialog used from the menus and settings.
   O.signInDialog = async function () {
     if (!O.config) await O.refresh().catch(() => {});
@@ -286,7 +357,9 @@
             close(true);
           } catch (x) { say(x.message); go.disabled = false; }
         };
-        const provs = ((O.config && O.config.providers) || []).filter(p => p !== 'dev' || /localhost/.test(O.base()));
+        let provs = ((O.config && O.config.providers) || []).filter(p => p !== 'dev' || /localhost/.test(O.base()));
+        // App Store guideline 4.8: on iOS, other sign-in providers only alongside Sign in with Apple
+        if (O.store === 'ios' && !provs.includes('apple')) provs = provs.filter(p => p === 'dev');
         const names = { google: 'Google', apple: 'Apple', steam: 'Steam', dev: 'Dev' };
         const pbtn = p => h('button', { class: 'btn small', type: 'button', onclick: () => viaBrowser(p) }, names[p] || p);
         box.replaceChildren(
@@ -323,15 +396,22 @@
       bg.addEventListener('click', e => { if (e.target === bg) close(false); });
     });
   };
-  // Membership prompt shown when a free match ends at the limit.
+  // Membership: offered when the free match is used, and from the account card.
+  O.freeText = () => {
+    const f = O.ent && O.ent.freeMatches, per = (f && f.perDay) || (O.config && O.config.freeMatchesPerDay) || 1;
+    return `${per === 1 ? 'One full online match' : `${per} full online matches`} every 24 hours are free, hosting or joining, however long ${per === 1 ? 'it runs' : 'they run'}.`;
+  };
   O.membershipDialog = async function (why) {
-    const mins = (O.ent && O.ent.freeMatchMinutes) || (O.config && O.config.freeMatchMinutes) || 15;
-    if (O.play() && !O.playPlans) { try { O.playPlans = (await O.play().products({})).plans || []; } catch (e) { O.playPlans = []; } }
-    if (O.play() && !O.price('month')) { await E.modal('Membership', 'Google Play is not answering right now. Try again in a moment.'); return; }
-    if (!O.canPurchase()) { await E.modal('The match has ended', `${why ? why + ' ' : ''}Free online matches last ${mins} minutes.`); return; }
-    const year = O.price('year');
-    const v = await E.modal('Keep the bloom going', `${why ? why + ' ' : ''}Free online matches last ${mins} minutes. Membership removes the limit for ${O.price('month')} a month${year ? ` (or ${year} a year)` : ''} and pays for the servers that introduce players.`,
-      [{ label: 'Not now', value: false }].concat(year ? [{ label: `${year} a year`, value: 'year' }] : [], [{ label: `${O.price('month')} a month`, value: 'month', primary: true }]));
+    if (O.canPurchase() && !O.prices && O.store !== 'steam') await O.loadPrices();
+    const base = `${why ? why + ' ' : ''}${O.freeText()} Games on your local network are always free.`;
+    if (!O.canPurchase()) { await E.modal('Online play', base); return; }
+    if (O.store !== 'steam' && !O.price('month')) { await E.modal('Membership', `${O.storeName()} is not answering right now. Try again in a moment.`); return; }
+    const offer = O.store === 'steam'
+      ? 'A season on Steam makes online play unlimited on Steam for a year.'
+      : `Membership makes online play unlimited on ${O.platformName()}: ${O.price('month')} a month${O.price('year') ? `, or ${O.price('year')} a year` : ''}. It is bought and cancelled in ${O.storeName()}.`;
+    const buttons = [{ label: 'Not now', value: false }].concat(O.store === 'steam' ? [{ label: 'Open the season on Steam', value: 'year', primary: true }]
+      : (O.price('year') ? [{ label: `${O.price('year')} a year`, value: 'year' }] : []).concat([{ label: `${O.price('month')} a month`, value: 'month', primary: true }]));
+    const v = await E.modal('Keep the bloom going', `${base} ${offer}`, buttons);
     if (v) { try { await O.subscribe(v); } catch (e) { E.toast(e.message); } }
   };
 })(window.E);

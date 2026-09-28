@@ -29,9 +29,16 @@ export interface PlayApi {
   // null when Google does not know the token (forged, wrong app, or long expired)
   getSubscription(token: string): Promise<PlaySubscription | null>;
   acknowledge(productId: string, token: string): Promise<void>;
+  // Play Integrity: the decoded verdict for a token the app requested with our nonce
+  decodeIntegrity(token: string): Promise<PlayIntegrity | null>;
+}
+export interface PlayIntegrity {
+  requestDetails?: { requestPackageName?: string; nonce?: string; timestampMillis?: string };
+  appIntegrity?: { appRecognitionVerdict?: string; packageName?: string };
+  accountDetails?: { appLicensingVerdict?: string };
 }
 
-const SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
+const SCOPE = 'https://www.googleapis.com/auth/androidpublisher https://www.googleapis.com/auth/playintegrity';
 export function googlePlayApi(serviceAccountJson: string, packageName: string, fetchImpl: typeof fetch = fetch): PlayApi {
   const raw = serviceAccountJson.trim().startsWith('{') ? serviceAccountJson : Buffer.from(serviceAccountJson, 'base64').toString('utf8');
   const sa = JSON.parse(raw) as { client_email: string; private_key: string; token_uri?: string };
@@ -60,6 +67,12 @@ export function googlePlayApi(serviceAccountJson: string, packageName: string, f
     async acknowledge(productId, token) {
       const r = await fetchImpl(`${base}/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(token)}:acknowledge`, { method: 'POST', headers: { authorization: `Bearer ${await accessToken()}`, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(10e3) });
       if (!r.ok && r.status !== 400) throw new Error(`Play acknowledge failed (${r.status})`); // 400: already acknowledged
+    },
+    async decodeIntegrity(token) {
+      const r = await fetchImpl(`https://playintegrity.googleapis.com/v1/${encodeURIComponent(packageName)}:decodeIntegrityToken`, { method: 'POST', headers: { authorization: `Bearer ${await accessToken()}`, 'content-type': 'application/json' }, body: JSON.stringify({ integrity_token: token }), signal: AbortSignal.timeout(10e3) });
+      if (r.status === 400) return null;
+      if (!r.ok) throw new Error(`Play Integrity error (${r.status})`);
+      return ((await r.json()) as any).tokenPayloadExternal as PlayIntegrity;
     },
   };
 }

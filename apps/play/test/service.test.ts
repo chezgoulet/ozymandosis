@@ -84,10 +84,10 @@ test('admin dashboard and live config', async () => {
   const admin = await staff('admin');
   const d = await t.api('GET', '/api/admin/dashboard', undefined, admin.token);
   assert.equal(d.status, 200); assert.ok(d.json.users >= 1); assert.ok('online' in d.json.live);
-  assert.equal((await t.api('PUT', '/api/admin/config/freeMatchMinutes', { value: 20 }, admin.token)).status, 200);
-  assert.equal((await t.api('GET', '/api/config')).json.freeMatchMinutes, 20);
-  assert.equal((await t.api('PUT', '/api/admin/config/freeMatchMinutes', { value: -1 }, admin.token)).status, 400);
-  await t.api('PUT', '/api/admin/config/freeMatchMinutes', { value: 15 }, admin.token);
+  assert.equal((await t.api('PUT', '/api/admin/config/freeMatchesPerDay', { value: 3 }, admin.token)).status, 200);
+  assert.equal((await t.api('GET', '/api/config')).json.freeMatchesPerDay, 3);
+  assert.equal((await t.api('PUT', '/api/admin/config/freeMatchesPerDay', { value: -1 }, admin.token)).status, 400);
+  await t.api('PUT', '/api/admin/config/freeMatchesPerDay', { value: 1 }, admin.token);
 });
 
 test('portal, admin console and fonts are served with a strict CSP', async () => {

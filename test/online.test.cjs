@@ -1,5 +1,6 @@
 // Online end to end: the play service (in-memory Postgres) introduces two browsers,
-// who play over WebRTC with a signed ticket; the free time limit ends the match.
+// who play over WebRTC with a signed ticket; the free daily match is counted when
+// the match starts, and a second match the same day is refused (docs/MONETIZATION.md).
 // Every online match is relayed (D19), so this runs a real coturn (Docker, the
 // image production uses) and reads the selected ICE pair from each connection.
 // Playwright traces are recorded and kept for failed runs (test/traces/).
@@ -72,9 +73,11 @@ const stopTurn = () => { try { execFileSync('docker', ['rm', '-f', TURN_NAME], {
     await host.screenshot({ path: OUT + '/online-02-lobby.png' });
     await host.click('#setup-start');
     await guest.waitForSelector('#game:not([hidden])', { timeout: 10000 }); await guest.waitForTimeout(2000);
-    const tk = await Promise.all([host, guest].map(p => p.evaluate(() => E.game.ticket && { n: E.game.ticket.players.length, until: E.game.ticket.players.map(x => x.until), unverified: !!E.game.ticket.unverified })));
-    console.log('tickets', JSON.stringify(tk)); assert(tk[0] && tk[1] && tk[0].n === 2 && tk[0].until.every(Boolean), 'free players carry deadlines');
-    assert(await guest.evaluate(() => !document.getElementById('h-limit').hidden), 'free time chip shows');
+    const tk = await Promise.all([host, guest].map(p => p.evaluate(() => E.game.ticket && { v: E.game.ticket.v, n: E.game.ticket.players.length, free: E.game.ticket.players.map(x => x.free), until: E.game.ticket.players.map(x => x.until), unverified: !!E.game.ticket.unverified })));
+    console.log('tickets', JSON.stringify(tk));
+    assert(tk[0] && tk[1] && tk[0].v === 2 && tk[0].n === 2, 'both hold the signed ticket');
+    assert(tk[0].free.every(f => f === 0), 'each free player has used the one free match (a count, not a deadline)');
+    assert(tk[0].until.every(u => u === undefined), 'no time limit inside a match');
     // D19: read the selected candidate pair from each connection; it must be relayed
     const pairs = await Promise.all([host, guest].map(p => p.evaluate(async () => {
       const peer = [...E.game.relay.peers.values()][0], stats = await peer.pc.getStats(); let pair = null;
@@ -93,26 +96,10 @@ const stopTurn = () => { try { execFileSync('docker', ['rm', '-f', TURN_NAME], {
     const rep = await host.evaluate(() => E.Online.reportPlayer(E.game.rivals()[0].uid, 'other', 'e2e check').then(() => 'ok', e => e.message));
     assert.strictEqual(rep, 'ok');
     assert(await host.evaluate(() => E.Crash.send({ kind: 'bug', description: 'e2e bug report', message: 'e2e' })), 'bug report accepted');
-    // the host's free time runs out: the match ends for both
-    await host.evaluate(() => { E.game.ticketOffset += 16 * 60e3; });
-    await guest.waitForSelector('#scr-menu:not([hidden])', { timeout: 10000 });
-    await host.waitForSelector('#scr-menu:not([hidden])', { timeout: 10000 });
-    assert(await guest.evaluate(() => !!document.querySelector('.modal')), 'membership prompt offered');
-    await guest.screenshot({ path: OUT + '/online-04-limit.png' });
-    console.log('limit enforced on both sides');
-    await sleep(500);
-    await Promise.all([host, guest].map(p => p.evaluate(() => { document.querySelectorAll('.modal-bg, .modal').forEach(m => m.remove()); })));
-    await guest.screenshot({ path: OUT + '/online-04b-before.png' });
-    // a second match plays to the end: both report, the guest checks the host, the server confirms
-    await host.click('#m-mp'); await host.waitForSelector('#mp-online-play:not([hidden])');
-    await host.click('#mp-host-online'); await host.waitForSelector('#scr-setup:not([hidden])');
-    const room2 = (await host.textContent('#setup-room')).replace('ROOM ', '').trim();
-    await guest.click('#m-mp'); await guest.waitForSelector('#mp-online-play:not([hidden])');
-    await guest.waitForSelector('#mp-join-online', { state: 'visible' });
-    await guest.fill('#mp-code-online', room2); await guest.click('#mp-join-online');
-    await guest.waitForSelector('#scr-setup:not([hidden])'); await host.waitForTimeout(800);
-    await host.click('#setup-start');
-    await guest.waitForSelector('#game:not([hidden])', { timeout: 10000 }); await guest.waitForTimeout(1500);
+    // the match started: the free daily match is counted for both, whichever side they are on
+    const pills = await Promise.all([host, guest].map(p => p.evaluate(async () => { await E.Online.refresh(); return E.Online.ent.freeMatches; })));
+    console.log('allowance after the start', JSON.stringify(pills)); assert(pills.every(f => f && f.left === 0 && f.nextAt), 'counted once for each, with the next free match 24 hours on');
+    // the match plays to the end: both report, the guest checks the host, the server confirms
     // the guest gives a few orders (they must show up in the host's log)
     await guest.evaluate(() => { const g = E.game, ids = g.world.s.units.filter(u => u.o === g.local).map(u => u.id); for (let i = 0; i < 3; i++) g.send({ c: 'move', ids, x: 500 + i * 20, y: 500 }); });
     await host.waitForTimeout(800);
@@ -130,6 +117,16 @@ const stopTurn = () => { try { execFileSync('docker', ['rm', '-f', TURN_NAME], {
     console.log('guest audit', JSON.stringify(audit), '·', await host.textContent('#end-result'));
     assert(audit && audit.verdict === 'ok' && audit.windows >= 2, 'guest verified the host');
     await guest.screenshot({ path: OUT + '/online-05-result.png' });
+    // a second match the same day is refused, hosting or joining, with the offer instead
+    await Promise.all([host, guest].map(p => p.evaluate(() => { document.querySelectorAll('.modal-bg, .modal').forEach(m => m.remove()); E.game.quit && E.game.quit(); })));
+    await host.click('#m-mp'); await host.waitForSelector('#mp-online-play:not([hidden])');
+    await host.click('#mp-host-online');
+    await host.waitForSelector('.modal', { timeout: 10000 });
+    const said = await host.textContent('.modal');
+    console.log('second match:', said.replace(/\s+/g, ' ').slice(0, 200));
+    assert(/free online match/i.test(said) && /24 hours/.test(said), 'refused, with the allowance explained');
+    assert(await host.evaluate(() => document.getElementById('scr-setup').hidden), 'no lobby was opened');
+    await host.screenshot({ path: OUT + '/online-06-allowance.png' });
     // lineage, designs and saves sync to the account
     const cloud = await guest.evaluate(async () => { await E.Cloud.sync(); return (await E.Online.api('GET', '/api/cloud')).items.map(i => i.key); });
     console.log('cloud items', cloud.join(', ')); assert(cloud.includes('profile'), 'profile synced');

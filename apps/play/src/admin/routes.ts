@@ -169,7 +169,7 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
   });
 
   // ── live configuration ─────────────────────────────────────────
-  const CONFIG_KEYS = z.enum(['maintenance', 'minClientVersion', 'freeMatchMinutes', 'features', 'turnstileSiteKey']);
+  const CONFIG_KEYS = z.enum(['maintenance', 'minClientVersion', 'freeMatchesPerDay', 'features', 'turnstileSiteKey']);
   app.get('/api/admin/config', async req => {
     requireRole(req, 'admin');
     return { config: await ctx.db.query(`select c.key, c.value, c.updated_at, u.display_name as updated_by from remote_config c left join users u on u.id = c.updated_by`) };
@@ -181,7 +181,7 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
     const shapes: Record<string, z.ZodTypeAny> = {
       maintenance: z.object({ on: z.boolean(), message: z.string().max(300).optional() }),
       minClientVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
-      freeMatchMinutes: z.number().int().min(1).max(600),
+      freeMatchesPerDay: z.number().int().min(0).max(20),
       features: z.record(z.string(), z.union([z.boolean(), z.number(), z.string()])),
       turnstileSiteKey: z.string().max(100).nullable(),
     };
@@ -198,7 +198,7 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
     requireRole(req, 'support');
     const q = z.object({ status: z.enum(['open', 'confirmed', 'disputed', 'void']).optional() }).parse(req.query);
     const rows = await ctx.db.query(`select m.id, m.code, m.mode, m.started_at, m.ended_at, m.duration_s, m.status, m.rated, m.verdict, m.claims, h.display_name as host,
-      (select json_agg(json_build_object('uid', u.id, 'name', u.display_name, 'result', mp.result, 'delta', mp.rating_delta, 'until', mp.until) order by mp.slot) from match_players mp join users u on u.id = mp.user_id where mp.match_id = m.id) as players
+      (select json_agg(json_build_object('uid', u.id, 'name', u.display_name, 'result', mp.result, 'delta', mp.rating_delta, 'free', mp.free_used) order by mp.slot) from match_players mp join users u on u.id = mp.user_id where mp.match_id = m.id) as players
       from matches m left join users h on h.id = m.host_id where ($1::text is null or m.status = $1) order by m.started_at desc nulls last limit 100`, [q.status || null]);
     const disputed = Number((await ctx.db.one<any>(`select count(*) as n from matches where status = 'disputed' and settled_at > now() - interval '30 days'`))?.n || 0);
     return { matches: rows, live: ctx.hub.stats(), disputed };

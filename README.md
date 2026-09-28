@@ -23,7 +23,7 @@ server/server.js                 LAN server: static files + WebRTC signaling
 server/signal.cjs                LAN signaling, shared with the desktop shell (Android/iOS: LanPlugin)
 apps/play/                       play.ozymandosis.com: accounts, 2FA, OAuth, Stripe, matchmaking,
                                  signaling, tickets, crash reports, moderation, admin console
-apps/site/                       ozymandosis.com: the website; the web client is served at /play/
+apps/site/                       ozymandosis.com: the website (there is no browser version of the game)
 apps/desktop/                    Electron shell (installed separately)
 deploy/                          Compose stack: Caddy (TLS), play, Postgres, coturn (TURN), backups
 android/, ios/                   Capacitor projects
@@ -47,7 +47,7 @@ android/, ios/                   Capacitor projects
 - **The Spawnforge**: design your own creatures, save them to a library, and hatch them in any match once their parts are evolved.
 - **Maps** generated from a seed: Tidepool 2400², Lagoon 3600×2400, Reef 4800×3200, Abyss 6400×4200. Also configurable: 2–6 cultures, teams or free-for-all, resource richness, powerup frequency, starting lumen, fog of war, ocean currents.
 - **Bots** at four difficulty levels (Gentle, Tidal, Abyssal, Leviathan). They expand, research, design creatures, raid, defend, and use powers.
-- **Multiplayer**: humans and bots in any mix, host-authoritative, with lobbies, room codes, chat and pause sync. Matches run peer to peer over encrypted WebRTC DataChannels; servers only introduce players. Online: accounts, rated quick match (duel, 4-player FFA), a public lobby browser, and a $1/month membership that lifts the 15-minute limit on online matches. If a player drops, a bot takes over their colony until they rejoin.
+- **Multiplayer**: humans and bots in any mix, host-authoritative, with lobbies, room codes, chat and pause sync. Matches run peer to peer over encrypted WebRTC DataChannels; servers only introduce players. Online: accounts, rated quick match (duel, 4-player FFA), a public lobby browser, and the scheme in docs/MONETIZATION.md: $1 on Steam, iOS and Android, one free online match every 24 hours, then a membership bought in that platform's store ($2/month or $12/year; a $12 season on Steam). LAN play is always free. If a player drops, a bot takes over their colony until they rejoin.
 - **Wounds and healing**: creatures shed organs and tail as they are hurt, spraying residue in their culture's colours, and regrow as they heal: slowly on their own, fast (for lumen) beside a Nucleus or Bud via the Mend order. Gatherers (pale, with a harvest sac) and fighters (plated and spiked) are easy to tell apart.
 - **Living structures**: every Nucleus, Bud and Spire is an asymmetric organism with a heartbeat, veins and rim organs at your research tier, plus a culture signature (roots, nautilus shell, flagella vortex, song rings, toothed maw, carapace and egg sacs).
 - **A generative score**: composed live in each culture's mode, from ambient drift to a pumping synth surge as fighting grows.
@@ -106,7 +106,7 @@ npm run play:test # play service: auth, 2FA, hand-off, OAuth, lobbies, tickets, 
                   # reports, moderation, announcements, config, static pages (in-memory Postgres)
 npm run test:ui   # browser: features (backends, governor, undo, touch build confirm, tutorial, rematch), menus and a full match, touch gestures and reload→continue,
                   # two-browser multiplayer over WebRTC (lobby, commands, pause, drop→bot, rejoin), and online
-                  # end to end (sign-up, lobby browser, join, signed tickets, reports, free time limit)
+                  # end to end (sign-up, lobby browser, join, signed tickets, relayed match, the daily free match)
 ```
 
 The browser tests use Playwright-core with a local Chromium (`PW=/path/to/playwright-core` to point elsewhere).
