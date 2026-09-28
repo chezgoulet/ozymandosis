@@ -1,0 +1,9 @@
+{
+  "name": "@ozymandosis/site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ozymandosis.com: the game's website. Static; served by Caddy with the web client at /play/.",
+  "scripts": {
+    "build": "node build.cjs"
+  }
+}

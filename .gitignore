@@ -7,3 +7,6 @@ apps/*/dist/
 apps/play/data/
 .env
 deploy/.env
+deploy/backups/
+apps/desktop/web/
+apps/desktop/node_modules/

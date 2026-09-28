@@ -476,3 +476,16 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 .modal .seg button { min-height: 40px; }
 .tagline span { display: inline-block; }
 #mp-account > .row { margin-bottom: 16px; }
+/* scrolling overlays and screens: children keep their natural height */
+.overlay > *, .screen > *, .sheet > * { flex-shrink: 0; }
+.sheet > .sheet-body { flex-shrink: 1; min-height: 0; }
+/* command rows wrap instead of hiding buttons off-screen; buttons share the width */
+.hrow { flex-wrap: wrap; overflow-x: visible; }
+.hrow .cmd { flex: 1 0 62px; max-width: 112px; }
+/* long horizontal tab strips fade at the edge to show they scroll */
+.tabs { -webkit-mask: linear-gradient(90deg, #000 88%, transparent); mask: linear-gradient(90deg, #000 88%, transparent); padding-right: 24px; }
+@media (max-width: 440px) { .slot-row .ctl { grid-template-columns: 1fr; } .slot-row .ctl select { width: 100%; } }
+.slot-row select { text-overflow: ellipsis; }
+.hrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.hrow .cmd { max-width: none; min-width: 0; width: 100%; }
+.hrow .cmd span { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }

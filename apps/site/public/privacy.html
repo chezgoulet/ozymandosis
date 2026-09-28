@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ozymandosis Privacy</title><link rel="stylesheet" href="/ozy.css"><link rel="stylesheet" href="/site.css"></head>
+<body>
+<nav class="site"><a class="mark" href="/">Ozymandosis</a><div class="links"><a href="/play/">Play</a><a href="/terms">Terms</a></div></nav>
+<main class="doc">
+<h1>Privacy</h1>
+<p class="note">Draft for review by counsel before launch. It describes exactly what the software does.</p>
+<p>Ozymandosis collects as little about you as the service can run on. Playing offline sends nothing anywhere.</p>
+<h2>What we keep when you make an account</h2>
+<ul>
+<li><strong>Email address</strong> (email accounts, or when a sign-in provider shares a verified one): to sign you in, confirm it is yours, and let you reset your password.</li>
+<li><strong>Password</strong>: stored only as an Argon2id hash. Two-factor secrets are stored encrypted.</li>
+<li><strong>Sign-in providers</strong> (Google, Apple, Discord, GitHub, Steam): the account identifier each provider gives us, and nothing else from your profile beyond a suggested display name.</li>
+<li><strong>Display name, rating and match results</strong>: to run matchmaking and show your record.</li>
+<li><strong>Signed-in devices</strong>: a coarse label such as “Chrome on Android” and when each was last used, so you can sign them out.</li>
+<li><strong>Membership</strong>: its status and renewal date. Payments are handled by Stripe; we never see or store card details.</li>
+<li><strong>Reports</strong>: player reports you send (with the recent chat lines attached from your own game) and moderation decisions.</li>
+</ul>
+<h2>What we do not keep</h2>
+<ul><li>Our logs record the request, the result and a pseudonymous tag, never your email, IP address, or sign-in tokens.</li><li>No advertising or tracking cookies, no third-party analytics.</li></ul>
+<h2>Crash and bug reports</h2>
+<p>If the game crashes it can send a report: the error, the game version, your device type, the renderer and a short summary of the match. Emails, IP addresses and file paths are removed before storage. You can turn automatic reports off in the game’s Settings or in your account. Bug reports you send yourself may include a screenshot of the game if you choose.</p>
+<h2>Online matches</h2>
+<p>Matches connect players’ devices directly (WebRTC, encrypted with DTLS). As with any direct connection, the other players’ devices can see your IP address. Turn on <em>Hide my IP address</em> in Settings to route the match through our relay server instead; the relay forwards encrypted traffic it cannot read.</p>
+<h2>Your controls</h2>
+<p>From your account you can download all of your data, sign out devices, turn off crash reports, and delete your account. Deletion erases your email, sign-ins, name and two-factor data and cancels your membership; anonymised match records remain.</p>
+<h2>Processors</h2>
+<p>Stripe (payments), our email delivery provider (account emails), and our hosting provider. Sign-in providers only when you choose them.</p>
+<h2>Contact</h2>
+<p>privacy@ozymandosis.com</p>
+</main>
+</body>
+</html>

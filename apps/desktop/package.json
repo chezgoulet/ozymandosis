@@ -1,0 +1,24 @@
+{
+  "name": "@ozymandosis/desktop",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Desktop shell for Windows, macOS and Linux (the Steam build's base). Launches fullscreen. Not an npm workspace: install it separately so the server and CI never download Electron.",
+  "main": "main.cjs",
+  "scripts": {
+    "web": "node ../../tools/build-web.cjs && node -e \"require('fs').rmSync('web',{recursive:true,force:true});require('fs').cpSync('../../www','web',{recursive:true})\"",
+    "start": "npm run web && electron .",
+    "package": "npm run web && electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.ozymandosis.game",
+    "productName": "Ozymandosis",
+    "files": ["main.cjs", "web/**"],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg", "category": "public.app-category.strategy-games" },
+    "linux": { "target": "AppImage", "category": "Game" }
+  }
+}

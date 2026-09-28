@@ -9,13 +9,13 @@
 
   // First-game guide: contextual steps that complete themselves as you play.
   const GUIDE = [
-    { text: 'Tap your Nucleus (⌂ Home) to open the hatchery.', done: g => { const s = g.selStruct(); return s && s.o === g.local; } },
+    { text: 'Tap your Nucleus, or the Home button, to open the hatchery.', done: g => { const s = g.selStruct(); return s && s.o === g.local; } },
     { text: 'Hatch a Warden to guard your foragers. Long-press a card to queue five.', done: g => g.me().stats.hatched >= 1 },
-    { text: 'Foragers carry lumen home by themselves. ◌ Idle finds any that stopped working.', done: (g, t) => t > 12 },
-    { text: 'Open ⧉ Evolve and start an evolution. New organs change how your creatures look and fight.', done: g => g.me().research.length > 0 || (g.me().stats.evolved || 0) > 0 },
-    { text: 'Select a creature, tap ⬡ Build and plant a Bud beside distant pools to expand.', done: g => g.world.s.structs.some(b => b.o === g.local && b.kind === 'bud') },
+    { text: 'Foragers carry lumen home by themselves. The Idle button finds any that stopped working.', done: (g, t) => t > 12 },
+    { text: 'Open Evolve and start an evolution. New organs change how your creatures look and fight.', done: g => g.me().research.length > 0 || (g.me().stats.evolved || 0) > 0 },
+    { text: 'Select a creature, tap Build and plant a Bud beside distant pools to expand.', done: g => g.world.s.structs.some(b => b.o === g.local && b.kind === 'bud') },
     { text: 'Design a creature of your own in the Spawnforge, then hatch it.', done: g => g.me().designs.some(d => d.id[0] === 'u') },
-    { text: 'Tap ⚔ Army, then tap the ground to send them. They fight anything on the way.', done: g => g.me().stats.kills > 0 },
+    { text: 'Tap Army, then tap the ground to send them. They fight anything on the way.', done: g => g.me().stats.kills > 0 },
   ];
 
   const DIFF_ORDER = ['easy', 'normal', 'hard', 'brutal'];
@@ -390,7 +390,19 @@
       $('h-obj-t').textContent = mode === 'tide' ? `${Math.floor(me)}/${goal}` : `${Math.floor(me / 100) / 10}k/${goal / 1000}k`;
       el.title = E.MODES[mode].name + ': ' + E.MODES[mode].desc;
     }
-    jump(x, y) { this.renderer.cam.x = x; this.renderer.cam.y = y; this.renderer.clampCam(this.world); }
+    // Jumps centre the target in the part of the screen the HUD leaves visible, not behind the sheet.
+    jump(x, y) {
+      const R = this.renderer, o = this.freeCenter();
+      R.cam.x = x - (o.x - R.W / 2) / R.cam.z; R.cam.y = y - (o.y - R.H / 2) / R.cam.z; R.clampCam(this.world);
+    }
+    freeCenter() {
+      const R = this.renderer, W = R.W, H = R.H, sh = $('sheet').getBoundingClientRect(), fb = document.querySelector('.fabs').getBoundingClientRect();
+      const top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hud-h')) || 50;
+      let left = 0, right = W, bottom = H;
+      if (sh.width && sh.left > W * 0.3 && sh.top < H * 0.3) right = sh.left;             // sheet docked right (landscape phones)
+      else if (sh.height && sh.width > W * 0.6) bottom = Math.min(sh.top, fb.width > fb.height && fb.top > H * 0.4 ? fb.top : sh.top); // docked at the bottom
+      return { x: (left + right) / 2, y: (top + Math.max(top + 80, bottom)) / 2 };
+    }
 
     // ── camera ──────────────────────────────────────────────────
     updateCamera(dt) {
@@ -934,7 +946,7 @@
         const actives = me.specials.filter(id => E.POWERS[id].kind === 'active');
         const passives = me.specials.filter(id => E.POWERS[id].kind === 'passive');
         body.appendChild(h('div', { class: 'sec-l' }, 'Colony powers'));
-        if (!me.specials.length) body.appendChild(h('div', { style: 'font-size:.84em;color:var(--ink-dim)' }, 'Evolve powers on the tech tree (⧉ → Powers).'));
+        if (!me.specials.length) body.appendChild(h('div', { style: 'font-size:.84em;color:var(--ink-dim)' }, 'Evolve colony powers under Evolve → Powers.'));
         if (actives.length) {
           const pr = h('div', { class: 'hrow' });
           for (const id of actives) { const P = E.POWERS[id]; const b = cmd(P.glyph, P.name, null, () => this.usePower(id), { style: `color:${P.color}` }); b.appendChild(h('i', { class: 'cd' })); pr.appendChild(b); this.dyn.push({ k: 'power', id, el: b }); }

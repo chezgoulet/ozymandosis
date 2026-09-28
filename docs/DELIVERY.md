@@ -48,3 +48,34 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 - No iOS binary (see the blocker above).
 - The WebGPU bundle carries its own copy of three's core (about 1 MB), loaded only when WebGPU is chosen.
 - Balance is tuned on bot-vs-bot games.
+
+---
+
+# Update: Ozymandosis (renamed), online service, living structures, score
+
+| Request | Where it lives |
+|---|---|
+| Renamed to Ozymandosis | UI, manifest, app ids (`com.ozymandosis.game`), icons and splashes, docs; end titles quote Shelley |
+| Right-hand button icons centred and themed | `js/ui/icons.js` (claws, grub, nucleus, helix, egg, conch, tendrils…), `.fab` icon-over-label layout |
+| Legible, Verne/Lovecraft type | Atkinson Hyperlegible Next and Mono for text, Cinzel for display (D17) |
+| Buildings as living organisms | `js/render/anatomy.js`: asymmetric lobes, heartbeat, veins, rim organs at the colony's tier, culture signatures |
+| Desktop fullscreen, WASD | `js/native.js` (first gesture, Alt+Enter/F11, setting), `apps/desktop` (launches fullscreen); WASD with eased panning (D18) |
+| Forge → Spawnforge | everywhere |
+| Text fit and centring | dock layout (sheet, organ buttons, guide and alerts stack), wrapping command grid, overlay flex fix, phone setup rows, overflow sweep |
+| Procedural, moody soundtrack | `js/core/music.js`: Markov harmony, leitmotifs, adaptive sections, synthwave + generative-ambient palette |
+| Server in the monorepo | `apps/play` (Fastify, Postgres), `apps/site`, `deploy/` (Caddy, coturn, Postgres, backups) |
+| Discovery and matching only; P2P encrypted games | WebRTC DataChannels (D11); LAN and online signaling |
+| Accounts: email + TOTP 2FA; Google, Apple, Discord, GitHub, Steam | `apps/play/src/auth` |
+| Stripe, $1/month, >15-minute matches | `apps/play/src/billing`, signed tickets enforced by peers (D12) |
+| Minimal PII in logs | D16, `docs/PLAY-SERVICE.md` → Privacy |
+| Crash and bug reports as reports | `js/core/crash.js`, `/api/reports`, admin → Crashes & bugs |
+| ozymandosis.com + www; play.ozymandosis.com | `apps/site`, `deploy/Caddyfile` |
+| Moderation, announcements, admin tooling | admin console, sanctions, player reports, live config, audit log, operator CLI, backups, dashboards |
+
+## Known limits
+- The time limit is enforced by honest clients (D12).
+- Membership is sold on the web; app-store and Steam billing rules need review before store submission (`docs/DEPLOY.md` §5).
+- The desktop shell is written but was not launched here (no display); the Steamworks SDK is not yet integrated.
+- The soundtrack was checked by recording it in headless Chromium and measuring spectra and levels, not by ear. Tune by listening.
+- `@capacitor/cli` 6 pulls a vulnerable `tar` (build tooling only); upgrading Capacitor needs JDK 21 (D7).
+- Legal pages are drafts for counsel.

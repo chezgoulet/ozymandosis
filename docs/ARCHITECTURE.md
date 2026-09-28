@@ -46,3 +46,14 @@ Ozymandosis is plain browser scripts on one global namespace `E`. There is no bu
 
 ## Determinism contract
 The sim's inputs are the config, the seed and the command stream. Pending commands are part of the saved state, so a save taken between ticks resumes identically (tested). Personas, objectives, counters and currents are all inside the sim. Cosmetic systems (progression, palette-tinted HUD, audio) live outside it and never feed back.
+
+## Living structures (js/render/anatomy.js)
+`E.drawStructure(D, renderer, view, b, pal, t)` draws a Nucleus, Bud or Spire as an organism through a small adapter `D` (`glow`, `glowTop`, `seg`, `poly`, `organ`). The GL backend maps it onto the batches (ribbons, glows, atlas organ sprites); `E.canvasStructAdapter` maps it onto Canvas2D strokes and the organ drawers. A per-individual **genome** (seeded by structure id and culture) fixes the silhouette harmonics, fused lobes, heart offset, rim organ order and sizes, and the culture signature. Renderer-only state (hurt flinch, aim easing, spire recoil from `spire` events) lives in `renderer.structVis`, never in the sim. Rim organs use the colony's research tier, so buildings evolve with the creatures. LOD: 0 full, 1 reduced, 2 membrane and heart only.
+
+## The score (js/core/music.js)
+A lookahead scheduler (25 ms timer, 160 ms horizon) plays 16th-note steps on the AudioContext clock. State: theme (culture mode, root, tempo, leitmotif seed), chord (Markov chain over scale degrees), section (drift, pulse, break, surge, chosen at 4-bar boundaries from a smoothed intensity), and mood (energy → brightness, fever → detune, drive and tempo). Voices are built per note from oscillators, filters and gains; a kick-driven gain node pumps the synth bus. `musicTick()` in the game computes intensity from engaged creatures, recent alerts and fever.
+
+## Online (js/net, apps/play)
+- **Transport**: `E.Relay` keeps its original API but carries every game message over WebRTC DataChannels (host↔guest star, chunked framing, snapshot back-pressure). The WebSocket only negotiates offers, answers and ICE candidates. A match survives losing the signaling server.
+- **Signaling servers**: `server/server.js` for LAN rooms; `apps/play` for accounts, lobbies, quick match, TURN credentials and match tickets (same `host`/`join`/`signal` protocol plus extras). See `docs/PLAY-SERVICE.md`.
+- **Tickets**: on start the service signs (Ed25519) the list of players with each free player's deadline; clients verify it with WebCrypto and enforce it on each other.
