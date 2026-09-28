@@ -138,10 +138,13 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   const here = dirname(fileURLToPath(import.meta.url));
   const pub = [join(here, '../public'), join(here, '../../public')].find(existsSync);
   if (pub) {
-    await app.register(fstatic, { root: pub, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (res: any) => res.setHeader('cache-control', 'no-cache') });
+    await app.register(fstatic, { root: pub, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (reply: any) => reply.header('cache-control', 'no-cache') });
     for (const p of ['/login', '/verify', '/reset', '/account']) app.get(p, (req, reply) => reply.sendFile('index.html'));
     app.get('/admin', (req, reply) => reply.sendFile('admin/index.html'));
   }
+  // The game's typefaces, shared with the portal (copied into the image in production).
+  const fonts = [join(here, '../public-fonts'), join(here, '../../../vendor/fonts'), join(here, '../../../../vendor/fonts')].find(existsSync);
+  if (fonts) await app.register(fstatic, { root: fonts, prefix: '/fonts/', decorateReply: false, setHeaders: (reply: any) => reply.header('cache-control', 'public, max-age=604800') });
   app.addHook('onClose', async () => { ctx.hub.close(); await db.close(); });
   return { app, ctx };
 }

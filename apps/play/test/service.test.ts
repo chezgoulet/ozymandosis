@@ -89,3 +89,13 @@ test('admin dashboard and live config', async () => {
   assert.equal((await t.api('PUT', '/api/admin/config/freeMatchMinutes', { value: -1 }, admin.token)).status, 400);
   await t.api('PUT', '/api/admin/config/freeMatchMinutes', { value: 15 }, admin.token);
 });
+
+test('portal, admin console and fonts are served with a strict CSP', async () => {
+  for (const url of ['/', '/login', '/account', '/admin', '/portal.js', '/admin/admin.js', '/fonts/Cinzel-normal.woff2']) {
+    const r = await t.app.inject({ method: 'GET', url });
+    assert.equal(r.statusCode, 200, url);
+  }
+  const r = await t.app.inject({ method: 'GET', url: '/login' });
+  assert.match(String(r.headers['content-security-policy']), /script-src 'self'/);
+  assert.match(r.body, /Ozymandosis/);
+});

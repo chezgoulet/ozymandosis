@@ -25,7 +25,9 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
       one(`select count(*) from player_reports where status = 'open'`),
       one(`select count(*) from matches where started_at > now() - interval '1 day'`),
     ]);
-    const series = await ctx.db.query<any>(`select day, key, value from daily_stats where day > current_date - 30 order by day`);
+    // dense 30-day series computed on the database's calendar, so the client never guesses time zones
+    const series = await ctx.db.query<any>(`select d::date::text as day, k.key, coalesce(s.value, 0) as value from generate_series(current_date - 29, current_date, interval '1 day') d
+      cross join (values ('signups'), ('matches_started'), ('crashes'), ('subscriptions_started')) k(key) left join daily_stats s on s.day = d::date and s.key = k.key order by d`);
     const topIssues = await ctx.db.query<any>(`select id, title, count, last_seen, last_version, status from issues where kind = 'crash' and status in ('open', 'regressed') order by last_seen desc limit 8`);
     return { now: new Date().toISOString(), live: ctx.hub.stats(), users, dau, wau, mau, subscribers: subs, mrrUsd: subs * 1, openIssues, regressed, openReports, matches24, series, topIssues };
   });

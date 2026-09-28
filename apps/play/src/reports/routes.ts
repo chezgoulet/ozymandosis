@@ -29,7 +29,8 @@ export function fingerprint(kind: string, message: string, stack: string): { fp:
   const msg = message.replace(/\b\d+(\.\d+)?\b/g, 'N').replace(/'[^']*'|"[^"]*"/g, 'S').slice(0, 200).trim();
   const frames = stack.split('\n').map(l => l.trim()).filter(l => /^at |@/.test(l)).slice(0, 4)
     .map(l => l.replace(/\(?(https?|file|capacitor):\/\/[^)\s]*?\/([^/)\s]+?)(\?[^:)\s]*)?:\d+:\d+\)?/g, '$2').replace(/:\d+:\d+/g, ''));
-  const title = kind === 'bug' ? (msg || 'Bug report') : (msg || frames[0] || 'Unknown crash');
+  const plain = message.replace(/\s+/g, ' ').trim().slice(0, 200);
+  const title = kind === 'bug' ? (plain || 'Bug report') : (plain || frames[0] || 'Unknown crash');
   return { fp: sha256(kind + '|' + (kind === 'bug' ? 'user-reported' : msg + '|' + frames.join('|'))), title: title.slice(0, 160) };
 }
 
