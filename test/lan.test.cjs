@@ -44,7 +44,17 @@ async function stopHost(key) { const h = hosts.get(key); if (!h) return; hosts.d
     await ctx.addInitScript(() => { window.ozyLan = { startHost: o => window.__lan('host', o), stopHost: () => window.__lan('stop'), discover: o => window.__lan('discover', o) }; });
     const p = await ctx.newPage();
     p.on('pageerror', e => errs.push(`[${name}] ${e.message}`));
-    p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_INTERNET_DISCONNECTED/.test(m.text())) errs.push(`[${name}] ${m.text()}`); });
+    // This test aborts every request to the service on purpose, so the browser's
+    // complaint about it is expected on every engine. Firefox words the same
+    // aborted cross-origin request as "Cross-Origin Request Blocked" where
+    // Chromium says "Failed to load resource", so match the engine-neutral fact
+    // — the error names the service we deliberately blocked — instead of one
+    // engine's phrasing.
+    p.on('console', m => {
+      const t = m.text();
+      const aboutTheServiceWeBlocked = t.includes(SERVICE) || /Cross-Origin Request Blocked/.test(t);
+      if (m.type() === 'error' && !aboutTheServiceWeBlocked && !/Failed to load resource|ERR_INTERNET_DISCONNECTED/.test(t)) errs.push(`[${name}] ${t}`);
+    });
     await p.goto(GAME); await p.waitForTimeout(600);
     return { p, ctx };
   };
