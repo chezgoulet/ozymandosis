@@ -97,3 +97,23 @@ mechanism stands, but the policy it enforces is no longer a per-match time limit
 4. **The remote-config value changes shape.** `FREE_MATCH_MINUTES` becomes a
    per-day match allowance, and the signed ticket carries a count rather than an
    expiry.
+
+## The LAN boundary
+
+**A same-network match is not gated at all** — not by the purchase, not by the
+subscription, not by the daily allowance. Two devices on the same network
+discover each other and play the full game directly, with no relay, no account
+and no call to the service. Only **worldwide online play** is gated: one free
+match per rolling 24 hours, then the subscription.
+
+Two consequences worth stating:
+
+- **LAN is a cheat-free zone by construction.** No rating, no leaderboard and no
+  match ticket are involved, so none of the tamper-audit machinery applies to a
+  local match. It exists for rated online play only.
+- **A LAN match does not consume the daily online match.** The allowance counts
+  matches played through the service, which is what costs money to run.
+
+This is also the honest answer to "what does $1 buy": the whole game, including
+multiplayer with the people in your house, forever, with no internet required.
+The subscription buys reach, not features.
