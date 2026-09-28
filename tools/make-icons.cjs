@@ -51,7 +51,7 @@ const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
   await render(path.join(ROOT, 'icons/maskable-512.png'), 512, 512, { bg: DARK, scale: 0.86 });
   await render(path.join(ROOT, 'icons/favicon-64.png'), 64, 64, { bg: DARK, scale: 1.2 });
   // icon.svg (manifest "any", favicons) wraps the 512 icon
-  fs.writeFileSync(path.join(ROOT, 'icon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512"><image width="512" height="512" href="${uri(path.join(ROOT, 'icons/icon-512.png'))}"/></svg>\n`);
+  fs.writeFileSync(path.join(ROOT, 'icon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><image width="192" height="192" href="${uri(path.join(ROOT, 'icons/icon-192.png'))}"/></svg>\n`);
   // the portal serves its own copy
   fs.copyFileSync(path.join(ROOT, 'icons/icon-192.png'), path.join(ROOT, 'apps/play/public/icon-192.png'));
   await b.close(); console.log('icons written');
