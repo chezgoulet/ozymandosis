@@ -10,3 +10,4 @@ deploy/.env
 deploy/backups/
 apps/desktop/web/
 apps/desktop/node_modules/
+apps/play/public/living-logo.js

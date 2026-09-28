@@ -16,12 +16,14 @@ const OUT = path.join(__dirname, 'shots');
   await p.goto(URL0 + '?quick=1&size=s'); await p.waitForTimeout(1200);
   const w2s = (x, y) => p.evaluate(([x, y]) => { const r = E.game.renderer.w2s(x, y); return [r.x, r.y]; }, [x, y]);
   // tap a unit to select it
-  const u = await p.evaluate(() => { const g = E.game, u = g.world.s.units.find(u => u.o === g.local && u.d === 'warden'); g.jump(u.x, u.y); return { id: u.id }; });
+  // hold the simulation still so the creature is where we tap
+  const u = await p.evaluate(() => { const g = E.game; g.paused = true; const u = g.world.s.units.find(u => u.o === g.local && u.d === 'warden'); g.jump(u.x, u.y); return { id: u.id }; });
   await p.waitForTimeout(200);
   let pos = await p.evaluate(id => { const u = E.game.world.byId.get(id); const r = E.game.renderer.w2s(u.x, u.y); return [r.x, r.y]; }, u.id);
   await tap(pos[0], pos[1]);
   let sel = await p.evaluate(() => [...E.game.selection]);
   console.log('tap-select', sel); assert(sel.includes(u.id), 'tap selects unit');
+  await p.evaluate(() => { E.game.paused = false; });
   // tap ground to command (attack-move)
   await p.evaluate(() => { window._cmds = []; const w = E.game.world, orig = w.command.bind(w); w.command = (pi, c) => { window._cmds.push(c); orig(pi, c); }; });
   await tap(200, 300);

@@ -9,11 +9,12 @@ import fstatic from '@fastify/static';
 import Stripe from 'stripe';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import type { Config } from './config.js';
 import { openDb, migrate, type Db } from './db/index.js';
 import { Secrets, TicketSigner } from './lib/crypto.js';
-import { makeMailer, type Mailer } from './lib/mail.js';
+import { makeMailer, setTitleImage, type Mailer } from './lib/mail.js';
 import { REDACT_PATHS, userTag } from './lib/privacy.js';
 import { HttpError, unauthorized, forbidden, ROLE_RANK, type Ctx, type Role } from './context.js';
 import { sessionUser } from './auth/service.js';
@@ -52,6 +53,7 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   const db = opts.db || (await openDb({ url: cfg.DATABASE_URL, dir: cfg.PGLITE_DIR }));
   await migrate(db, s => app.log.info(s));
   const signer = await loadSigner(db, secrets);
+  setTitleImage(`${cfg.SITE_URL}/img/ozymandosis-title.png`);
   const mail = opts.mailer || makeMailer(cfg.SMTP_URL, cfg.MAIL_FROM, s => app.log.info(s));
   const stripe = opts.stripe !== undefined ? opts.stripe : cfg.STRIPE_SECRET_KEY ? new Stripe(cfg.STRIPE_SECRET_KEY) : null;
   const ctx: Ctx = { cfg, db, secrets, mail, signer, stripe, log: app.log, hub: null as any, now: opts.now || Date.now };
@@ -139,6 +141,20 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   // Account portal and admin console (static, same origin as the API).
   const here = dirname(fileURLToPath(import.meta.url));
   const pub = [join(here, '../public'), join(here, '../../public')].find(existsSync);
+  // The living title: prebuilt into public/ for production; bundled from the game's source in development.
+  let livingLogo: Buffer | null = null;
+  app.get('/living-logo.js', async (req, reply) => {
+    if (!livingLogo) {
+      const built = pub && join(pub, 'living-logo.js');
+      if (built && existsSync(built)) livingLogo = readFileSync(built);
+      else {
+        const tool = [join(here, '../../../tools/living-logo.cjs'), join(here, '../../../../tools/living-logo.cjs')].find(existsSync);
+        if (!tool) return reply.code(404).send('');
+        livingLogo = Buffer.from(createRequire(import.meta.url)(tool).build());
+      }
+    }
+    return reply.type('text/javascript; charset=utf-8').header('cache-control', 'public, max-age=3600').send(livingLogo);
+  });
   if (pub) {
     await app.register(fstatic, { root: pub, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (reply: any) => reply.header('cache-control', 'no-cache') });
     for (const p of ['/login', '/verify', '/reset', '/account']) app.get(p, (req, reply) => reply.sendFile('index.html'));

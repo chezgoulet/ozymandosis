@@ -499,3 +499,9 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 .logo.living { background: none; filter: none; padding: 0; margin: 0 0 6px; width: min(96vw, 1040px); line-height: 0; }
 #logo-cv { display: block; width: 100%; aspect-ratio: 708 / 120; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* beta badge beside the living title, and the farewell title */
+.beta-badge { display: inline-flex; align-items: center; font: 700 .7rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: #1a1400; background: linear-gradient(135deg, #ffe066, #ffb347); border-radius: 999px; padding: 5px 9px 4px; box-shadow: 0 0 14px rgba(255, 200, 90, .45); white-space: nowrap; line-height: 1; }
+.logo.living { position: relative; }
+.logo.living .beta-badge { position: absolute; right: 1.5%; top: -2px; }
+@media (max-width: 560px) { .logo.living .beta-badge { font-size: .6rem; padding: 4px 7px 3px; top: -6px; right: 1%; } }
+.farewell-title { width: min(92vw, 900px); aspect-ratio: 708 / 120; display: block; }

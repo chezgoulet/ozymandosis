@@ -92,3 +92,10 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 | Culture names | The Slither, The Choir, The Seethe, The Bloom (ids unchanged, so saves and settings still load) |
 | Promo codes | `apps/play/src/billing/promo.ts`, admin → Promo codes, portal and game redemption |
 | Identity: Google, Apple, Steam, email | Discord and GitHub removed |
+
+## Follow-up: living title everywhere, Begin, beta
+| Request | Where it lives |
+|---|---|
+| The living title wherever the name is shown publicly | game title and farewell screen; website hero and navigation on every page; account portal; concept document (`title.html` in an iframe); emails and native splash screens get a rendered still (`tools/render-title.cjs`). Pages outside the game load `living-logo.js`, bundled from the game's own code by `tools/living-logo.cjs` (26 KB gzipped); it pauses off-screen and shows one still frame for reduced-motion users |
+| "Begin the bloom" → "Begin" | setup screen (skirmish and lobbies) |
+| Beta | badge beside every living title; notice banner on the website and the portal; badge in the admin console; beta clause in the terms; "BETA" in emails |

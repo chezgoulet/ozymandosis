@@ -3,7 +3,7 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY . .
-RUN node tools/build-web.cjs && node apps/site/build.cjs
+RUN npm install --no-save --no-package-lock esbuild@0.25 && node tools/build-web.cjs && node apps/site/build.cjs
 
 FROM caddy:2-alpine
 COPY --from=build /app/apps/site/dist /srv/site

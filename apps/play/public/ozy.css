@@ -56,3 +56,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 footer { text-align: center; color: var(--ink-dim); font-size: .85rem; margin-top: 24px; }
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ── the living title, the beta badge and the beta notice (site, portal) ── */
+.title-lockup { position: relative; display: block; margin: 0 auto; line-height: 0; }
+canvas[data-living-logo] { display: block; width: 100%; aspect-ratio: 708 / 120; }
+.title-lockup .sr-only, .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.beta-badge { display: inline-flex; align-items: center; justify-content: center; font: 700 .72rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: #1a1400;
+  background: linear-gradient(135deg, #ffe066, #ffb347); border-radius: 999px; padding: 5px 9px 4px; box-shadow: 0 0 14px rgba(255, 200, 90, .45); white-space: nowrap; }
+.title-lockup .beta-badge { position: absolute; right: 1.5%; top: -2px; }
+.hero .verse { margin-top: 14px; }
+.beta-banner { position: relative; z-index: 5; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; text-align: center; padding: 9px 16px;
+  background: linear-gradient(90deg, rgba(60, 40, 6, .92), rgba(40, 26, 4, .92)); border-bottom: 1px solid rgba(255, 200, 90, .4); color: #ffe7b0; font-size: .9rem; line-height: 1.4; }
+.beta-banner a { color: #ffe066; }
+.portal-title { width: min(100%, 560px); margin: 20px auto 0; }
+.brand .beta-badge { font-size: .6rem; padding: 3px 7px 2px; vertical-align: middle; margin-left: 4px; }

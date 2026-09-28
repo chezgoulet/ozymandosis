@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const ROOT = path.join(__dirname, '..'), WWW = path.join(ROOT, 'www');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const refs = [...html.matchAll(/(?:src|href)="([^"#?:]+)"/g)].map(m => m[1]).filter(f => !f.startsWith('http') && !f.startsWith('data:') && fs.existsSync(path.join(ROOT, f)));
-const extra = ['index.html', 'manifest.webmanifest', 'icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'vendor/three.webgpu.min.js', 'docs/concept.html',
+const extra = ['index.html', 'title.html', 'manifest.webmanifest', 'icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'vendor/three.webgpu.min.js', 'docs/concept.html',
   ...fs.readdirSync(path.join(ROOT, 'vendor/fonts')).map(f => 'vendor/fonts/' + f)];
 const files = [...new Set([...extra, ...refs])].sort();
 const hash = crypto.createHash('sha1');

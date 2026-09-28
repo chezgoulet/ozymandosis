@@ -104,7 +104,7 @@
     $('map-fog').checked = !!setup.map.fog; $('map-cur').checked = !!setup.map.currents;
     $('map-fog').disabled = $('map-cur').disabled = isGuest || !!(lobby && lobby.save);
     $('setup-start').hidden = isGuest;
-    $('setup-start').textContent = lobby ? 'Start the match' : 'Begin the bloom';
+    $('setup-start').textContent = 'Begin';
     drawMapPreview();
   }
   function changed() {
@@ -458,7 +458,11 @@
       window.close(); // desktop app and installed web apps close here
       setTimeout(() => {
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-        document.body.appendChild(h('div', { class: 'farewell' }, h('div', { class: 'logo-text' }, 'Ozymandosis'), h('p', null, 'Nothing beside remains. You can close this tab.'), h('button', { class: 'btn', onclick: e => e.target.parentNode.remove() }, 'Return')));
+        const cv = h('canvas', { class: 'farewell-title', 'aria-hidden': 'true' }), fw = h('div', { class: 'farewell' }, cv, h('p', null, 'Nothing beside remains. You can close this tab.'), h('button', { class: 'btn', onclick: () => { cancelAnimationFrame(raf); fw.remove(); } }, 'Return'));
+        document.body.appendChild(fw);
+        // the title stays alive to the end
+        const lg = new E.LivingLogo(cv); let last = performance.now(), raf = 0;
+        const step = now => { raf = requestAnimationFrame(step); lg.frame((now - last) / 1000); last = now; }; raf = requestAnimationFrame(step);
       }, 150);
     }, 350);
   };

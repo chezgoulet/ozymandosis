@@ -12,4 +12,5 @@ copy(path.join(ROOT, 'apps/play/public/ozy.css'), path.join(OUT, 'ozy.css')); //
 const www = path.join(ROOT, 'www');
 if (!fs.existsSync(www)) { console.error('www/ is missing: run node tools/build-web.cjs first'); process.exit(1); }
 copy(www, path.join(OUT, 'play'));
+fs.writeFileSync(path.join(OUT, 'living-logo.js'), require(path.join(ROOT, 'tools/living-logo.cjs')).build());
 console.log('site dist ready:', OUT);

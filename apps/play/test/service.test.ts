@@ -91,13 +91,17 @@ test('admin dashboard and live config', async () => {
 });
 
 test('portal, admin console and fonts are served with a strict CSP', async () => {
-  for (const url of ['/', '/login', '/account', '/admin', '/portal.js', '/admin/admin.js', '/fonts/Cinzel-normal.woff2']) {
+  for (const url of ['/', '/login', '/account', '/admin', '/portal.js', '/admin/admin.js', '/fonts/Cinzel-normal.woff2', '/living-logo.js']) {
     const r = await t.app.inject({ method: 'GET', url });
     assert.equal(r.statusCode, 200, url);
   }
   const r = await t.app.inject({ method: 'GET', url: '/login' });
   assert.match(String(r.headers['content-security-policy']), /script-src 'self'/);
   assert.match(r.body, /Ozymandosis/);
+  assert.match(r.body, /data-living-logo/, 'the portal shows the living title');
+  assert.match(r.body, /beta-banner/, 'and the beta notice');
+  const js = await t.app.inject({ method: 'GET', url: '/living-logo.js' });
+  assert.match(js.body, /LivingLogo/);
 });
 
 test('promo codes: finite uses, once per player, stacking, lifetime, expiry, disable, staff only', async () => {

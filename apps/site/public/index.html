@@ -7,7 +7,7 @@
 <title>Ozymandosis: a real-time strategy game of living light</title>
 <meta name="description" content="Grow a bioluminescent culture, evolve its creatures organ by organ, and outshine your rivals. Play free in your browser, on Android and iOS; online matches run directly between players, encrypted.">
 <meta property="og:title" content="Ozymandosis">
-<meta property="og:description" content="A real-time strategy game of living light. Grow a culture. Tend its light. Outshine the dark.">
+<meta property="og:description" content="A real-time strategy game of living light, where every empire is alive.">
 <meta property="og:image" content="/img/title.jpg">
 <meta property="og:type" content="website">
 <link rel="icon" href="/play/icon.svg" type="image/svg+xml">
@@ -15,14 +15,14 @@
 <link rel="stylesheet" href="/site.css">
 </head>
 <body>
+<div class="beta-banner" role="note"><span class="beta-badge">Beta</span><span>Ozymandosis is in beta: expect bugs, balance changes and the occasional reset of ratings or accounts. Please report what you find from the game’s menu.</span></div>
 <nav class="site" aria-label="Site">
-  <a class="mark" href="/">Ozymandosis</a>
+  <a class="mark" href="/" aria-label="Ozymandosis home"><canvas data-living-logo aria-hidden="true"></canvas><span class="beta-badge">Beta</span></a>
   <div class="links"><a href="#cultures">Cultures</a><a href="#online">Online</a><a href="#membership">Membership</a><a href="https://play.ozymandosis.com/account">Account</a></div>
 </nav>
 <header class="hero">
   <div>
-    <h1 class="logo">Ozymandosis</h1>
-    <p class="lede">Grow a culture. Tend its light. Outshine the dark.</p>
+    <h1 class="title-lockup hero-title"><canvas data-living-logo aria-hidden="true"></canvas><span class="sr-only">Ozymandosis</span><span class="beta-badge">Beta</span></h1>
     <p class="verse">Every empire here is alive: its halls breathe, its creatures grow the organs you evolve, and all of it can go dark.</p>
     <div class="cta">
       <a class="btn primary" href="/play/">Play in your browser</a>
@@ -80,5 +80,6 @@
   <p><a href="/play/">Play</a><a href="https://play.ozymandosis.com/account">Account</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></p>
   <p>© Ozymandosis. “Look on my works, ye Mighty, and despair!” (Shelley, 1818)</p>
 </footer>
+<script src="/living-logo.js" defer></script>
 </body>
 </html>
