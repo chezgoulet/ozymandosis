@@ -230,7 +230,7 @@
       else if (d.k === 'chat' && s) { lobbyLog(s.name, String(d.text).slice(0, 140)); r.send('all', { k: 'chat', from: s.name, text: String(d.text).slice(0, 140) }); }
       else if (d.k === 'hello') broadcastLobby();
     });
-    r.on('close', () => { if (lobby) { E.toast('Disconnected from relay'); lobby = null; E.Screens.show('scr-mp'); } });
+    r.on('close', () => { if (lobby) { E.toast('Disconnected from the lobby'); lobby = null; E.Screens.show('scr-mp'); } });
     r.host(playerName());
   }
   async function joinGame() {

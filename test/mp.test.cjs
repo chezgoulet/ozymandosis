@@ -1,4 +1,4 @@
-// Multiplayer end-to-end: host + guest browsers through the relay server.
+// Multiplayer end-to-end: host + guest browsers, introduced by the LAN signaling server, playing over WebRTC.
 const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
 const path = require('path');
 process.env.PORT = process.env.PORT || '8094'; process.env.QUIET = '1';
@@ -7,7 +7,7 @@ const URL0 = `http://localhost:${process.env.PORT}/`;
 const OUT = path.join(__dirname, 'shots');
 const assert = require('assert');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome' });
+  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome', args: ['--disable-features=WebRtcHideLocalIpsWithMdns'] });
   const errs = [];
   const page = async (name, vp, touch) => {
     const ctx = await b.newContext({ viewport: vp, hasTouch: !!touch, isMobile: !!touch });

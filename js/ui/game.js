@@ -154,7 +154,7 @@
         const p = this.world.s.players[peer.slot]; p.kind = 'bot'; p.diff = p.diff || 'normal'; p.dropped = true; p.income = 1;
         this.notify(`${peer.name} disconnected. A bot takes over until they return.`, 'info');
       });
-      r.on('close', () => this.notify('Lost connection to the relay server.', 'info'));
+      r.on('sigclose', () => this.notify('Lost the signaling server. The match continues peer to peer.', 'info'));
       for (const id of this.peers.keys()) this.sendInit(id);
     }
     sendInit(id) { const peer = this.peers.get(id); if (!peer) return; this.relay.send(id, E.NetPack.init(this.world, peer.slot)); this.relay.send(id, E.NetPack.snap(this.world, peer.slot, [])); }
@@ -171,7 +171,7 @@
         else if (d.k === 'pause') { this.remotePaused = d.on; $('ov-pause').hidden = !d.on; $('pause-note').textContent = d.on ? 'Paused by the host' : ''; }
       });
       r.on('closed', () => { this.notify('The host closed the game.', 'info'); E.toast('The host closed the game.'); setTimeout(() => this.quit(true), 1500); });
-      r.on('close', () => { if (this.running) this.notify('Disconnected from the relay.', 'info'); });
+      r.on('close', () => { if (this.running) this.notify('Lost the connection to the host.', 'info'); });
       r.on('error', m => E.toast(m.msg));
       r.toHost({ k: 'ready' });
     }

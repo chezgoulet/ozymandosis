@@ -1,6 +1,9 @@
 #!/usr/bin/env node
-// Ozymandosis relay server: serves the game files and relays multiplayer
-// messages between a room's host and its guests. Zero dependencies.
+// Ozymandosis LAN server: serves the game files and introduces players on a
+// local network. It only brokers WebRTC signaling (offers, answers, ICE); the
+// match itself runs peer to peer, encrypted, and never passes through here.
+// For internet play, play.ozymandosis.com (apps/play) does the same job with
+// accounts, matchmaking and TURN. Zero dependencies.
 //   node server/server.js            (PORT=8080 by default)
 'use strict';
 const http = require('http');
@@ -78,6 +81,8 @@ function sendFrame(c, op, data) {
 const send = (c, obj) => c && sendFrame(c, 1, Buffer.from(typeof obj === 'string' ? obj : JSON.stringify(obj)));
 
 // ── rooms ───────────────────────────────────────────────────────
+// STUN lets peers on different networks find each other; on one LAN host candidates suffice.
+const ICE = process.env.ICE_SERVERS ? JSON.parse(process.env.ICE_SERVERS) : [{ urls: 'stun:stun.l.google.com:19302' }];
 const rooms = new Map();
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 function code() { let s; do { s = ''; for (let i = 0; i < 4; i++) s += LETTERS[crypto.randomInt(LETTERS.length)]; } while (rooms.has(s)); return s; }
@@ -87,7 +92,7 @@ function onMessage(c, raw) {
     if (c.room) return;
     const room = { code: code(), host: c, peers: new Map(), seq: 0 };
     rooms.set(room.code, room); c.room = room; c.id = 0; c.name = String(m.name || 'Host').slice(0, 18);
-    send(c, { op: 'hosted', room: room.code, id: 0 });
+    send(c, { op: 'hosted', room: room.code, id: 0, ice: ICE });
     log(`room ${room.code} hosted by ${c.name}`);
   } else if (m.op === 'join') {
     const room = rooms.get(String(m.room || '').toUpperCase());
@@ -95,16 +100,13 @@ function onMessage(c, raw) {
     if (room.peers.size >= 5) return send(c, { op: 'error', msg: 'Room is full.' });
     c.room = room; c.id = ++room.seq; c.name = String(m.name || 'Guest').slice(0, 18);
     room.peers.set(c.id, c);
-    send(c, { op: 'joined', room: room.code, id: c.id });
+    send(c, { op: 'joined', room: room.code, id: c.id, ice: ICE, hostName: room.host.name });
     send(room.host, { op: 'peer', id: c.id, name: c.name });
     log(`${c.name} joined ${room.code}`);
-  } else if (m.op === 'send' && c.room) {
-    const room = c.room;
-    if (c === room.host) {
-      const out = JSON.stringify({ op: 'msg', from: 0, data: m.data });
-      if (m.to === 'all') for (const p of room.peers.values()) send(p, out);
-      else send(room.peers.get(m.to), out);
-    } else send(room.host, { op: 'msg', from: c.id, data: m.data });
+  } else if (m.op === 'signal' && c.room && m.data && typeof m.data === 'object') {
+    // WebRTC negotiation only: host ↔ guest, never guest ↔ guest
+    const room = c.room, to = c === room.host ? room.peers.get(m.to) : m.to === 0 ? room.host : null;
+    if (to) send(to, { op: 'signal', from: c.id, data: m.data });
   } else if (m.op === 'kick' && c.room && c === c.room.host) {
     const p = c.room.peers.get(m.id); if (p) { send(p, { op: 'error', msg: 'Removed by host.' }); p.socket.end(); }
   }
