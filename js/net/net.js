@@ -280,7 +280,8 @@
     // memo (per guest, reset on init) remembers the slow player fields it already has.
     snap(w, slot, events, memo) {
       const s = w.s, see = this.sight(w, slot);
-      const ally = o => o === slot || !w.isEnemy(slot, o);
+      // owned by the slot's team (neutral things, with no owner, are nobody's ally)
+      const ally = o => o === slot || (o >= 0 && !!s.players[o] && !w.isEnemy(slot, o));
       const shown = (o, x, y) => !see || ally(o) || see(x, y);
       const players = s.players.map(p => {
         let c;
@@ -340,7 +341,7 @@
       // again (or watch them die), the way scouting works in any RTS.
       const ghosts = w.ghosts || (w.ghosts = new Map()), live = new Set(m.structs.map(b => b.id)), gone = new Set();
       for (const ev of m.ev || []) if (ev.e === 'destroy' && ev.id !== undefined) gone.add(ev.id);
-      const rival = o => !(local >= 0) || w.isEnemy(local, o);
+      const rival = o => !(local >= 0) || !(o >= 0) || !s.players[o] || w.isEnemy(local, o);
       if (!m.fog) ghosts.clear();
       else for (const b of s.structs) if (!live.has(b.id) && !gone.has(b.id) && rival(b.o)) ghosts.set(b.id, Object.assign(b, { ghost: true }));
       for (const id of live) ghosts.delete(id);

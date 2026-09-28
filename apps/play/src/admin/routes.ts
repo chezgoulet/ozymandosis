@@ -219,6 +219,33 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
     await audit(ctx, a.user.id, 'match.resolve', id, { accept: b.accept, note: b.note, status: r?.status, rated: r?.rated });
     return { ok: true, result: r };
   });
+  // Balance: win rates by culture (with a 95% Wilson interval) and the designs players field.
+  app.get('/api/admin/balance', async req => {
+    requireRole(req, 'support');
+    const q = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }).parse(req.query);
+    const cultures = await ctx.db.query<any>(`select culture, mode, sum(games)::int as games, sum(wins)::int as wins from balance_cultures where day > current_date - $1::int group by culture, mode order by culture, mode`, [q.days]);
+    const wilson = (w: number, n: number) => { if (!n) return [0, 0]; const z2 = 1.96 * 1.96, p = w / n, d = 1 + z2 / n, c = p + z2 / (2 * n), m = 1.96 * Math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)); return [(c - m) / d, (c + m) / d]; };
+    const designs = await ctx.db.query<any>(`select chassis, organs, games, wins, hatched from balance_designs where last_day > current_date - $1::int and games >= 5 order by games desc limit 40`, [q.days]);
+    return { days: q.days, cultures: cultures.map(c => ({ ...c, rate: c.games ? c.wins / c.games : 0, ci: wilson(c.wins, c.games) })), designs: designs.map(d => ({ ...d, rate: d.games ? d.wins / d.games : 0 })) };
+  });
+  // Operations: backups, disk, alerts, the process itself.
+  app.get('/api/admin/ops', async req => {
+    requireRole(req, 'admin');
+    const [heartbeats, alerts, keys] = await Promise.all([
+      ctx.db.query(`select name, at, ok, detail from ops_heartbeats order by name`),
+      ctx.db.query(`select key, title, body, first_at, last_at, sent_at, count, resolved_at from ops_alerts order by resolved_at is null desc, last_at desc limit 50`),
+      ctx.db.query(`select id, created_at, retired_at from server_keys order by created_at desc limit 5`),
+    ]);
+    const m = process.memoryUsage();
+    return { revision: ctx.cfg.REVISION, uptimeS: Math.round(process.uptime()), memoryMb: Math.round(m.rss / 1048576), lag: ctx.monitor.lagMs(), heartbeats, alerts, keys, keyring: ctx.signer.size,
+      alerting: { email: !!ctx.cfg.ALERT_EMAIL, webhook: !!ctx.cfg.ALERT_WEBHOOK_URL, metrics: !!ctx.cfg.METRICS_TOKEN } };
+  });
+  app.post('/api/admin/ops/check', async req => {
+    const a = requireRole(req, 'admin');
+    const firing = await ctx.monitor.run();
+    await audit(ctx, a.user.id, 'ops.check', null, { firing: firing.map(f => f.key) });
+    return { firing };
+  });
   app.get('/api/admin/audit', async req => {
     requireRole(req, 'admin');
     const q = z.object({ limit: z.coerce.number().max(500).default(100), action: z.string().optional() }).parse(req.query);

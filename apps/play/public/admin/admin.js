@@ -26,8 +26,8 @@
 
   const SECTIONS = [
     ['dashboard', 'Dashboard', 'support', dashboard], ['issues', 'Crashes & bugs', 'support', issues], ['reports', 'Player reports', 'moderator', reports],
-    ['players', 'Players', 'support', players], ['announce', 'Announcements', 'moderator', announcements], ['matches', 'Matches', 'support', matches],
-    ['promos', 'Promo codes', 'admin', promos], ['config', 'Live config', 'admin', config], ['audit', 'Audit log', 'admin', audit],
+    ['players', 'Players', 'support', players], ['announce', 'Announcements', 'moderator', announcements], ['matches', 'Matches', 'support', matches], ['balance', 'Balance', 'support', balance],
+    ['promos', 'Promo codes', 'admin', promos], ['config', 'Live config', 'admin', config], ['ops', 'Operations', 'admin', ops], ['audit', 'Audit log', 'admin', audit],
   ];
   function nav(counts) {
     $('#nav').replaceChildren(...SECTIONS.filter(s => can(s[2])).map(([id, label]) => h('button', { 'aria-current': location.hash.slice(1).split('/')[0] === id || (!location.hash && id === 'dashboard') ? 'page' : null, onclick: () => { location.hash = id; } }, label, counts && counts[id] ? h('span', { class: 'count' }, counts[id]) : null)));
@@ -315,6 +315,71 @@
       h('div', { class: 'card stack' }, h('h2', null, 'Minimum client version'), h('p', { class: 'muted' }, 'Older clients are asked to update before they can go online.'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, minV, b2)),
       h('div', { class: 'card stack' }, h('h2', null, 'Free match length (minutes)'), h('p', { class: 'muted' }, 'Applies to tickets issued from now on.'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, free, b3)),
       h('div', { class: 'card stack' }, h('h2', null, 'Feature flags'), h('p', { class: 'muted' }, 'Sent to every client in /api/config.'), feats, b4));
+  }
+
+  // ── balance ────────────────────────────────────────────────────
+  // Culture win rates from confirmed online matches: a dot at the rate, a line across
+  // the 95% interval, and the 50% line; few games means a wide line, not a verdict.
+  const CULTURE_NAMES = { verdant: 'The Verdant Strain', luminant: 'The Luminants', current: 'The Slither', choir: 'The Choir', umbral: 'The Seethe', bloom: 'The Bloom' };
+  function rateChart(rows) {
+    const W = 520, row = 28, P = { l: 120, r: 70, t: 20, b: 22 }, H = P.t + P.b + rows.length * row;
+    const ns = 'http://www.w3.org/2000/svg', S = (t, a) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    const x = v => P.l + (W - P.l - P.r) * v;
+    const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Win rate by culture with 95% intervals' });
+    for (const v of [0, 0.25, 0.5, 0.75, 1]) { svg.append(S('line', { class: v === 0.5 ? 'ref' : 'grid', x1: x(v), x2: x(v), y1: P.t - 6, y2: H - P.b })); const tx = S('text', { class: 'axis', x: x(v), y: H - 6, 'text-anchor': 'middle' }); tx.textContent = Math.round(v * 100) + '%'; svg.append(tx); }
+    rows.forEach((r, i) => {
+      const cy = P.t + i * row + row / 2, g = S('g', { class: 'rate-row' });
+      const title = S('title', {}); title.textContent = `${r.label}: ${r.wins} wins in ${r.games} games (${Math.round(r.rate * 100)}%, 95% interval ${Math.round(r.ci[0] * 100)} to ${Math.round(r.ci[1] * 100)}%)`;
+      const lab = S('text', { class: 'label', x: P.l - 10, y: cy + 4, 'text-anchor': 'end' }); lab.textContent = r.label;
+      const val = S('text', { class: 'value', x: W - P.r + 10, y: cy + 4 }); val.textContent = `${Math.round(r.rate * 100)}% · ${r.games}`;
+      g.append(title, S('rect', { class: 'hit', x: 0, y: cy - row / 2, width: W, height: row }), lab, S('line', { class: 'ci', x1: x(r.ci[0]), x2: x(r.ci[1]), y1: cy, y2: cy }), S('circle', { class: 'pt', cx: x(r.rate), cy, r: 5 }), val);
+      svg.append(g);
+    });
+    return h('div', { class: 'chart rate' }, svg);
+  }
+  async function balance(arg) {
+    const days = Number(arg) || 30, r = await api('GET', '/api/admin/balance?days=' + days);
+    const modes = [...new Set(r.cultures.map(c => c.mode))];
+    const sum = list => { const by = {}; for (const c of list) { const b = by[c.culture] || (by[c.culture] = { culture: c.culture, games: 0, wins: 0 }); b.games += c.games; b.wins += c.wins; } return Object.values(by); };
+    const wilson = (w, n) => { if (!n) return [0, 0]; const z2 = 3.8416, p = w / n, d = 1 + z2 / n, c = p + z2 / (2 * n), m = 1.96 * Math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)); return [(c - m) / d, (c + m) / d]; };
+    const rows = list => sum(list).map(c => ({ label: CULTURE_NAMES[c.culture] || c.culture, games: c.games, wins: c.wins, rate: c.games ? c.wins / c.games : 0, ci: wilson(c.wins, c.games) })).sort((a, b) => b.rate - a.rate);
+    const range = (d, l) => h('button', { class: 'btn small' + (d === days ? '' : ' ghost'), onclick: () => { location.hash = 'balance/' + d; } }, l);
+    const all = rows(r.cultures);
+    main(h('div', { class: 'card' }, h('h2', null, 'Culture win rates'),
+        h('p', { class: 'muted' }, 'Confirmed online matches only. In a fair game every culture sits near 50% in duels (lower in free-for-alls, where most players lose). Look for intervals that clear the 50% line, not single dots.'),
+        h('div', { class: 'row' }, range(7, '7 days'), range(30, '30 days'), range(90, '90 days')),
+        all.length ? rateChart(all) : h('p', { class: 'muted' }, 'No confirmed online matches in this period yet.'),
+        modes.length > 1 ? modes.map(m => h('details', null, h('summary', null, (E_MODES[m] || m)), rateChart(rows(r.cultures.filter(c => c.mode === m))))) : null),
+      h('div', { class: 'card' }, h('h2', null, 'Designs in the field'),
+        h('p', { class: 'muted' }, 'Creature designs fielded in confirmed matches (three or more alive at the end), with at least five games.'),
+        r.designs.length ? h('div', { class: 'scroll' }, h('table', { class: 't' }, h('thead', null, h('tr', null, h('th', null, 'Chassis'), h('th', null, 'Organs'), h('th', { class: 'num' }, 'Games'), h('th', { class: 'num' }, 'Win rate'), h('th', { class: 'num' }, 'Fielded'))),
+          h('tbody', null, r.designs.map(d => h('tr', null, h('td', null, d.chassis), h('td', null, d.organs.join(', ')), h('td', { class: 'num' }, fmt(d.games)), h('td', { class: 'num' }, Math.round(d.rate * 100) + '%'), h('td', { class: 'num' }, fmt(d.hatched))))))) : h('p', { class: 'muted' }, 'Not enough games yet.')));
+  }
+  const E_MODES = { annihilation: 'Annihilation', tide: 'Hold the Tide', regicide: 'Heartfall', bloom: 'Luminance' };
+
+  // ── operations ─────────────────────────────────────────────────
+  async function ops() {
+    const r = await api('GET', '/api/admin/ops');
+    const hb = r.heartbeats.find(x => x.name === 'backup'), d = (hb && hb.detail) || {};
+    const ageH = hb ? (Date.now() - new Date(hb.at).getTime()) / 3600e3 : null;
+    const open = r.alerts.filter(a => !a.resolved_at);
+    const tile = (k, v, sub, bad) => h('div', { class: 'tile' }, h('div', { class: 'k' }, k), h('div', { class: 'v' + (bad ? ' sev-critical' : '') }, v, sub ? h('small', null, ' ' + sub) : null));
+    const check = h('button', { class: 'btn small', onclick: e => act(e.target, async () => { const x = await api('POST', '/api/admin/ops/check'); toast(x.firing.length ? `${x.firing.length} alert(s) firing` : 'All clear'); route(); }) }, 'Run checks now');
+    main(h('div', { class: 'tiles' },
+        tile('Open alerts', open.length, '', open.length > 0),
+        tile('Last backup', hb ? ago(hb.at) : 'never', hb ? (hb.ok ? (d.remote === true ? 'off-site ✓' : d.remote === false ? 'off-site failed' : 'local only') : 'failed') : '', !hb || !hb.ok || ageH > 13),
+        tile('Disk', d.disk != null ? d.disk + '%' : '—', '', d.disk >= 85),
+        tile('Service', r.revision, `up ${Math.round(r.uptimeS / 3600)} h · ${r.memoryMb} MB · p99 lag ${Math.round(r.lag.p99)} ms`)),
+      h('div', { class: 'card' }, h('h2', null, 'Alerts'),
+        h('p', { class: 'muted' }, `Checked every minute. Sent to ${[r.alerting.email ? 'email' : null, r.alerting.webhook ? 'the webhook' : null].filter(Boolean).join(' and ') || 'nobody yet: set ALERT_EMAIL or ALERT_WEBHOOK_URL'}; repeated every 6 hours while they last.`),
+        h('div', { class: 'row' }, check),
+        r.alerts.length ? h('div', { class: 'scroll' }, h('table', { class: 't' }, h('thead', null, h('tr', null, h('th', null, 'Alert'), h('th', null, 'Since'), h('th', null, 'Last'), h('th', { class: 'num' }, 'Checks'), h('th', null, 'State'))),
+          h('tbody', null, r.alerts.map(a => h('tr', null, h('td', null, h('b', null, a.title), h('div', { class: 'muted' }, a.body)), h('td', null, when(a.first_at)), h('td', null, ago(a.last_at)), h('td', { class: 'num' }, a.count),
+            h('td', null, h('span', { class: 'pill ' + (a.resolved_at ? 'good' : 'bad') }, a.resolved_at ? 'resolved ' + ago(a.resolved_at) : 'firing'))))))) : h('p', { class: 'muted' }, 'No alerts yet.')),
+      h('div', { class: 'card' }, h('h2', null, 'Keys'),
+        h('p', { class: 'muted' }, `Match tickets are signed with the newest key; ${r.keyring} key(s) currently verify. Rotate with \`npm run admin -- keys:rotate\`; rotate SECRET_KEY as described in docs/OPERATIONS.md.`),
+        h('table', { class: 't' }, h('tbody', null, r.keys.map(k => h('tr', null, h('td', { class: 'mono' }, k.id), h('td', null, 'created ' + when(k.created_at)), h('td', null, k.retired_at ? 'retired ' + ago(k.retired_at) : 'signing')))))),
+      h('div', { class: 'card' }, h('h2', null, 'Metrics'), h('p', { class: 'muted' }, r.alerting.metrics ? 'Prometheus metrics are served at /metrics to requests carrying METRICS_TOKEN.' : '/metrics is off. Set METRICS_TOKEN (24+ characters) to let a scraper read it.')));
   }
 
   async function audit() {

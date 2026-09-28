@@ -26,7 +26,19 @@ const K = 24;
 
 type Result = 'win' | 'loss' | 'draw';
 export interface Audit { verdict: 'ok' | 'drift' | 'tamper' | 'unverified'; windows: number; reasons: string[] }
-export interface Claim { kind: 'final' | 'forfeit' | 'disconnected'; results?: { uid: string; result: Result }[]; winnerTeam?: number | null; audit?: Audit; at: string }
+export interface Summary { mode: string; size: string; players: { uid: string; culture: string; designs: { chassis: string; organs: string[]; count: number }[] }[] }
+export interface Claim { kind: 'final' | 'forfeit' | 'disconnected'; results?: { uid: string; result: Result }[]; winnerTeam?: number | null; audit?: Audit; summary?: Summary; at: string }
+const WORD = /^[a-z][a-z0-9_-]{1,23}$/i;
+// What was played (cultures, designs): public in the match, aggregated for balance, never per player.
+const cleanSummary = (x: any, members: Set<string>): Summary | undefined => {
+  if (!x || typeof x !== 'object' || !Array.isArray(x.players)) return undefined;
+  const players = x.players.slice(0, 6).filter((p: any) => p && members.has(p.uid) && WORD.test(p.culture)).map((p: any) => ({
+    uid: p.uid, culture: String(p.culture).toLowerCase(),
+    designs: (Array.isArray(p.designs) ? p.designs : []).slice(0, 12).filter((d: any) => d && WORD.test(d.chassis) && Array.isArray(d.organs) && d.organs.length <= 8 && d.organs.every((o: any) => WORD.test(o)))
+      .map((d: any) => ({ chassis: String(d.chassis), organs: d.organs.map(String).sort(), count: Math.max(0, Math.min(500, Math.round(Number(d.count) || 0))) })),
+  }));
+  return { mode: WORD.test(x.mode) ? String(x.mode) : 'unknown', size: /^[a-z]{1,3}$/.test(x.size) ? x.size : '?', players };
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const clean = (m: any, members: Set<string>): Omit<Claim, 'at'> | null => {
@@ -42,6 +54,7 @@ const clean = (m: any, members: Set<string>): Omit<Claim, 'at'> | null => {
       seen.add(r.uid); out.results.push({ uid: r.uid, result: r.result });
     }
     out.winnerTeam = Number.isInteger(m.winnerTeam) ? m.winnerTeam : null;
+    const sm = cleanSummary(m.summary, members); if (sm) out.summary = sm;
   }
   if (m.audit && typeof m.audit === 'object' && ['ok', 'drift', 'tamper', 'unverified'].includes(m.audit.verdict)) {
     out.audit = { verdict: m.audit.verdict, windows: Math.max(0, Math.min(10, Number(m.audit.windows) || 0)), reasons: (Array.isArray(m.audit.reasons) ? m.audit.reasons : []).slice(0, 12).map((s: unknown) => String(s).slice(0, 200)) };
@@ -130,6 +143,19 @@ export async function settle(ctx: Ctx, mid: string): Promise<Settled | null> {
           await t.query('update users set rating = greatest(100, rating + $2) where id = $1', [u, d]);
           await t.query('update match_players set rating_delta = $3 where match_id = $1 and user_id = $2', [mid, u, d]);
         }
+      }
+    }
+    if (status === 'confirmed') {
+      // balance: which cultures and designs win (aggregate counts only)
+      const sm = finals.find(c => c.summary)?.summary;
+      if (sm) for (const p of sm.players) {
+        const r = result.get(p.uid); if (!r) continue;
+        const won = r === 'win' ? 1 : 0;
+        await t.query(`insert into balance_cultures (day, mode, culture, games, wins) values (current_date, $1, $2, 1, $3)
+          on conflict (day, mode, culture) do update set games = balance_cultures.games + 1, wins = balance_cultures.wins + $3`, [sm.mode, p.culture, won]);
+        for (const d of p.designs) if (d.count >= 3) await t.query(`insert into balance_designs (sig, chassis, organs, games, wins, hatched) values ($1, $2, $3, 1, $4, $5)
+          on conflict (sig) do update set games = balance_designs.games + 1, wins = balance_designs.wins + $4, hatched = balance_designs.hatched + $5, last_day = current_date`,
+          [d.chassis + ':' + d.organs.join('+'), d.chassis, d.organs, won, d.count]);
       }
     }
     return { m, players, status, rated, reason, result, deltas, tamper };

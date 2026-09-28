@@ -20,6 +20,8 @@ const Env = z.object({
 
   // 32+ random bytes, base64. Encrypts TOTP secrets and signing keys at rest, keys the log pseudonyms.
   SECRET_KEY: z.string().optional(),
+  // During a SECRET_KEY rotation: the old key(s), comma-separated, until `secrets:rewrap` has run
+  SECRET_KEY_PREVIOUS: z.string().optional(),
 
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('Ozymandosis <no-reply@ozymandosis.com>'),
@@ -43,6 +45,17 @@ const Env = z.object({
   FREE_MATCH_MINUTES: z.coerce.number().default(15),
   TURNSTILE_SECRET: z.string().optional(),
   MIN_CLIENT_VERSION: z.string().default('1.0.0'),
+
+  // Operations: where alerts go, when they fire, and who may read /metrics (see docs/OPERATIONS.md)
+  ALERT_EMAIL: z.string().optional(),
+  ALERT_WEBHOOK_URL: z.string().url().optional(),
+  ALERT_5XX_PER_5MIN: z.coerce.number().default(20),
+  ALERT_DISK_PERCENT: z.coerce.number().default(85),
+  ALERT_CRASH_SPIKE: z.coerce.number().default(25),
+  ALERT_DISPUTES_PER_DAY: z.coerce.number().default(10),
+  BACKUP_STALE_HOURS: z.coerce.number().default(13),
+  METRICS_TOKEN: z.string().min(24).optional(),
+  REVISION: z.string().default('dev'),
 });
 
 export type Config = z.infer<typeof Env> & { dev: boolean; test: boolean; prod: boolean; corsOrigins: string[] };

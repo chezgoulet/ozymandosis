@@ -25,15 +25,11 @@
   if (!E.Native.is) return;
   const P = Cap.Plugins || {};
   document.documentElement.classList.add('native', 'native-' + E.Native.platform);
-  // draw under the status bar / notch; CSS uses env(safe-area-inset-*) for padding
-  // iOS: draw under the notch and pad with env(safe-area-inset-*) (WKWebView reports real insets).
-  // Android: WebView reports a 0 top inset while overlaid, so the status bar gets its own dark band.
-  if (P.StatusBar) {
-    const ios = E.Native.platform === 'ios';
-    P.StatusBar.setOverlaysWebView({ overlay: ios }).catch(() => {});
-    P.StatusBar.setStyle({ style: 'DARK' }).catch(() => {});
-    if (!ios) P.StatusBar.setBackgroundColor({ color: '#02070a' }).catch(() => {});
-  }
+  // Edge to edge everywhere (Android 16 no longer lets apps opt out): the game draws under
+  // the system bars and pads with the safe-area tokens in css/app.css. Capacitor 8's
+  // SystemBars reports Android's real insets as --safe-area-inset-* (WebView's env() is 0 there).
+  if (P.SystemBars) P.SystemBars.setStyle({ style: 'DARK' }).catch(() => {});
+  else if (P.StatusBar) { P.StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {}); P.StatusBar.setStyle({ style: 'DARK' }).catch(() => {}); }
   E.Native.lock = o => { if (P.ScreenOrientation) (o === 'auto' ? P.ScreenOrientation.unlock() : P.ScreenOrientation.lock({ orientation: o })).catch(() => {}); };
   E.Native.lock(E.Settings.orientation || 'auto');
   // haptics through the native engine (navigator.vibrate is a no-op on iOS)

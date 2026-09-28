@@ -117,7 +117,7 @@ export class Hub {
     c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user);
     this.send(c, {
       op: 'hello', user: this.pub(c), ent: c.ent, ice: this.ice(c),
-      key: { kid: this.ctx.signer.id, x: this.ctx.signer.publicRaw },
+      key: { kid: this.ctx.signer.id, x: this.ctx.signer.publicRaw }, keys: this.ctx.signer.publicKeys(),
       announcements: await activeAnnouncements(this.ctx, c.ent.subscriber),
       config: { freeMatchMinutes: c.ent.freeMatchMinutes, needsVerify: this.needsVerify(a.user), mutedUntil: a.user.muted_until, chat: this.chatMode(a.user), quickChat: QUICK_CHAT },
     });

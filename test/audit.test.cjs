@@ -1,6 +1,6 @@
 // The verifiable-host audit (js/net/audit.js): an honest host passes; a host that
 // edits its world, drops a guest's orders or forges a checkpoint is caught.
-const E = require('./load.cjs')(['js/net/audit.js']);
+const E = require('./load.cjs')(['js/net/audit.js', 'js/net/net.js']);
 const assert = require('assert');
 let fails = 0;
 async function test(name, fn) { const t0 = Date.now(); try { await fn(); console.log('ok  ', name, `(${Date.now() - t0}ms)`); } catch (e) { fails++; console.log('FAIL', name, '\n', e.stack); } }
@@ -58,6 +58,21 @@ const every = g => [...g.commits.keys()].filter(a => g.commits.has(a + E.Audit.E
   await test('no reply is unverified, not an accusation', async () => {
     const { guest } = await play(700);
     assert.strictEqual((await guest.verify(null)).verdict, 'unverified');
+  });
+  await test('fogged snapshots never throw, never show unseen rivals, and keep rival economies private', async () => {
+    const w = new E.World({ cfg: { map: { size: 'm', seed: 11, powerups: 1, currents: true, fog: true }, players: [0, 1, 2, 3].map(i => ({ culture: cultures[i], kind: 'bot', diff: 'hard', team: 0 })) } });
+    const memo = [{}, {}, {}, {}];
+    for (let k = 0; k < 30 * 600 && !w.s.over; k++) {
+      w.step(); const ev = w.drainEvents();
+      if (k % 30) continue;
+      for (let slot = 0; slot < 4; slot++) {
+        const d = E.NetPack.snap(w, slot, ev, memo[slot]);
+        if (!d.fog) continue;
+        const src = w.visionSources(slot);
+        for (const u of d.units) if (u[1] !== slot && !src.some(v => Math.hypot(v.x - u[3], v.y - u[4]) < v.r + 260)) throw new Error(`unit ${u[0]} of ${u[1]} sent to ${slot} out of sight`);
+        for (const p of d.players) if (p.idx !== slot && (p.research !== undefined || p.stats !== undefined || p.lumen > 20)) throw new Error('rival economy leaked');
+      }
+    }
   });
   console.log(fails ? `${fails} failed` : 'all passed'); process.exit(fails ? 1 : 0);
 })();

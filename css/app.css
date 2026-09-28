@@ -8,8 +8,9 @@
   --logo: "Cinzel Decorative", "Cinzel", serif;
   --body: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Atkinson Hyperlegible Mono", ui-monospace, Menlo, monospace;
-  --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
-  --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
+  /* Capacitor's SystemBars sets --safe-area-inset-* on Android, where WebView reports env() as 0 */
+  --safe-t: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); --safe-b: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-l: var(--safe-area-inset-left, env(safe-area-inset-left, 0px)); --safe-r: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
   --pc0: #38f8c8; --pc1: #60f0ff;
   --ui: 1;
   color-scheme: dark;

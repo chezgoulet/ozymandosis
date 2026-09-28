@@ -5,7 +5,7 @@
 //   node tools/make-icons.cjs
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os'), { execFileSync } = require('child_process');
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('./pw.cjs');
 const ROOT = path.join(__dirname, '..'), RES = path.join(ROOT, 'android/app/src/main/res');
 const still = (file, args, env) => execFileSync(process.execPath, [path.join(__dirname, 'render-title.cjs'), file, ...args], { stdio: 'inherit', env: Object.assign({}, process.env, env || {}) });
 const O_PNG = path.join(os.tmpdir(), 'ozymandosis-icon-o.png'), TITLE_PNG = path.join(os.tmpdir(), 'ozymandosis-title-splash.png');
@@ -15,7 +15,7 @@ const uri = f => 'data:image/png;base64,' + fs.readFileSync(f).toString('base64'
 const O = uri(O_PNG), TITLE = uri(TITLE_PNG);
 const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.CHROME || (process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome') });
+  const b = await pw.launch();
   const p = await b.newPage();
   // opts: bg (colour or none), scale (fraction of the box the O fills), round, title (splash)
   const render = async (file, w, h, opts) => {

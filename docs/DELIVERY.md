@@ -109,3 +109,25 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 | Grisly fighting: pieces come off and regrow | `js/render/gore.js`: organs tear away at seeded damage thresholds and tumble off as real organ pieces; tails wear down and drift away; everything buds back as health returns; deaths break into chunks and loose organs |
 | Residue, not red blood | ichor, glowing motes and fading stains in each culture's own colours, from creatures and struck structures |
 | Tell gatherers from fighters | gatherers: pale, slimmer, a translucent harvest sac that fills with cargo; fighters: dark war plates, chevron armour bands, spikes and a spiked crown. Shown in play, on hatch cards, in the Spawnforge and on the title screen |
+
+## Follow-up: the three-month list
+
+Everything from the "what will bite us" review, fixed in code or handed over as a checklist:
+
+| Risk | Now |
+|---|---|
+| TURN certificate expiring silently | `deploy/turn.sh` reloads coturn when Caddy renews (tested with a real renewal), and copies the root-only key for the unprivileged coturn user |
+| Disk filling | Docker log rotation on every container; hourly retention sweep (`retention.ts`) with the periods published in the privacy page; disk alerts |
+| Google Play target SDK | Capacitor 8, Android API 36, JDK 21, edge-to-edge insets; iOS 15 |
+| Mixed client versions | peer protocol hello on every link; the service pairs only compatible clients |
+| Host-reported results | every player reports; only agreement counts; guests audit the host's simulation (commit–reveal of state hashes, re-simulation, own-order checks); disputes go to moderators; anti-boosting limits |
+| Bandwidth | per-guest snapshots culled to what the guest can see (also ends map hacks), memoized slow fields, deflate on the wire: a late 6-player snapshot ~22 KB → ~2.6 KB |
+| Dropped connections | ICE restart with a grace period, automatic guest rejoin, host signaling resume, abandonment settles as a forfeit |
+| Lost progress (Safari eviction) | cloud sync of lineage, designs and saves with versioned merges |
+| Chat and children | age gate (13+, only a band stored), server-routed filtered chat, quick chat for under-16s, server-held evidence for reports |
+| Tax and fees | Stripe Tax, tax-inclusive prices from Stripe, optional yearly plan; economics in LAUNCH.md |
+| Store rules | store builds never sell; the decision on in-app purchase is in LAUNCH.md |
+| Single server, no alerts | encrypted off-site backups with restore drills, deploy with backup and automatic rollback, staging, alerts by email/webhook, metrics, key rotation for every secret (OPERATIONS.md) |
+| Untested platforms | CI runs Chromium, Firefox and WebKit; real-device and real-provider checks are listed in LAUNCH.md |
+| Balance blind spots | culture win rates with confidence intervals and fielded designs in the admin console |
+| Legal, trademark, signing, email DNS | checklists in LAUNCH.md |

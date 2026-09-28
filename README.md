@@ -13,7 +13,7 @@ You tend a glowing culture: you harvest drifting light, evolve organs and body p
 | Desktop app | `cd apps/desktop && npm install && npm start` | Electron shell that launches fullscreen (base for the Steam build). |
 | Install on a phone | open the served URL, then "Add to Home Screen" | Plays offline after the first visit. |
 
-Production (ozymandosis.com, play.ozymandosis.com) is one Docker Compose stack: see `docs/DEPLOY.md`.
+Production (ozymandosis.com, play.ozymandosis.com) is one Docker Compose stack on Linode: see `docs/DEPLOY.md`, then `docs/OPERATIONS.md` (releases, alerts, backups, keys, incidents) and `docs/LAUNCH.md` (what only a person can do before launch).
 
 ## Repository
 
@@ -33,7 +33,7 @@ android/, ios/                   Capacitor projects
 - **Installable PWA:** `npm run build` → `www/`.
 - **Android:** `npm run android:apk`.
 - **iOS:** `npm run ios:open` on a Mac (Capacitor 6).
-- **Docs:** `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/PLAY-SERVICE.md` (online design, security and privacy), `docs/DEPLOY.md`, and `docs/DELIVERY.md` (requirement-by-requirement summaries).
+- **Docs:** `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/PLAY-SERVICE.md` (online design, security and privacy), `docs/DEPLOY.md`, `docs/OPERATIONS.md`, `docs/LAUNCH.md`, and `docs/DELIVERY.md` (requirement-by-requirement summaries).
 
 ## What's in the game
 

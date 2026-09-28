@@ -340,11 +340,22 @@
     async reportMatch() {
       if (!this.online || this.claimed || this.reporting) return;
       this.reporting = true;
-      const s = this.world.s, claim = { winnerTeam: s.winner, duration: Math.round(s.t), results: this.results() };
+      const s = this.world.s, claim = { winnerTeam: s.winner, duration: Math.round(s.t), results: this.results(), summary: this.summary() };
       if (this.auditGuest) { this.endNote('Checking the match with the host…'); claim.audit = this.lastAudit = await this.runAudit(); }
       this.reporting = false;
       this.claim('final', claim);
       this.endNote(claim.audit && claim.audit.verdict === 'tamper' ? 'The host’s game did not add up. The result will not count until a moderator reviews it.' : 'Waiting for every player to confirm the result…');
+    }
+    // What was played (cultures, and the designs alive at the end), for the service's balance numbers.
+    summary() {
+      const w = this.world, s = w.s, players = [];
+      for (const k in this.slotUid) {
+        const p = s.players[+k]; if (!p) continue;
+        const count = {}; for (const u of s.units) if (u.o === p.idx) count[u.d] = (count[u.d] || 0) + 1;
+        const designs = Object.entries(count).map(([d, n]) => { const des = w.designOf(p, d); return des ? { chassis: des.chassis, organs: des.organs.slice(), count: n } : null; }).filter(Boolean);
+        players.push({ uid: this.slotUid[k], culture: p.culture, designs });
+      }
+      return { mode: s.cfg.map.mode || 'annihilation', size: s.cfg.map.size, players };
     }
     // Check random windows of the host's match until the time budget is spent.
     async runAudit() {

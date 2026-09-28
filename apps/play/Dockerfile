@@ -14,8 +14,10 @@ RUN npm install --no-save --no-package-lock esbuild@0.25 && node tools/living-lo
 RUN npm run build --workspace apps/play && npm prune --omit=dev --workspace apps/play --include-workspace-root=false
 
 FROM node:22-alpine
+ARG REVISION=dev
+LABEL org.opencontainers.image.revision=$REVISION org.opencontainers.image.source=https://github.com/chezgoulet/efflorescent
 WORKDIR /app
-ENV NODE_ENV=production PORT=8787 TRUST_PROXY=true
+ENV NODE_ENV=production PORT=8787 TRUST_PROXY=true REVISION=$REVISION
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/apps/play/dist apps/play/dist
 COPY apps/play/package.json apps/play/

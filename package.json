@@ -24,18 +24,20 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@capacitor/android": "^6.2.2",
-    "@capacitor/cli": "^6.2.2",
-    "@capacitor/ios": "^6.2.2",
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "esbuild": "^0.25.12",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "playwright": "1.62.1"
   },
   "dependencies": {
-    "@capacitor/app": "^6.0.3",
-    "@capacitor/core": "^6.2.2",
-    "@capacitor/haptics": "^6.0.3",
-    "@capacitor/screen-orientation": "^6.0.4",
-    "@capacitor/status-bar": "^6.0.3"
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/screen-orientation": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0",
+    "@capacitor/browser": "^8.0.0"
   },
   "workspaces": [
     "apps/play",

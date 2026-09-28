@@ -1,8 +1,8 @@
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('../tools/pw.cjs');
 process.env.PORT = '8096'; process.env.QUIET = '1';
 const server = require('../server/server.js');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome', args: ['--use-gl=swiftshader', '--enable-gpu-rasterization'] });
+  const b = await pw.launch({ args: ['--use-gl=swiftshader', '--enable-gpu-rasterization'] });
   const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8096/?quick=1&size=l&n=6'); await p.waitForTimeout(1000);

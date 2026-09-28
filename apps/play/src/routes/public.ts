@@ -28,6 +28,7 @@ export default async function publicRoutes(app: FastifyInstance, ctx: Ctx) {
       plans: Object.entries(await plans(ctx)).map(([plan, p]) => ({ plan, amount: p!.amount, currency: p!.currency })),
       turnstileSiteKey: rc.turnstileSiteKey || null,
       ticketKey: { kid: ctx.signer.id, x: ctx.signer.publicRaw },
+      ticketKeys: ctx.signer.publicKeys(),
       features: rc.features || {},
     };
   });

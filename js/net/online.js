@@ -3,7 +3,7 @@
 // peer to peer (js/net/net.js); this module only talks to the matchmaking service.
 (function (E) {
   'use strict';
-  E.VERSION = '1.1.0';
+  E.VERSION = '1.2.0';
   const O = E.Online = { me: null, ent: null, config: null, announcements: [], chatLog: [], listeners: new Set() };
   const TOKEN = 'efl.session';
 
@@ -200,8 +200,10 @@
     const [kid, body, sig] = String(ticket || '').split('.');
     const dec = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
     let payload; try { payload = JSON.parse(new TextDecoder().decode(dec(body))); } catch (e) { return null; }
-    const key = O.key || (O.config && O.config.ticketKey);
-    if (!key || key.kid !== kid) return null;
+    // any key in the service's ring (tickets issued just before a rotation still verify)
+    const ring = [].concat((O.hello && O.hello.keys) || [], O.key || [], (O.config && O.config.ticketKeys) || [], (O.config && O.config.ticketKey) || []);
+    const key = ring.find(k => k && k.kid === kid);
+    if (!key) return null;
     try {
       const k = await crypto.subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x: key.x }, { name: 'Ed25519' }, false, ['verify']);
       const ok = await crypto.subtle.verify({ name: 'Ed25519' }, k, dec(sig), new TextEncoder().encode(body));

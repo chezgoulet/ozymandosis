@@ -6,5 +6,7 @@ COPY . .
 RUN npm install --no-save --no-package-lock esbuild@0.25 && node tools/build-web.cjs && node apps/site/build.cjs
 
 FROM caddy:2-alpine
+ARG REVISION=dev
+LABEL org.opencontainers.image.revision=$REVISION
 COPY --from=build /app/apps/site/dist /srv/site
 COPY deploy/Caddyfile /etc/caddy/Caddyfile

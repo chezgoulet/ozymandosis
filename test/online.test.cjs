@@ -1,6 +1,6 @@
 // Online end to end: the play service (in-memory Postgres) introduces two browsers,
 // who play over WebRTC with a signed ticket; the free time limit ends the match.
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('../tools/pw.cjs');
 const { spawn } = require('child_process');
 const path = require('path');
 const assert = require('assert');
@@ -13,7 +13,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const play = spawn(process.execPath, [require.resolve('tsx/cli'), 'src/index.ts'], { cwd: path.join(__dirname, '../apps/play'), env: Object.assign({}, process.env, { NODE_ENV: 'test', PORT: String(PLAY), LOG_LEVEL: 'warn', PGLITE_DIR: '', PUBLIC_URL: PLAY_URL }), stdio: ['ignore', 'inherit', 'inherit'] });
   const stopAll = code => { try { play.kill(); } catch (e) { /* */ } lan.close(); process.exit(code); };
   for (let i = 0; i < 60; i++) { try { if ((await fetch(PLAY_URL + '/healthz')).ok) break; } catch (e) { /* booting */ } await sleep(500); }
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome', args: ['--disable-features=WebRtcHideLocalIpsWithMdns'] });
+  const b = await pw.launch({ args: ['--disable-features=WebRtcHideLocalIpsWithMdns'] });
   const errs = [];
   const page = async (name, vp) => {
     const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage();

@@ -1,8 +1,8 @@
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('../tools/pw.cjs');
 process.env.PORT = '8097'; process.env.QUIET = '1';
 const server = require('../server/server.js');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome' });
+  const b = await pw.launch();
   const p = await (await b.newContext({ viewport: { width: 1200, height: 800 } })).newPage();
   await p.goto('http://localhost:8097/'); await p.waitForTimeout(600);
   const r = await p.evaluate(() => {

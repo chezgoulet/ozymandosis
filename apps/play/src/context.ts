@@ -2,19 +2,21 @@ import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from 'fastify';
 import type Stripe from 'stripe';
 import type { Config } from './config.js';
 import type { Db } from './db/index.js';
-import type { Secrets, TicketSigner } from './lib/crypto.js';
+import type { Secrets, Keyring } from './lib/crypto.js';
 import type { Mailer } from './lib/mail.js';
 import type { Hub } from './realtime/hub.js';
+import type { Monitor } from './ops/monitor.js';
 
 export interface Ctx {
   cfg: Config;
   db: Db;
   secrets: Secrets;
   mail: Mailer;
-  signer: TicketSigner;
+  signer: Keyring;
   stripe: Stripe | null;
   log: FastifyBaseLogger;
   hub: Hub;
+  monitor: Monitor;
   now: () => number;
 }
 

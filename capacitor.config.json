@@ -4,7 +4,7 @@
   "webDir": "www",
   "backgroundColor": "#02070a",
   "server": {
-    "androidScheme": "http",
+    "androidScheme": "https",
     "cleartext": true
   },
   "android": {
@@ -18,10 +18,9 @@
     "scrollEnabled": false
   },
   "plugins": {
-    "StatusBar": {
-      "overlaysWebView": false,
+    "SystemBars": {
       "style": "DARK",
-      "backgroundColor": "#02070a"
+      "insetsHandling": "css"
     }
   }
 }

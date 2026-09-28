@@ -13,13 +13,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import type { Config } from './config.js';
 import { openDb, migrate, type Db } from './db/index.js';
-import { Secrets, TicketSigner } from './lib/crypto.js';
+import { Secrets, TicketSigner, Keyring } from './lib/crypto.js';
 import { makeMailer, setTitleImage, type Mailer } from './lib/mail.js';
 import { REDACT_PATHS, userTag } from './lib/privacy.js';
 import { HttpError, unauthorized, forbidden, ROLE_RANK, type Ctx, type Role } from './context.js';
 import { sessionUser } from './auth/service.js';
 import { Hub } from './realtime/hub.js';
 import { startRetention } from './lib/retention.js';
+import { Monitor } from './ops/monitor.js';
+import { safeEqual } from './lib/crypto.js';
 import authRoutes from './auth/routes.js';
 import oauthRoutes from './auth/oauth.js';
 import meRoutes from './auth/me.js';
@@ -33,14 +35,20 @@ import cloudRoutes from './cloud/routes.js';
 
 export const SESSION_COOKIE = 'ozy_session';
 
-export async function loadSigner(db: Db, secrets: Secrets): Promise<TicketSigner> {
-  const row = await db.one<any>(`select id, private_enc from server_keys order by created_at desc limit 1`);
-  if (row) return TicketSigner.load(row.id, secrets.decrypt(row.private_enc));
+// The ticket keyring: every key not retired more than a day ago, newest first
+// (a fresh database gets its first key here).
+export async function loadKeys(db: Db, secrets: Secrets): Promise<TicketSigner[]> {
+  let rows = await db.query<any>(`select id, private_enc from server_keys where retired_at is null or retired_at > now() - interval '1 day' order by created_at desc`);
+  if (!rows.length) { await newTicketKey(db, secrets); rows = await db.query<any>(`select id, private_enc from server_keys order by created_at desc limit 1`); }
+  return rows.map(r => TicketSigner.load(r.id, secrets.decrypt(r.private_enc)));
+}
+export async function newTicketKey(db: Db, secrets: Secrets): Promise<string> {
   const id = 'k' + Date.now().toString(36);
   const { signer, privatePem } = TicketSigner.generate(id);
   await db.query(`insert into server_keys (id, public_key, private_enc) values ($1, $2, $3)`, [id, signer.publicPem, secrets.encrypt(privatePem)]);
-  return signer;
+  return id;
 }
+export async function loadSigner(db: Db, secrets: Secrets): Promise<Keyring> { return new Keyring(await loadKeys(db, secrets)); }
 
 export interface BuildOpts { db?: Db; mailer?: Mailer; stripe?: Stripe | null; now?: () => number }
 
@@ -51,15 +59,16 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
     logController: new LogController({ disableRequestLogging: true }),
     logger: cfg.LOG_LEVEL === 'silent' ? false : { level: cfg.LOG_LEVEL, base: undefined, redact: { paths: REDACT_PATHS, censor: '[redacted]' }, serializers: { req: () => undefined as any, res: () => undefined as any } },
   });
-  const secrets = Secrets.fromEnv(cfg.SECRET_KEY, !cfg.prod);
+  const secrets = Secrets.fromEnv(cfg.SECRET_KEY, !cfg.prod, cfg.SECRET_KEY_PREVIOUS);
   const db = opts.db || (await openDb({ url: cfg.DATABASE_URL, dir: cfg.PGLITE_DIR }));
   await migrate(db, s => app.log.info(s));
   const signer = await loadSigner(db, secrets);
   setTitleImage(`${cfg.SITE_URL}/img/ozymandosis-title.png`);
   const mail = opts.mailer || makeMailer(cfg.SMTP_URL, cfg.MAIL_FROM, s => app.log.info(s));
   const stripe = opts.stripe !== undefined ? opts.stripe : cfg.STRIPE_SECRET_KEY ? new Stripe(cfg.STRIPE_SECRET_KEY) : null;
-  const ctx: Ctx = { cfg, db, secrets, mail, signer, stripe, log: app.log, hub: null as any, now: opts.now || Date.now };
+  const ctx: Ctx = { cfg, db, secrets, mail, signer, stripe, log: app.log, hub: null as any, monitor: null as any, now: opts.now || Date.now };
   ctx.hub = new Hub(ctx);
+  ctx.monitor = new Monitor(ctx);
 
   // JSON bodies keep their raw bytes for webhook signature checks.
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
@@ -112,7 +121,8 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
 
   // One line per request: route, status, time, pseudonymous user. No IPs, no query strings.
   app.addHook('onResponse', async (req, reply) => {
-    if (req.url === '/healthz') return;
+    ctx.monitor.record(reply.statusCode);
+    if (req.url === '/healthz' || req.url === '/metrics') return;
     const route = req.routeOptions?.url || req.url.split('?')[0];
     req.log.info({ m: req.method, r: route, s: reply.statusCode, ms: Math.round(reply.elapsedTime), u: req.tag }, 'req');
   });
@@ -129,6 +139,12 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
     return reply.code(404).type('text/html').send('<!doctype html><title>Not found</title><p style="font-family:system-ui;padding:2rem">Nothing lives here. <a href="/">Go to your account</a>.</p>');
   });
 
+  // Prometheus metrics for an operator's scraper; invisible without METRICS_TOKEN.
+  app.get('/metrics', { config: { rateLimit: false } }, async (req, reply) => {
+    const t = String(req.headers.authorization || '').replace(/^Bearer /, '');
+    if (!cfg.METRICS_TOKEN || !safeEqual(t, cfg.METRICS_TOKEN)) return reply.code(404).send({ error: 'Not found.', code: 'not_found' });
+    return reply.type('text/plain; version=0.0.4').send(ctx.monitor.metrics());
+  });
   await publicRoutes(app, ctx);
   await authRoutes(app, ctx);
   await oauthRoutes(app, ctx);
@@ -167,7 +183,10 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   const fonts = [join(here, '../public-fonts'), join(here, '../../../vendor/fonts'), join(here, '../../../../vendor/fonts')].find(existsSync);
   if (fonts) await app.register(fstatic, { root: fonts, prefix: '/fonts/', decorateReply: false, setHeaders: (reply: any) => reply.header('cache-control', 'public, max-age=604800') });
   const stopRetention = cfg.test ? () => {} : startRetention(ctx);
-  app.addHook('onClose', async () => { stopRetention(); ctx.hub.close(); await db.close(); });
+  if (!cfg.test) ctx.monitor.start();
+  // pick up ticket keys rotated from the command line
+  const keyTimer = setInterval(() => { loadKeys(db, secrets).then(k => signer.replace(k)).catch(e => app.log.error({ err: { message: e.message } }, 'keyring reload failed')); }, 300e3); keyTimer.unref();
+  app.addHook('onClose', async () => { stopRetention(); clearInterval(keyTimer); ctx.monitor.stop(); ctx.hub.close(); await db.close(); });
   return { app, ctx };
 }
 

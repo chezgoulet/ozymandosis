@@ -45,3 +45,13 @@ tr.sub td { background: rgba(255, 122, 122, .04); padding-top: 0; }
 .claims { display: grid; gap: 6px; padding: 4px 0 8px; }
 .claim { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: .9rem; }
 .claim span { color: var(--muted, #9fb3b8); overflow-wrap: anywhere; }
+.chart.rate svg { width: 100%; height: auto; }
+.chart.rate .grid { stroke: var(--line); stroke-width: 1; }
+.chart.rate .ref { stroke: var(--ink-dim); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart.rate .axis { fill: var(--ink-dim); font-size: 11px; }
+.chart.rate .label { fill: var(--ink); font-size: 13px; }
+.chart.rate .value { fill: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+.chart.rate .ci { stroke: var(--accent); stroke-width: 2; stroke-linecap: round; opacity: .55; }
+.chart.rate .pt { fill: var(--accent); stroke: var(--panel-2); stroke-width: 2; }
+.chart.rate .hit { fill: transparent; }
+.chart.rate .rate-row:hover .hit { fill: rgba(96, 240, 255, .06); }

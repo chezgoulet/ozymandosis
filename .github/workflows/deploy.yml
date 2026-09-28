@@ -1,0 +1,40 @@
+# Deploys over SSH with deploy/deploy.sh (backup first, health-checked rollout,
+# automatic rollback). Staging follows main; production is a manual, approved run.
+# Setup (docs/OPERATIONS.md): repository environments "staging" and "production"
+# (production with required reviewers), each with secrets DEPLOY_HOST,
+# DEPLOY_USER, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS.
+name: deploy
+on:
+  workflow_run:
+    workflows: [ci]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      target: { description: "staging or production", required: true, default: staging, type: choice, options: [staging, production] }
+      ref: { description: "tag or commit (default: main)", required: false, default: "" }
+permissions: { contents: read }
+concurrency: { group: "deploy-${{ inputs.target || 'staging' }}", cancel-in-progress: false }
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target || 'staging' }}
+    env: { CONFIGURED: "${{ secrets.DEPLOY_HOST != '' }}" }  # secrets cannot appear in step conditions
+    steps:
+      - name: Not configured
+        if: env.CONFIGURED != 'true'
+        run: echo "No DEPLOY_HOST for this environment yet; nothing to deploy."
+      - name: Deploy
+        if: env.CONFIGURED == 'true'
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          REF: ${{ inputs.ref || github.event.workflow_run.head_sha || 'origin/main' }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$TARGET" "cd ~/ozymandosis && deploy/deploy.sh '$REF'"

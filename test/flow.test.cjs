@@ -1,12 +1,12 @@
 // Desktop UI flow: every major panel driven through clicks.
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('../tools/pw.cjs');
 const path = require('path'); const assert = require('assert');
 process.env.PORT = process.env.PORT || '8098'; process.env.QUIET = '1';
 const server = require('../server/server.js');
 const URL0 = `http://localhost:${process.env.PORT}/?nosw=1`;
 const OUT = path.join(__dirname, 'shots');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome' });
+  const b = await pw.launch();
   const p = await (await b.newContext({ viewport: { width: 1366, height: 820 } })).newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message + '\n' + e.stack));
   const step = async (n) => { for (let i = 0; i < n; i++) await p.evaluate(() => { const g = E.game; g.world.step(); g.handleEvents(g.world.drainEvents()); }); };

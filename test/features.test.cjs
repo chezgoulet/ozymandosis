@@ -1,13 +1,13 @@
 // New systems end to end: backends + fallback, governor, undo, touch build confirm,
 // tutorial release, rematch, objective HUD, kill feed.
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('../tools/pw.cjs');
 const assert = require('assert');
 process.env.PORT = process.env.PORT || '8130'; process.env.QUIET = '1';
 const server = require('../server/server.js');
 const URL0 = `http://localhost:${process.env.PORT}/?nosw=1`;
 const GPU = ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist'];
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome', args: process.env.NOGPU ? [] : GPU });
+  const b = await pw.launch({ args: process.env.NOGPU ? [] : GPU });
   const errs = [];
   const page = async (vp, touch) => { const p = await (await b.newContext({ viewport: vp, hasTouch: !!touch, isMobile: !!touch })).newPage(); p.on('pageerror', e => errs.push(e.message + '\n' + e.stack)); return p; };
   const ok = (n, c) => { assert(c, n); console.log('ok  ', n); };
