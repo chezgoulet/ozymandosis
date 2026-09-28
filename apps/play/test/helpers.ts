@@ -40,12 +40,12 @@ export const code = (secret: string, offset = 0) => hotp(secret, stepAt() + offs
 
 export class Client {
   ws!: WebSocket; hello: any; msgs: any[] = []; waiters: { op: string; res: (m: any) => void; pred?: (m: any) => boolean }[] = [];
-  static async open(t: T, token: string) {
+  static async open(t: T, token: string, extra: Record<string, unknown> = {}) {
     const c = new Client();
     c.ws = new WebSocket(`ws://127.0.0.1:${t.port}/ws`);
     await new Promise((res, rej) => { c.ws.once('open', res); c.ws.once('error', rej); });
     c.ws.on('message', d => { const m = JSON.parse(d.toString()); c.msgs.push(m); c.waiters = c.waiters.filter(w => { if (w.op === m.op && (!w.pred || w.pred(m))) { w.res(m); return false; } return true; }); });
-    c.send({ op: 'auth', token, version: '9.9.9', platform: 'test' });
+    c.send({ op: 'auth', token, version: '9.9.9', platform: 'test', proto: 2, ...extra });
     c.hello = await c.wait('hello');
     return c;
   }

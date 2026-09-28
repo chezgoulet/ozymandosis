@@ -284,7 +284,7 @@
         lobby = null; game.start({ mode: 'guest', init: d, relay: rl, online, slotUid });
       }
     });
-    r.on('closed', () => { E.toast('The host closed the room.'); lobby = null; E.Screens.show('scr-mp'); });
+    r.on('closed', m => { if (!(m && m.reason === 'version')) E.toast('The host closed the room.'); lobby = null; E.Screens.show('scr-mp'); });
     r.join(code, playerName());
   }
 

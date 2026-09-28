@@ -4,8 +4,15 @@
 # See docs/DEPLOY.md.
 name: ozymandosis
 
+# Every container's logs rotate: 5 files of 10 MB, compressed. Without this,
+# Docker's json-file logs grow until the disk is full.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5", compress: "true" }
+
 services:
   web:
+    logging: *logging
     build: { context: .., dockerfile: deploy/web.Dockerfile }
     restart: unless-stopped
     ports: ["80:80", "443:443", "443:443/udp"]
@@ -19,6 +26,7 @@ services:
       play: { condition: service_healthy }
 
   play:
+    logging: *logging
     build: { context: .., dockerfile: apps/play/Dockerfile }
     restart: unless-stopped
     env_file: .env
@@ -34,6 +42,7 @@ services:
     expose: ["8787"]
 
   db:
+    logging: *logging
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
@@ -50,11 +59,18 @@ services:
   # TURN relays encrypted match traffic for players behind strict NATs and for
   # those who hide their IP. It cannot read the traffic (DTLS end to end).
   turn:
+    logging: *logging
     image: coturn/coturn:4.6
     restart: unless-stopped
     network_mode: host
     volumes:
       - caddy_data:/caddy:ro
+      - ./turn.sh:/turn.sh:ro
+    environment:
+      DOMAIN: ${DOMAIN}
+    # finds Caddy's certificate for turn.DOMAIN and reloads coturn when it renews
+    entrypoint: ["/bin/sh", "/turn.sh"]
+    user: root   # only to read Caddy's root-owned key; turnserver itself runs as nobody
     command:
       - -n
       - --realm=${DOMAIN}
@@ -65,8 +81,6 @@ services:
       - --min-port=49160
       - --max-port=49400
       - --external-ip=${PUBLIC_IP}
-      - --cert=/caddy/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.${DOMAIN}/turn.${DOMAIN}.crt
-      - --pkey=/caddy/caddy/certificates/acme-v02.api.letsencrypt.org-directory/turn.${DOMAIN}/turn.${DOMAIN}.key
       - --fingerprint
       - --no-cli
       - --no-multicast-peers
@@ -90,6 +104,7 @@ services:
 
   # Nightly compressed dumps, 14 kept. Copy them off the machine too (docs/DEPLOY.md).
   backup:
+    logging: *logging
     image: postgres:17-alpine
     restart: unless-stopped
     environment:

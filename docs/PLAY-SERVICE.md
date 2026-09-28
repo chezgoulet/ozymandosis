@@ -25,7 +25,7 @@ The play service (`apps/play`) introduces players and vouches for them. It never
 
 ## Realtime protocol (`/ws`)
 
-The first message must be `{op:'auth', token, version, platform}`; the reply is `hello {user, ent, ice, key, announcements, config}`. Then:
+The first message must be `{op:'auth', token, version, proto, platform}`; the reply is `hello {user, ent, ice, key, announcements, config}`. Then:
 
 | Client → server | Server → client |
 |---|---|
@@ -40,6 +40,8 @@ The first message must be `{op:'auth', token, version, platform}`; the reply is 
 | `queue {mode}` · `unqueue` | `queued {mode, waiting}` · `matched {room, role, mode}` |
 | `ping` | `pong` |
 | | pushes: `me`, `announcement`, `announcement.end`, `maintenance`, `upgrade`, `kicked`, `error` |
+
+`proto` is the peer protocol (`E.PROTOCOL` in `js/net/net.js`). The lobby list, `join` and quick match only put together clients on the same protocol, so a store build that lags the web build never lands in a match it cannot play. Peers check it again themselves: the first DataChannel message each way is `{k:'hi', p, v}`, and a mismatch (or no hello within 6 s, i.e. an older build) is refused with a message naming both versions. This also covers LAN games, which never touch the service. Bump `E.PROTOCOL` whenever snapshots, commands, game data or the sim change incompatibly.
 
 `hosted`, `joined`, `peer`, `signal`, `left` and `closed` are the same messages the LAN server speaks, so the client's `E.Relay` works with either. After a match starts, signaling drops don't send `left`/`closed`: the peers' own connection decides, so a blip to the server can't end a healthy game.
 
@@ -69,6 +71,8 @@ A player running a modified client can ignore the limit only if every other play
 ## Privacy
 
 What is stored and why is in the site's privacy page (`apps/site/public/privacy.html`). In short: email (sign-in and recovery), password hash, encrypted 2FA secret, provider account ids, display name, rating and match results, a coarse device label per session ("Chrome on Android"), Stripe customer id and membership status, reports. No IP addresses anywhere: not in the database, not in the service's logs (route, status, time, and an HMAC pseudonym of the user id), not in Caddy's access logs (filtered), not in coturn (logging off). Rate limiting keys are pseudonyms held in memory. Players can export their data and delete their account (the row is kept anonymised for match history and moderation records).
+
+Retention is enforced by an hourly sweep (`src/lib/retention.ts`, one instance at a time via an advisory lock): expired sessions and tokens, Stripe event ids after 90 days, report screenshots after 30 days, reports after 180, resolved player-report chat after 90 days and the reports after two years, the audit log after two years, and email sign-ups never confirmed or used after 30 days. The privacy page lists the same periods; change both together.
 
 ## Configuration
 

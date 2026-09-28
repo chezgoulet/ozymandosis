@@ -108,7 +108,7 @@
       r.on('hello', m => { clearTimeout(to); O.me = m.user; O.ent = m.ent; O.key = m.key; O.announcements = m.announcements || O.announcements; O.hello = m; changed(); res(r); });
       const fail = m => { clearTimeout(to); r.close(); const e = new Error(m.msg || 'Could not connect.'); e.code = m.code || m.op; if (m.code === 'unauthorized') { O.setToken(null); changed(); } rej(e); };
       r.on('error', fail); r.on('upgrade', fail); r.on('maintenance', fail); r.on('kicked', fail);
-      r.raw({ op: 'auth', token: O.token(), version: E.VERSION, platform: (E.Native && E.Native.is ? E.Native.platform : 'web') });
+      r.raw({ op: 'auth', token: O.token(), version: E.VERSION, proto: E.PROTOCOL, platform: (E.Native && E.Native.is ? E.Native.platform : 'web') });
     });
   };
   // Shared pushes on a lobby connection (announcements, account changes, being kicked).

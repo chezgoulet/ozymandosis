@@ -19,6 +19,7 @@ import { REDACT_PATHS, userTag } from './lib/privacy.js';
 import { HttpError, unauthorized, forbidden, ROLE_RANK, type Ctx, type Role } from './context.js';
 import { sessionUser } from './auth/service.js';
 import { Hub } from './realtime/hub.js';
+import { startRetention } from './lib/retention.js';
 import authRoutes from './auth/routes.js';
 import oauthRoutes from './auth/oauth.js';
 import meRoutes from './auth/me.js';
@@ -163,7 +164,8 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   // The game's typefaces, shared with the portal (copied into the image in production).
   const fonts = [join(here, '../public-fonts'), join(here, '../../../vendor/fonts'), join(here, '../../../../vendor/fonts')].find(existsSync);
   if (fonts) await app.register(fstatic, { root: fonts, prefix: '/fonts/', decorateReply: false, setHeaders: (reply: any) => reply.header('cache-control', 'public, max-age=604800') });
-  app.addHook('onClose', async () => { ctx.hub.close(); await db.close(); });
+  const stopRetention = cfg.test ? () => {} : startRetention(ctx);
+  app.addHook('onClose', async () => { stopRetention(); ctx.hub.close(); await db.close(); });
   return { app, ctx };
 }
 

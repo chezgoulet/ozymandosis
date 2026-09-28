@@ -12,6 +12,11 @@
   // toHost(data), kick(id), close(); events hosted, joined, peer, left, msg, closed,
   // close (data path lost), sigclose (signaling lost), error, plus server passthroughs.
   const CHUNK = 15000, HIGH_WATER = 1 << 20;
+  // The peer protocol: bump whenever snapshots, commands, game data or the sim
+  // change in a way an older build cannot follow. Both sides say hello with it
+  // as soon as their DataChannel opens; different protocols never play together.
+  E.PROTOCOL = 2;
+  const HELLO_WAIT = 6000;
   class Relay {
     constructor(opts) { this.opts = opts || {}; this.ws = null; this.handlers = {}; this.id = -1; this.room = ''; this.role = null; this.peers = new Map(); this.ice = []; this.seq = 0; }
     static defaultUrl() {
@@ -61,9 +66,8 @@
       const wire = dc => {
         p.dc = dc; dc.binaryType = 'arraybuffer';
         dc.onopen = () => {
-          p.open = true;
-          if (this.role === 'host') this.emit('peer', Object.assign({ id, name }, p.info));
-          else this.emit('joined', Object.assign({}, this.pendingJoin, { id: this.id, room: this.room }));
+          dc.send('M' + JSON.stringify({ k: 'hi', p: E.PROTOCOL, v: E.VERSION || '?' }));
+          p.helloT = setTimeout(() => this.mismatch(p, null), HELLO_WAIT);
         };
         dc.onclose = () => this.dropPeer(id, true);
         dc.onmessage = ev => this.onData(p, ev.data);
@@ -85,9 +89,31 @@
         } else if (d.c) { if (pc.remoteDescription) await pc.addIceCandidate(d.c).catch(() => {}); else p.cands.push(d.c); }
       } catch (e) { this.emit('error', { msg: 'Connection negotiation failed: ' + e.message }); }
     }
+    // the other side's hello: same protocol opens the game channel, anything else is refused
+    onHello(p, m) {
+      clearTimeout(p.helloT);
+      if (p.open) return;
+      if (m.p !== E.PROTOCOL) { this.mismatch(p, m); return; }
+      p.open = true; p.version = String(m.v || '?').slice(0, 20);
+      if (this.role === 'host') this.emit('peer', Object.assign({ id: p.id, name: p.name, version: p.version }, p.info));
+      else this.emit('joined', Object.assign({}, this.pendingJoin, { id: this.id, room: this.room, hostVersion: p.version }));
+    }
+    mismatch(p, m) {
+      const theirs = m ? `version ${String(m.v || '?').slice(0, 20)}` : 'an older version';
+      const newer = m && m.p > E.PROTOCOL;
+      const msg = this.role === 'host'
+        ? `${p.name} could not join: they run ${theirs} of Ozymandosis and you run ${E.VERSION}. Everyone needs the same version.`
+        : `The host runs ${theirs} of Ozymandosis and you run ${E.VERSION}. ${newer ? 'Update the game to join.' : 'The host needs to update.'}`;
+      this.emit('error', { msg, code: 'version' });
+      if (this.role === 'host') {
+        // current guests see the mismatch themselves and leave; builds too old to say hello are removed shortly after
+        this.dropPeer(p.id, false);
+        setTimeout(() => this.raw({ op: 'kick', id: p.id }), 3000);
+      } else { this.dropPeer(p.id, false); this.emit('closed', { reason: 'version' }); this.close(); }
+    }
     dropPeer(id, notify) {
       const p = this.peers.get(id); if (!p) return;
-      this.peers.delete(id);
+      this.peers.delete(id); clearTimeout(p.helloT);
       try { if (p.dc) p.dc.close(); p.pc.close(); } catch (e) { /* */ }
       if (!notify) return;
       if (this.role === 'host') { if (p.open) this.emit('left', { id }); }
@@ -107,6 +133,8 @@
         p.parts.delete(seq); json = buf.parts.join('');
       } else return;
       let data; try { data = JSON.parse(json); } catch (e) { return; }
+      if (data && data.k === 'hi') { this.onHello(p, data); return; }
+      if (!p.open) return; // nothing but the hello until the protocols agree
       this.emit('msg', { from: p.id, data });
     }
     sendTo(p, data) {

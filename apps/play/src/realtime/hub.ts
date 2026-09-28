@@ -4,7 +4,7 @@
 // passes through this server.
 //
 // Protocol (JSON over one WebSocket per client; the first message must be auth):
-//   → auth {token, version, platform}            ← hello {user, ent, ice, key, announcements, config}
+//   → auth {token, version, proto, platform}            ← hello {user, ent, ice, key, announcements, config}
 //   → host {title?, public?, mode?, max?}         ← hosted {room, id: 0, ice}
 //   → join {room}                                 ← joined {room, id, ice, hostName}; host ← peer {id, name, uid, sub, muted}
 //   → signal {to, data}                           ← signal {from, data}      (host ↔ guest only)
@@ -31,7 +31,7 @@ const cmpVersion = (a: string, b: string) => { const x = a.split('.').map(Number
 
 interface Conn {
   ws: WebSocket; user: UserRow | null; ent: Entitlements | null; tag: string;
-  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; platform: string; queued: string | null; queuedAt: number;
+  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; platform: string; queued: string | null; queuedAt: number;
 }
 interface Lobby {
   code: string; host: Conn; members: Map<number, Conn>; seq: number; createdAt: number;
@@ -58,7 +58,7 @@ export class Hub {
 
   // ── connection lifecycle ─────────────────────────────────────
   private accept(ws: WebSocket, req: FastifyRequest) {
-    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', platform: '', queued: null, queuedAt: 0 };
+    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, platform: '', queued: null, queuedAt: 0 };
     this.conns.add(c);
     const authTimer = setTimeout(() => { if (!c.user) ws.close(4001, 'auth timeout'); }, 10000);
     (ws as any).isAlive = true;
@@ -82,7 +82,7 @@ export class Hub {
     const a = await sessionUser(this.ctx, String(m.token || ''));
     if (!a) { this.send(c, { op: 'error', msg: 'Please sign in again.', code: 'unauthorized' }); c.ws.close(4001, 'unauthorized'); return; }
     if (a.user.status === 'suspended') { this.send(c, { op: 'kicked', msg: `Your account is suspended until ${new Date(a.user.suspended_until!).toUTCString()}.` }); c.ws.close(4003, 'suspended'); return; }
-    c.version = String(m.version || '0').slice(0, 20); c.platform = String(m.platform || '').slice(0, 20);
+    c.version = String(m.version || '0').slice(0, 20); c.proto = Number.isInteger(m.proto) ? m.proto : 1; c.platform = String(m.platform || '').slice(0, 20);
     const cfg = await this.remote();
     if (cmpVersion(c.version, cfg.minClientVersion) < 0) { this.send(c, { op: 'upgrade', msg: 'A new version of Ozymandosis is out. Please update to play online.', min: cfg.minClientVersion }); c.ws.close(4010, 'upgrade'); return; }
     if (cfg.maintenance?.on && a.user.role === 'player') { this.send(c, { op: 'maintenance', msg: cfg.maintenance.message || 'Online play is down for maintenance. Back soon.' }); c.ws.close(4011, 'maintenance'); return; }
@@ -121,7 +121,7 @@ export class Hub {
     const L = c.lobby;
     switch (m.op) {
       case 'ping': return this.send(c, { op: 'pong', t: m.t });
-      case 'lobbies': return this.send(c, { op: 'lobbies', list: this.listing() });
+      case 'lobbies': return this.send(c, { op: 'lobbies', list: this.listing(c) });
       case 'host': case 'lobby.create': return this.host(c, m);
       case 'join': case 'lobby.join': return this.join(c, String(m.room || '').toUpperCase().trim());
       case 'signal': {
@@ -156,7 +156,8 @@ export class Hub {
         if (this.needsVerify(c.user!)) return this.send(c, { op: 'error', msg: 'Confirm your email to play online. Check your inbox.', code: 'verify' });
         this.unqueue(c); if (c.lobby) this.leaveLobby(c, true);
         c.queued = mode; c.queuedAt = Date.now();
-        const q = this.queue.get(mode) || []; q.push(c); this.queue.set(mode, q);
+        const key = `${mode}:${c.proto}`; // players only meet others on the same peer protocol
+        const q = this.queue.get(key) || []; q.push(c); this.queue.set(key, q);
         this.send(c, { op: 'queued', mode, waiting: q.length });
         return this.matchmake();
       }
@@ -197,6 +198,7 @@ export class Hub {
     if (L.pending) { if (!L.reserved || L.reserved.has(c.user!.id)) { if (!L.waiting.includes(c)) L.waiting.push(c); } else this.send(c, { op: 'error', msg: 'That lobby is private to its matched players.' }); return; }
     const uid = c.user!.id;
     if (L.kicked.has(uid)) return this.send(c, { op: 'error', msg: 'The host removed you from this lobby.' });
+    if (L.host.proto !== c.proto) return this.send(c, { op: 'error', code: 'version', msg: L.host.proto > c.proto ? 'That lobby runs a newer version of Ozymandosis. Update the game to join it.' : 'That lobby runs an older version of Ozymandosis. The host needs to update.' });
     if (L.reserved && !L.reserved.has(uid)) return this.send(c, { op: 'error', msg: 'That lobby is private to its matched players.' });
     // one seat per account: a second device replaces the first
     for (const [id, o] of L.members) if (o.user!.id === uid) { this.send(o, { op: 'closed' }); o.lobby = null; L.members.delete(id); this.send(L.host, { op: 'left', id }); }
@@ -226,9 +228,10 @@ export class Hub {
   }
   private drop(c: Conn) { this.unqueue(c); this.leaveLobby(c, true); this.conns.delete(c); }
 
-  listing() {
+  // lobbies the asking client can actually join (same peer protocol)
+  listing(c?: Conn) {
     const out = [];
-    for (const L of this.lobbies.values()) if (L.public && !L.started && !L.reserved && L.members.size + 1 < L.max)
+    for (const L of this.lobbies.values()) if (L.public && !L.started && !L.reserved && L.members.size + 1 < L.max && (!c || L.host.proto === c.proto))
       out.push({ room: L.code, title: L.title, host: L.host.user!.display_name, hostSub: !!L.host.ent?.subscriber, players: Math.max(L.players, L.members.size + 1), max: L.max, mode: L.mode, age: Math.round((Date.now() - L.createdAt) / 1000) });
     return out.sort((a, b) => a.age - b.age).slice(0, 100);
   }
@@ -282,13 +285,13 @@ export class Hub {
   // ── quick match ──────────────────────────────────────────────
   private unqueue(c: Conn) {
     if (!c.queued) return;
-    const q = this.queue.get(c.queued); if (q) this.queue.set(c.queued, q.filter(x => x !== c));
+    const key = `${c.queued}:${c.proto}`, q = this.queue.get(key); if (q) this.queue.set(key, q.filter(x => x !== c));
     c.queued = null;
   }
   matchmake() {
     const now = Date.now();
-    for (const [mode, q0] of this.queue) {
-      const spec = QUEUE_MODES[mode];
+    for (const [key, q0] of this.queue) {
+      const mode = key.split(':')[0], spec = QUEUE_MODES[mode];
       let q = q0.filter(c => c.ws.readyState === 1 && c.queued === mode);
       q.sort((a, b) => a.user!.rating - b.user!.rating);
       while (q.length >= spec.min) {
@@ -307,7 +310,7 @@ export class Hub {
         this.send(host, { op: 'matched', room: L.code, role: 'host', mode, players: group.map(c => ({ name: c.user!.display_name, rating: c.user!.rating })) });
         for (const c of group) if (c !== host) this.send(c, { op: 'matched', room: L.code, role: 'guest', mode });
       }
-      this.queue.set(mode, q);
+      this.queue.set(key, q);
     }
   }
 

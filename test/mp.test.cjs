@@ -72,6 +72,14 @@ const assert = require('assert');
   console.log('rejoin', JSON.stringify(st)); assert(st.inGame && st.local === 1);
   const kind2 = await host.evaluate(() => E.game.world.s.players[1].kind); assert.strictEqual(kind2, 'remote');
   await guest2.screenshot({ path: OUT + '/mp-05-rejoin.png' });
+  // a build on a different peer protocol is refused with a clear message, and the match carries on
+  const old = await page('old', { width: 1024, height: 700 });
+  await old.evaluate(() => { E.PROTOCOL = 1; });
+  await old.click('#m-mp'); await old.fill('#mp-name', 'Oldie'); await old.fill('#mp-code', room); await old.click('#mp-join');
+  await old.waitForFunction(() => /version/.test(document.getElementById('mp-status').textContent), null, { timeout: 10000 });
+  const oldSt = await old.evaluate(() => ({ status: document.getElementById('mp-status').textContent, inGame: !document.getElementById('game').hidden }));
+  console.log('old protocol', JSON.stringify(oldSt)); assert(!oldSt.inGame && /update/i.test(oldSt.status));
+  assert.strictEqual(await host.evaluate(() => E.game.world.s.players[1].kind), 'remote', 'host match unaffected');
   console.log(errs.length ? errs.join('\n') : 'no errors');
   await b.close(); server.close(); process.exit(errs.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
