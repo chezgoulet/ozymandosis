@@ -304,3 +304,38 @@ has an age gate; wire the two together.
 **Every item inherits the repo's gates.** Content is done when `npm test` proves
 every organ changes stats and every special has an observable effect, and when
 `npm run test:perf` still passes.
+
+---
+
+# Appendix C — correction: the Android cleartext advice was wrong
+
+The audit proposed scoping cleartext to private address ranges with
+`network_security_config.xml`. **That does not work.** Android's network
+security config matches *hostnames*, not CIDR ranges — there is no way to write
+"permit cleartext for `192.168.0.0/16`". A config that looks like it does is
+matching a literal string, not a range.
+
+The real options, in order of how much they change:
+
+1. **Keep cleartext permitted** — which is what `server.cleartext: true` in
+   `capacitor.config.json` produces. Google Play does not prohibit cleartext;
+   it is a declared posture, not a policy breach. This is the status quo.
+2. **Remove the need for it.** LAN play could run over WebRTC DataChannels —
+   the game already has WebRTC, and a DataChannel to a peer on the same network
+   needs no cleartext exception at all — or over `wss://` with a locally
+   trusted certificate. This is the only version that removes the exception
+   rather than declaring it.
+3. **On iOS the same decision appears in different clothes**: a `ws://`
+   connection needs an App Transport Security exception, and App Review reads
+   and questions those. So this is a two-platform decision, not an Android
+   hardening chore.
+
+**Recommendation:** leave cleartext on for now — LAN play works and Play
+permits it — and treat "LAN play with no cleartext exception" as a genuine
+feature decision for later. The defect the audit actually found was the
+hardcoded address, and that is fixed.
+
+## Verification note
+
+`docs/LAUNCH.md` still lists the real-device checks, and the low-end Android
+frame-rate test remains the one claim no store process can substitute for.
