@@ -368,6 +368,12 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 @keyframes threatpulse { 50% { opacity: .55; } }
 .undo { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--sheet-h, 190px) + 14px + var(--safe-b)); z-index: 7; }
 .undo .btn { background: rgba(4, 18, 22, .95); }
+.net-banner { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--hud-h, 56px) + 12px + var(--safe-t)); z-index: 8; display: flex; align-items: center; gap: 10px;
+  max-width: calc(100% - 32px); padding: 8px 10px 8px 14px; border-radius: 999px; background: rgba(4, 18, 22, .95); border: 1px solid var(--line-2); box-shadow: 0 8px 26px rgba(0, 0, 0, .45); font-size: .9rem; }
+.net-banner #net-banner-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.net-banner .spin { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--pc1); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .net-banner .spin { animation-duration: 3s; } }
 .lineage { font-size: .86rem; color: var(--ink-soft); min-height: 1.2em; margin: -6px 0 6px; }
 .lineage b { color: var(--gold); font-weight: 500; }
 .counters { display: flex; gap: 10px; flex-wrap: wrap; font-size: .76em; margin-top: 4px; }

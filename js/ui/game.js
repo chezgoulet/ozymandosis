@@ -42,6 +42,7 @@
       this.local = o.local || 0; this.relay = o.relay || null; this.peers = o.peers || new Map();
       this.online = !!o.online; this.slotUid = o.slotUid || {}; this.ticket = null; this.limitNote = {}; this.reported = false;
       this.claimed = null; this.onAudit = null; this.auditHost = null; this.auditGuest = null;
+      this.reconnecting = false; this.resuming = false; $('net-banner').hidden = true;
       $('h-limit').hidden = true; $('p-report').hidden = !this.online; $('end-online').hidden = true; this.endNote('');
       if (this.netMode === 'guest') { this.world = E.NetPack.mirror(o.init); this.local = o.init.you; this.snapT = performance.now(); this.snapDt = 125; this.waiting = true; }
       else this.world = o.save ? new E.World({ state: o.save }) : new E.World({ cfg: o.cfg });
@@ -75,6 +76,7 @@
       if (!this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(t => this.loop(t)); }
       E.Audio.play('build');
       if (!o.save && this.netMode !== 'guest') this.notify('The bloom begins. Hatch foragers, gather lumen, evolve.', 'info');
+      if (o.rejoined) this.notify('Reconnected to the match.', 'good');
     }
     // Pick the backend (webgpu → webgl2 → canvas2d). A canvas can only ever hold one
     // context type, so switching backends swaps in a fresh canvas element.
@@ -173,17 +175,20 @@
         const p = this.world.s.players[peer.slot]; p.dropped = true; this.world.command(peer.slot, { c: 'seat', kind: 'bot', diff: p.diff || 'normal', income: 1 });
         this.notify(`${peer.name} disconnected. A bot takes over until they return.`, 'info');
       });
-      r.on('sigclose', () => this.notify('Lost the signaling server. The match continues peer to peer.', 'info'));
+      r.on('hosted', () => {}); // (the lobby's handler must not run again mid-match)
+      r.on('sigclose', () => { if (this.relay !== r) return; this.notify('Lost the signaling server. The match continues peer to peer.', 'info'); if (this.online) this.resumeSignaling(r); });
+      r.on('unstable', m => { const peer = this.peers.get(m.id); if (peer) this.notify(`${peer.name}'s connection is unstable…`, 'info'); });
+      r.on('stable', m => { const peer = this.peers.get(m.id); if (peer) this.notify(`${peer.name} is back.`, 'good'); });
       for (const id of this.peers.keys()) this.sendInit(id);
     }
-    sendInit(id) { const peer = this.peers.get(id); if (!peer) return; this.relay.send(id, E.NetPack.init(this.world, peer.slot)); this.relay.send(id, E.NetPack.snap(this.world, peer.slot, [])); }
+    sendInit(id) { const peer = this.peers.get(id); if (!peer) return; peer.memo = {}; this.relay.send(id, E.NetPack.init(this.world, peer.slot)); this.relay.send(id, E.NetPack.snap(this.world, peer.slot, [], peer.memo)); }
     guestSetup() {
       const r = this.relay;
       r.on('msg', m => {
         const d = m.data; if (!d) return;
         if (d.k === 'snap') {
           const now = performance.now(); this.snapDt = E.clamp(now - this.snapT, 60, 300); this.snapT = now;
-          E.NetPack.apply(this.world, d); this.waiting = false;
+          E.NetPack.apply(this.world, d, this.local, (x, y) => this.renderer.fogActive && this.renderer.seen(x, y)); this.waiting = false;
           if (this.auditGuest) this.auditGuest.onSnap(d, this.world);
           this.handleEvents(d.ev || []);
         } else if (d.k === 'init') { this.world = E.NetPack.mirror(d); this.local = d.you; this.renderer.reset(this.world, this.local); if (this.auditGuest) this.auditGuest = new E.AuditGuest(this.local); }
@@ -195,14 +200,24 @@
       r.on('ticket', m => this.onTicket(m.ticket));
       if (r.ticket) this.onTicket(r.ticket.ticket);
       r.on('result', m => this.onResult(m));
-      r.on('closed', () => { this.notify('The host closed the game.', 'info'); E.toast('The host closed the game.'); setTimeout(() => this.quit(true), 1500); });
-      r.on('close', () => { if (this.running) { this.notify('Lost the connection to the host.', 'info'); if (!this.world.s.over) this.claim('disconnected'); } });
+      r.on('closed', m => { if (m && m.link) return; this.notify('The host closed the game.', 'info'); E.toast('The host closed the game.'); setTimeout(() => this.quit(true), 1500); });
+      r.on('close', () => { if (this.running && this.relay === r) this.reconnect(); });
+      r.on('unstable', () => this.banner('Connection to the host is unstable. Holding on…'));
+      r.on('stable', () => { if (!this.reconnecting) $('net-banner').hidden = true; });
       r.on('error', m => E.toast(m.msg));
       r.toHost({ k: 'ready' });
     }
+    // Each guest gets its own snapshot (what its team can see). A backed-up link skips a
+    // round; audit commitments wait for the next snapshot that goes out.
     broadcastSnaps(events) {
       const au = this.auditHost ? this.auditHost.take() : null;
-      for (const [id, peer] of this.peers) { const d = E.NetPack.snap(this.world, peer.slot, events); if (au) d.au = au; this.relay.send(id, d); }
+      for (const [id, peer] of this.peers) {
+        if (au) peer.au = (peer.au || []).concat(au);
+        if (this.relay.congested(id)) continue;
+        const d = E.NetPack.snap(this.world, peer.slot, events, peer.memo || (peer.memo = {}));
+        if (peer.au) { d.au = peer.au; peer.au = null; }
+        this.relay.send(id, d);
+      }
     }
     chat(from, text, relayOut) {
       text = String(text).slice(0, 140);
@@ -213,6 +228,42 @@
       setTimeout(() => { if (log.firstChild) log.firstChild.remove(); }, 20000);
       E.Audio.play('chat');
       if (relayOut && this.netMode === 'host') this.relay.send('all', { k: 'chat', from, text });
+    }
+
+    // ── dropped links ───────────────────────────────────────────
+    banner(text) { $('net-banner-t').textContent = text; $('net-banner').hidden = !text; }
+    // A guest who lost the host keeps trying to get back into the match (same room,
+    // same seat) for a while, then leaves; the server hears it lost the connection.
+    async reconnect() {
+      if (this.reconnecting || this.limitHit) return;
+      const w = this.world, old = this.relay;
+      if (!w || w.s.over) { this.notify('The host left.', 'info'); return; }
+      this.reconnecting = true;
+      const room = old && old.room, online = this.online, url = old && old.url, t0 = Date.now(), GIVE_UP = 90e3;
+      if (old) old.close();
+      let delay = 1000, why = '';
+      while (this.reconnecting && this.running && Date.now() - t0 < GIVE_UP) {
+        this.banner(`Reconnecting to the host… ${Math.round((Date.now() - t0) / 1000)} s`);
+        const r = room ? await E.Menus.rejoin(room, online, url) : { ok: false, closed: true };
+        if (r.ok) return;
+        if (r.closed || r.code === 'resume') { why = r.msg; break; }
+        await new Promise(res => setTimeout(res, delay)); delay = Math.min(6000, delay * 1.6);
+      }
+      if (!this.reconnecting) return; // left by hand
+      this.reconnecting = false; $('net-banner').hidden = true;
+      this.claim('disconnected');
+      E.toast(why || 'Could not get back into the match.', 5000);
+      this.quit();
+    }
+    // A host whose signaling dropped mid-match reattaches, so dropped guests can rejoin.
+    async resumeSignaling(r) {
+      if (this.resuming) return; this.resuming = true;
+      for (let delay = 1500; this.running && this.relay === r && !r.ws && !this.world.s.over; delay = Math.min(15000, delay * 1.7)) {
+        await new Promise(res => setTimeout(res, delay));
+        if (!this.running || this.relay !== r) break;
+        try { await E.Online.reattach(r); this.notify('Back in touch with the server.', 'good'); break; } catch (e) { if (e.code === 'resume') break; }
+      }
+      this.resuming = false;
     }
 
     // ── online: tickets and the free time limit ──────────────────
@@ -828,6 +879,7 @@
       $('p-surrender').onclick = async () => { if (await E.confirm('Surrender?', 'Your colony will wither and the match will continue without you.', 'Surrender')) { this.send({ c: 'surrender' }); this.resume(); } };
       $('p-quit').onclick = async () => { if (this.world.s.over || await E.confirm('Quit to menu?', this.netMode === 'guest' ? 'You will leave the match.' : 'Your progress is autosaved. You can Continue from the menu.', 'Quit')) this.quit(); };
       $('end-menu').onclick = () => this.quit();
+      $('net-banner-leave').onclick = () => { const was = this.reconnecting; this.reconnecting = false; $('net-banner').hidden = true; if (was) this.claim('disconnected'); this.quit(); };
       $('end-watch').onclick = () => { $('ov-end').hidden = true; };
       const rematch = reseed => {
         const o = this.startOpts, cfg = E.deepCopy(o.cfg || (this.world && this.world.s.cfg));

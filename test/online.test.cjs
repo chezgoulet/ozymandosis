@@ -82,6 +82,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     // the guest gives a few orders (they must show up in the host's log)
     await guest.evaluate(() => { const g = E.game, ids = g.world.s.units.filter(u => u.o === g.local).map(u => u.id); for (let i = 0; i < 3; i++) g.send({ c: 'move', ids, x: 500 + i * 20, y: 500 }); });
     await host.waitForTimeout(800);
+    // the host's link to the service drops mid-match: it reattaches by itself and keeps the lobby
+    await host.evaluate(() => { window.__ws = E.game.relay.ws; E.game.relay.ws.close(); });
+    await host.waitForFunction(() => E.game.relay.ws && E.game.relay.ws !== window.__ws && E.game.relay.ws.readyState === 1 && !E.game.resuming, null, { timeout: 20000 });
+    console.log('host resumed signaling');
     // fast-forward the host's world through a few audit checkpoints, then end it
     await host.evaluate(async () => { const g = E.game, w = g.world; for (let i = 0; i < 1900; i++) { w.step(); g.auditHost.tick(); w.drainEvents(); if (i % 200 === 0) await new Promise(r => setTimeout(r, 30)); } });
     await host.waitForTimeout(1500);

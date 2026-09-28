@@ -59,3 +59,27 @@ test('peer protocol: lobbies and quick match only pair clients that speak the sa
   assert.ok(m.room);
   for (const x of [A, B, C]) x.close();
 });
+
+test('a host whose signaling drops mid-match can resume it; guests are told to wait meanwhile', async () => {
+  const h = await signup(t), g = await signup(t);
+  const H = await Client.open(t, h.token), G = await Client.open(t, g.token);
+  H.send({ op: 'host' }); const { room } = await H.wait('hosted');
+  G.send({ op: 'join', room }); await G.wait('joined'); await H.wait('peer');
+  H.send({ op: 'start' }); const tk = await H.wait('ticket');
+  H.close(); await new Promise(r => setTimeout(r, 150));
+  G.send({ op: 'leave' });
+  G.send({ op: 'join', room });
+  assert.equal((await G.wait('error')).code, 'host_away');
+  const H2 = await Client.open(t, h.token);
+  const other = await signup(t), O = await Client.open(t, other.token);
+  O.send({ op: 'host', resume: room });
+  assert.equal((await O.wait('error')).code, 'resume', 'only the same account can resume');
+  H2.send({ op: 'host', resume: room });
+  const back = await H2.wait('hosted');
+  assert.equal(back.room, room); assert.equal(back.resumed, true);
+  assert.equal((await H2.wait('ticket')).ticket, tk.ticket);
+  G.send({ op: 'join', room });
+  const j = await G.wait('joined'); assert.equal(j.id, 1, 'same seat');
+  await H2.wait('peer');
+  for (const c of [H2, G, O]) c.close();
+});

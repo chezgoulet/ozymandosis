@@ -116,3 +116,11 @@ test('moderators resolve a dispute by accepting one account', async () => {
   assert.equal((await t.ctx.db.one<any>('select wins from users where id = $1', [b.id])).wins, 1);
   assert.equal((await t.api('POST', `/api/admin/matches/${mid}/resolve`, { accept: a.id }, mod.token)).status, 400, 'only once');
 });
+
+test('a host that vanishes without reporting abandons the match', async () => {
+  const h = await signup(t), g = await signup(t);
+  const mid = await match([h.id, g.id], { ranked: true });
+  await recordClaim(t.ctx, g.id, { match: mid, kind: 'disconnected' });
+  const s = await settle(t.ctx, mid);
+  assert.equal(s!.status, 'confirmed'); assert.deepEqual(s!.players.map(p => p.result), ['loss', 'win']);
+});

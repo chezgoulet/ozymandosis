@@ -17,6 +17,30 @@
   // as soon as their DataChannel opens; different protocols never play together.
   E.PROTOCOL = 2;
   const HELLO_WAIT = 6000;
+  // A flaky link (Wi-Fi to mobile data, a NAT rebinding) gets an ICE restart and
+  // RECOVER_MS to come back before the peer counts as gone.
+  const RECOVER_MS = 15000, SOFT_WAIT = 2500;
+  // Messages over 1 KB travel deflated when both ends can (CompressionStream).
+  // Inbound limits keep a hostile peer from exhausting memory.
+  const ZIP = typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
+  const ZIP_MIN = 1024, BIN_CHUNK = 16000, MAX_MSG = 8 << 20, MAX_PARTS = 600, MAX_PARTIALS = 8;
+  async function deflate(str) {
+    const cs = new CompressionStream('deflate-raw'), w = cs.writable.getWriter();
+    w.write(new TextEncoder().encode(str)); w.close();
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+  }
+  async function inflate(bytes) {
+    const ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter();
+    w.write(bytes).catch(() => {}); w.close().catch(() => {});
+    const rd = ds.readable.getReader(), parts = []; let n = 0;
+    for (;;) {
+      const { done, value } = await rd.read(); if (done) break;
+      n += value.byteLength; if (n > MAX_MSG) { rd.cancel().catch(() => {}); throw new Error('message too large'); }
+      parts.push(value);
+    }
+    const out = new Uint8Array(n); let o = 0; for (const v of parts) { out.set(v, o); o += v.byteLength; }
+    return new TextDecoder().decode(out);
+  }
   class Relay {
     constructor(opts) { this.opts = opts || {}; this.ws = null; this.handlers = {}; this.id = -1; this.room = ''; this.role = null; this.peers = new Map(); this.ice = []; this.seq = 0; }
     static defaultUrl() {
@@ -27,6 +51,7 @@
     on(op, fn) { this.handlers[op] = fn; return this; }
     emit(op, m) { const h = this.handlers[op]; if (h) try { h(m); } catch (e) { console.error(e); } }
     connect(url) {
+      this.url = url;
       return new Promise((res, rej) => {
         let ws;
         try { ws = new WebSocket(url); } catch (e) { rej(e); return; }
@@ -59,14 +84,19 @@
     makePeer(id, name, initiator, info) {
       this.dropPeer(id, false);
       const pc = new RTCPeerConnection(this.iceConfig());
-      const p = { id, name, pc, dc: null, info: info || {}, parts: new Map(), open: false, cands: [] };
+      const p = { id, name, pc, dc: null, info: info || {}, parts: new Map(), open: false, cands: [], out: Promise.resolve(), inq: Promise.resolve(), queued: 0, z: false };
       this.peers.set(id, p);
       pc.onicecandidate = e => { if (e.candidate) this.raw({ op: 'signal', to: id, data: { c: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate } }); };
-      pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.dropPeer(id, true); };
+      pc.onconnectionstatechange = () => {
+        const st = pc.connectionState;
+        if (st === 'connected') { if (p.graceT) { clearTimeout(p.graceT); clearTimeout(p.softT); p.graceT = p.softT = null; this.emit('stable', { id }); } }
+        else if (st === 'disconnected' || st === 'failed') this.recover(p);
+        else if (st === 'closed') this.dropPeer(id, true);
+      };
       const wire = dc => {
         p.dc = dc; dc.binaryType = 'arraybuffer';
         dc.onopen = () => {
-          dc.send('M' + JSON.stringify({ k: 'hi', p: E.PROTOCOL, v: E.VERSION || '?' }));
+          dc.send('M' + JSON.stringify({ k: 'hi', p: E.PROTOCOL, v: E.VERSION || '?', z: ZIP }));
           p.helloT = setTimeout(() => this.mismatch(p, null), HELLO_WAIT);
         };
         dc.onclose = () => this.dropPeer(id, true);
@@ -78,9 +108,24 @@
       } else pc.ondatachannel = e => wire(e.channel);
       return p;
     }
+    // Keep a wobbling link: restart ICE (the host offers; a guest asks it to), and give up after RECOVER_MS.
+    recover(p) {
+      const restart = () => { if (this.peers.get(p.id) !== p) return; if (this.role === 'host') this.restartIce(p); else this.raw({ op: 'signal', to: 0, data: { restart: 1 } }); };
+      if (p.pc.connectionState === 'failed') { clearTimeout(p.softT); restart(); } else if (!p.softT) p.softT = setTimeout(() => { if (p.pc.connectionState !== 'connected') restart(); }, SOFT_WAIT);
+      if (p.graceT) return;
+      this.emit('unstable', { id: p.id });
+      p.graceT = setTimeout(() => { p.graceT = null; if (p.pc.connectionState !== 'connected') this.dropPeer(p.id, true); }, RECOVER_MS);
+    }
+    restartIce(p) {
+      const pc = p.pc; if (!this.ws || pc.signalingState === 'closed') return;
+      try { if (pc.restartIce) pc.restartIce(); } catch (e) { /* older browsers: the iceRestart offer below does it */ }
+      pc.createOffer({ iceRestart: true }).then(o => pc.setLocalDescription(o))
+        .then(() => this.raw({ op: 'signal', to: p.id, data: { sdp: pc.localDescription.toJSON ? pc.localDescription.toJSON() : pc.localDescription } })).catch(() => {});
+    }
     async onPeerSignal(from, d) {
       const p = this.peers.get(from); if (!p || !d) return;
       const pc = p.pc;
+      if (d.restart) { if (this.role === 'host') this.restartIce(p); return; }
       try {
         if (d.sdp) {
           await pc.setRemoteDescription(d.sdp);
@@ -94,12 +139,13 @@
       clearTimeout(p.helloT);
       if (p.open) return;
       if (m.p !== E.PROTOCOL) { this.mismatch(p, m); return; }
-      p.open = true; p.version = String(m.v || '?').slice(0, 20);
+      p.open = true; p.version = String(m.v || '?').slice(0, 20); p.z = ZIP && m.z === true;
       if (this.role === 'host') this.emit('peer', Object.assign({ id: p.id, name: p.name, version: p.version }, p.info));
       else this.emit('joined', Object.assign({}, this.pendingJoin, { id: this.id, room: this.room, hostVersion: p.version }));
     }
     mismatch(p, m) {
-      const theirs = m ? `version ${String(m.v || '?').slice(0, 20)}` : 'an older version';
+      const v = m && String(m.v || '?').slice(0, 20);
+      const theirs = !m ? 'an older version' : v === E.VERSION ? 'an incompatible build' : `version ${v}`;
       const newer = m && m.p > E.PROTOCOL;
       const msg = this.role === 'host'
         ? `${p.name} could not join: they run ${theirs} of Ozymandosis and you run ${E.VERSION}. Everyone needs the same version.`
@@ -113,38 +159,85 @@
     }
     dropPeer(id, notify) {
       const p = this.peers.get(id); if (!p) return;
-      this.peers.delete(id); clearTimeout(p.helloT);
+      this.peers.delete(id); clearTimeout(p.helloT); clearTimeout(p.graceT); clearTimeout(p.softT);
       try { if (p.dc) p.dc.close(); p.pc.close(); } catch (e) { /* */ }
       if (!notify) return;
       if (this.role === 'host') { if (p.open) this.emit('left', { id }); }
-      else { this.emit('closed', {}); this.emit('close'); }
+      else { this.emit('close'); this.emit('closed', { link: true }); } // a lost link, not the host ending the game
     }
-    // framing: 'M' + json, or chunks 'C' + seq + '|' + index + '|' + count + '|' + part
-    onData(p, raw) {
-      if (typeof raw !== 'string') return;
-      let json;
-      if (raw[0] === 'M') json = raw.slice(1);
-      else if (raw[0] === 'C') {
-        const a = raw.indexOf('|'), b = raw.indexOf('|', a + 1), c = raw.indexOf('|', b + 1);
-        const seq = raw.slice(1, a), i = +raw.slice(a + 1, b), n = +raw.slice(b + 1, c);
-        let buf = p.parts.get(seq); if (!buf) { buf = { n, got: 0, parts: new Array(n) }; p.parts.set(seq, buf); }
-        if (buf.parts[i] === undefined) { buf.parts[i] = raw.slice(c + 1); buf.got++; }
-        if (buf.got < buf.n) return;
-        p.parts.delete(seq); json = buf.parts.join('');
-      } else return;
-      let data; try { data = JSON.parse(json); } catch (e) { return; }
+    // Framing. Text: 'M' + json, or chunks 'C' + seq|index|count|part.
+    // Binary (deflated json): [1] + bytes, or chunks [2, seq u32, index u16, count u16] + bytes.
+    // Inbound messages are handled strictly in order, even while one inflates.
+    onData(p, raw) { p.inq = p.inq.then(() => this.decode(p, raw)).then(data => { if (data !== undefined) this.dispatch(p, data); }).catch(() => {}); }
+    partial(p, key, n) {
+      let buf = p.parts.get(key);
+      if (!buf) {
+        if (!(n >= 1 && n <= MAX_PARTS) || p.parts.size >= MAX_PARTIALS) return null;
+        buf = { n, got: 0, size: 0, parts: new Array(n) }; p.parts.set(key, buf);
+      }
+      return buf.n === n ? buf : null;
+    }
+    async decode(p, raw) {
+      if (typeof raw === 'string') {
+        let json;
+        if (raw[0] === 'M') json = raw.slice(1);
+        else if (raw[0] === 'C') {
+          const a = raw.indexOf('|'), b = raw.indexOf('|', a + 1), c = raw.indexOf('|', b + 1);
+          const i = +raw.slice(a + 1, b), n = +raw.slice(b + 1, c), buf = this.partial(p, 't' + raw.slice(1, a), n);
+          if (!buf || !(i >= 0 && i < n)) return undefined;
+          if (buf.parts[i] === undefined) { buf.parts[i] = raw.slice(c + 1); buf.got++; buf.size += raw.length; }
+          if (buf.size > MAX_MSG) { p.parts.delete('t' + raw.slice(1, a)); return undefined; }
+          if (buf.got < buf.n) return undefined;
+          p.parts.delete('t' + raw.slice(1, a)); json = buf.parts.join('');
+        } else return undefined;
+        try { return JSON.parse(json); } catch (e) { return undefined; }
+      }
+      if (!(raw instanceof ArrayBuffer) || !raw.byteLength) return undefined;
+      const u8 = new Uint8Array(raw);
+      let bytes;
+      if (u8[0] === 1) bytes = u8.subarray(1);
+      else if (u8[0] === 2 && u8.length > 9) {
+        const dv = new DataView(raw), key = 'b' + dv.getUint32(1), i = dv.getUint16(5), n = dv.getUint16(7), buf = this.partial(p, key, n);
+        if (!buf || i >= n) return undefined;
+        if (buf.parts[i] === undefined) { buf.parts[i] = u8.slice(9); buf.got++; buf.size += u8.length - 9; }
+        if (buf.size > MAX_MSG) { p.parts.delete(key); return undefined; }
+        if (buf.got < buf.n) return undefined;
+        p.parts.delete(key);
+        bytes = new Uint8Array(buf.size); let o = 0; for (const x of buf.parts) { bytes.set(x, o); o += x.byteLength; }
+      } else return undefined;
+      try { return JSON.parse(await inflate(bytes)); } catch (e) { return undefined; }
+    }
+    dispatch(p, data) {
       if (data && data.k === 'hi') { this.onHello(p, data); return; }
       if (!p.open) return; // nothing but the hello until the protocols agree
       this.emit('msg', { from: p.id, data });
     }
+    // A peer whose link is backed up: skip its snapshot this round (they are disposable).
+    congested(id) { const p = this.peers.get(id); return !p || !p.dc || p.dc.readyState !== 'open' || p.dc.bufferedAmount > HIGH_WATER || p.queued > 4; }
     sendTo(p, data) {
       if (!p || !p.dc || p.dc.readyState !== 'open') return;
-      // snapshots are disposable: never queue them behind a congested link
-      if (data && data.k === 'snap' && p.dc.bufferedAmount > HIGH_WATER) return;
       const s = JSON.stringify(data);
+      p.queued++;
+      p.out = p.out.then(async () => {
+        if (!p.dc || p.dc.readyState !== 'open') return;
+        if (p.z && s.length > ZIP_MIN) this.sendBin(p, await deflate(s));
+        else this.sendText(p, s);
+      }).catch(() => {}).then(() => { p.queued--; });
+    }
+    sendText(p, s) {
       if (s.length <= CHUNK) { p.dc.send('M' + s); return; }
       const seq = (++this.seq).toString(36), n = Math.ceil(s.length / CHUNK);
       for (let i = 0; i < n; i++) p.dc.send('C' + seq + '|' + i + '|' + n + '|' + s.slice(i * CHUNK, (i + 1) * CHUNK));
+    }
+    sendBin(p, bytes) {
+      if (!p.dc || p.dc.readyState !== 'open') return;
+      if (bytes.byteLength + 1 <= BIN_CHUNK) { const b = new Uint8Array(bytes.byteLength + 1); b[0] = 1; b.set(bytes, 1); p.dc.send(b.buffer); return; }
+      const seq = (++this.seq) >>> 0, n = Math.ceil(bytes.byteLength / BIN_CHUNK);
+      for (let i = 0; i < n; i++) {
+        const part = bytes.subarray(i * BIN_CHUNK, (i + 1) * BIN_CHUNK), b = new Uint8Array(part.byteLength + 9), dv = new DataView(b.buffer);
+        b[0] = 2; dv.setUint32(1, seq); dv.setUint16(5, i); dv.setUint16(7, n); b.set(part, 9);
+        p.dc.send(b.buffer);
+      }
     }
     send(to, data) {
       if (to === 'all') { for (const p of this.peers.values()) if (p.id !== 0 || this.role !== 'host') this.sendTo(p, data); }
@@ -158,26 +251,70 @@
   E.Relay = Relay;
 
   const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+  // What a player may know about a rival colony during a match: what it looks like
+  // (designs, organs, its glow), never its economy, research or where it started.
+  const PUBLIC = ['idx', 'name', 'culture', 'team', 'kind', 'alive', 'dropped', 'tier', 'forms', 'chassis', 'specials', 'designs', 'techVer', 'persona', 'energy', 'fever', 'echoT', 'income'];
+  const VIS_CELL = 64, EDGE = 80;
+  // Player fields that change rarely: sent only when they change for that guest (the memo).
+  const SLOW = ['name', 'culture', 'team', 'designs', 'forms', 'chassis', 'specials', 'tier', 'research', 'persona', 'start', 'dseq', 'autocast', 'techVer'];
   E.NetPack = {
     init(w, slot) {
       const s = w.s;
       return { k: 'init', you: slot, cfg: s.cfg, map: s.map, vents: s.vents,
         pools: s.pools.map(r => ({ id: r.id, kind: r.kind, r: r.r, max: r.max, great: r.great, ax: r.ax, ay: r.ay, orbit: r.orbit, spd: r.spd, ph: r.ph })) };
     },
-    snap(w, slot, events) {
-      const s = w.s;
-      return {
-        k: 'snap', t: r2(s.t), tick: s.tick, over: s.over, winner: s.winner,
-        players: s.players.map(p => { const c = Object.assign({}, p); delete c.ai; return c; }),
-        structs: s.structs.map(b => Object.assign({}, b, { x: r1(b.x), y: r1(b.y), hp: Math.round(b.hp) })),
-        pools: s.pools.map(r => [r.id, r1(r.x), r1(r.y), Math.round(r.amt)]),
-        pickups: s.pickups, clouds: s.clouds, obj: s.obj,
-        shots: s.shots.map(h => [r1(h.x), r1(h.y), Math.round(h.vx), Math.round(h.vy), h.o]),
-        units: s.units.map(u => [u.id, u.o, u.d, r1(u.x), r1(u.y), r2(u.a), Math.round(u.hp * 10) / 10,
+    // Everything the slot's team can see right now (plus an edge so creatures glide in),
+    // or null when the slot may see everything (no fog, echo, spectating, match over).
+    sight(w, slot) {
+      const s = w.s, me = s.players[slot];
+      if (!s.cfg.map.fog || s.over || !me || !me.alive || me.echoT > 0) return null;
+      const cols = Math.ceil(s.map.w / VIS_CELL), rows = Math.ceil(s.map.h / VIS_CELL), g = new Uint8Array(cols * rows);
+      for (const src of w.visionSources(slot)) {
+        const r = src.r + EDGE, c0 = Math.max(0, Math.floor((src.x - r) / VIS_CELL)), c1 = Math.min(cols - 1, Math.floor((src.x + r) / VIS_CELL));
+        const r0 = Math.max(0, Math.floor((src.y - r) / VIS_CELL)), rr1 = Math.min(rows - 1, Math.floor((src.y + r) / VIS_CELL)), rr = (r + VIS_CELL) * (r + VIS_CELL);
+        for (let cy = r0; cy <= rr1; cy++) { const dy = (cy + 0.5) * VIS_CELL - src.y; for (let cx = c0; cx <= c1; cx++) { const dx = (cx + 0.5) * VIS_CELL - src.x; if (dx * dx + dy * dy <= rr) g[cy * cols + cx] = 1; } }
+      }
+      return (x, y) => { const cx = Math.floor(x / VIS_CELL), cy = Math.floor(y / VIS_CELL); return cx >= 0 && cy >= 0 && cx < cols && cy < rows && g[cy * cols + cx] === 1; };
+    },
+    // One guest's snapshot: its own team in full; rivals only where it can see them.
+    // memo (per guest, reset on init) remembers the slow player fields it already has.
+    snap(w, slot, events, memo) {
+      const s = w.s, see = this.sight(w, slot);
+      const ally = o => o === slot || !w.isEnemy(slot, o);
+      const shown = (o, x, y) => !see || ally(o) || see(x, y);
+      const players = s.players.map(p => {
+        let c;
+        if (!see || ally(p.idx)) { c = Object.assign({}, p); delete c.ai; }
+        else {
+          c = {}; for (const k of PUBLIC) if (p[k] !== undefined) c[k] = p[k];
+          c.lumen = Math.min(20, Math.round(p.lumen)); // only "is it starving" shows in its glow
+        }
+        if (memo) {
+          const slow = {}; for (const k of SLOW) if (c[k] !== undefined) slow[k] = c[k];
+          const key = JSON.stringify(slow);
+          if (memo[p.idx] === key) { for (const k of SLOW) delete c[k]; c.$ = 1; } else memo[p.idx] = key;
+        }
+        return c;
+      });
+      const units = [];
+      for (const u of s.units) {
+        if (!shown(u.o, u.x, u.y) || (see && !ally(u.o) && w.isStealthed(u))) continue;
+        units.push([u.id, u.o, u.d, r1(u.x), r1(u.y), r2(u.a), Math.round(u.hp * 10) / 10,
           (u.engaged ? 1 : 0) | (u.harvesting ? 2 : 0) | (u.elite ? 4 : 0) | (u.revealT > 0 ? 8 : 0) | (u.temp ? 16 : 0) | (u.apex ? 32 : 0) | (u.ct === 's' ? 64 : 0) | (u.free ? 128 : 0),
           r1(u.cargo), u.rank, u.buffs.length ? u.buffs.map(b => [b.k, r2(b.v), r1(b.t)]) : 0, r2(u.fade),
-          u.o === slot ? [u.order, u.cds, u.q || []] : 0]),
-        ev: events,
+          u.o === slot ? [u.order, u.cds, u.q || []] : 0]);
+      }
+      return {
+        k: 'snap', t: r2(s.t), tick: s.tick, over: s.over, winner: s.winner, fog: !!see,
+        players,
+        structs: s.structs.filter(b => shown(b.o, b.x, b.y)).map(b => Object.assign({}, b, { x: r1(b.x), y: r1(b.y), hp: Math.round(b.hp) })),
+        pools: s.pools.map(r => !see || see(r.x, r.y) ? [r.id, r1(r.x), r1(r.y), Math.round(r.amt)] : [r.id, r1(r.x), r1(r.y)]),
+        pickups: see ? s.pickups.filter(k => see(k.x, k.y)) : s.pickups,
+        clouds: see ? s.clouds.filter(c => ally(c.o) || see(c.x, c.y)) : s.clouds,
+        obj: s.obj,
+        shots: s.shots.filter(h => shown(h.o, h.x, h.y)).map(h => [r1(h.x), r1(h.y), Math.round(h.vx), Math.round(h.vy), h.o]),
+        units,
+        ev: see ? events.filter(ev => ev.x === undefined ? (ev.o === undefined || ally(ev.o) || ev.e === 'eliminated' || ev.e === 'objective') : ally(ev.o) || ev.by === slot || see(ev.x, ev.y)) : events,
       };
     },
     // Build the initial mirror World for a guest
@@ -191,11 +328,26 @@
       w.unitMap = new Map();
       return w;
     },
-    apply(w, m) {
+    // local: the guest's slot; seen(x, y): what it sees right now (its renderer's vision), for fog memory
+    apply(w, m, local, seen) {
       const s = w.s;
       s.t = m.t; s.tick = m.tick; s.over = m.over; s.winner = m.winner;
-      s.players = m.players; s.structs = m.structs; s.pickups = m.pickups; s.clouds = m.clouds; s.obj = m.obj;
-      for (const [id, x, y, amt] of m.pools) { const p = w.poolById.get(id); if (p) { p.x = x; p.y = y; p.amt = amt; } }
+      // players marked $ kept their slow fields (designs, research…): carry them over
+      const prev = s.players;
+      for (const p of m.players) if (p.$) { const o = prev[p.idx]; if (o) for (const k of SLOW) if (o[k] !== undefined && p[k] === undefined) p[k] = o[k]; delete p.$; }
+      s.players = m.players; s.pickups = m.pickups; s.clouds = m.clouds; s.obj = m.obj;
+      // Fog memory: rival structures stay where they were last seen until we look
+      // again (or watch them die), the way scouting works in any RTS.
+      const ghosts = w.ghosts || (w.ghosts = new Map()), live = new Set(m.structs.map(b => b.id)), gone = new Set();
+      for (const ev of m.ev || []) if (ev.e === 'destroy' && ev.id !== undefined) gone.add(ev.id);
+      const rival = o => !(local >= 0) || w.isEnemy(local, o);
+      if (!m.fog) ghosts.clear();
+      else for (const b of s.structs) if (!live.has(b.id) && !gone.has(b.id) && rival(b.o)) ghosts.set(b.id, Object.assign(b, { ghost: true }));
+      for (const id of live) ghosts.delete(id);
+      for (const id of gone) ghosts.delete(id);
+      for (const [id, b] of ghosts) if (seen && seen(b.x, b.y)) ghosts.delete(id);
+      s.structs = ghosts.size ? m.structs.concat([...ghosts.values()]) : m.structs;
+      for (const a of m.pools) { const p = w.poolById.get(a[0]); if (p) { p.x = a[1]; p.y = a[2]; if (a.length > 3) p.amt = a[3]; } }
       s.shots = m.shots.map(a => ({ x: a[0], y: a[1], vx: a[2], vy: a[3], o: a[4] }));
       const next = new Map(), list = [];
       for (const a of m.units) {

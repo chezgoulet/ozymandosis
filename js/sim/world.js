@@ -906,7 +906,7 @@
         s.structs.splice(i, 1); this.byId.delete(b.id);
         const k = b.lastHit; if (k && s.players[k.o]) s.players[k.o].stats.kills++;
         for (const q of b.queue) { s.players[b.o].lumen += q.l; }
-        this.event('destroy', { x: b.x, y: b.y, o: b.o, kind: b.kind, by: k ? k.o : -1 });
+        this.event('destroy', { id: b.id, x: b.x, y: b.y, o: b.o, kind: b.kind, by: k ? k.o : -1 });
       }
     }
     adoptDesign(p, design) {

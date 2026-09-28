@@ -111,6 +111,23 @@
       r.raw({ op: 'auth', token: O.token(), version: E.VERSION, proto: E.PROTOCOL, platform: (E.Native && E.Native.is ? E.Native.platform : 'web') });
     });
   };
+  // Reattach a host's existing relay (its peers stay connected) after its signaling
+  // dropped mid-match: authenticate a new socket and resume the lobby.
+  O.reattach = async function (r) {
+    const keep = r.handlers; r.handlers = {};
+    try {
+      await r.connect(O.wsUrl());
+      await new Promise((res, rej) => {
+        const to = setTimeout(() => rej(new Error('The server did not answer.')), 8000);
+        const fail = m => { clearTimeout(to); const e = new Error(m.msg || 'Could not resume.'); e.code = m.code || m.op; rej(e); };
+        r.on('error', fail); r.on('upgrade', fail); r.on('maintenance', fail); r.on('kicked', fail);
+        r.on('hello', m => { O.me = m.user; O.ent = m.ent; O.key = m.key; changed(); r.raw({ op: 'host', resume: r.room }); });
+        r.on('hosted', () => { clearTimeout(to); res(); });
+        r.raw({ op: 'auth', token: O.token(), version: E.VERSION, proto: E.PROTOCOL, platform: (E.Native && E.Native.is ? E.Native.platform : 'web') });
+      });
+    } catch (e) { if (r.ws) { const ws = r.ws; r.ws = null; ws.onclose = null; try { ws.close(); } catch (x) { /* */ } } throw e; }
+    finally { r.handlers = keep; }
+  };
   // Shared pushes on a lobby connection (announcements, account changes, being kicked).
   O.wire = function (r) {
     r.on('announcement', m => { O.announcements = [m.announcement, ...O.announcements.filter(a => a.id !== m.announcement.id)]; changed(); O.showAnnouncement(m.announcement); });

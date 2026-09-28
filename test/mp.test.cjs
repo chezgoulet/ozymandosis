@@ -44,7 +44,13 @@ const assert = require('assert');
   await guest.waitForTimeout(1500);
   const g1 = await guest.evaluate(() => ({ local: E.game.local, units: E.game.world.s.units.length, t: E.game.world.s.t, mode: E.game.netMode }));
   console.log('guest', JSON.stringify(g1));
-  assert.strictEqual(g1.local, 1); assert(g1.units > 10);
+  assert.strictEqual(g1.local, 1); assert(g1.units >= 6);
+  // fog: the guest only receives rivals its team can see; the host has the whole world
+  const hostUnits = await host.evaluate(() => E.game.world.s.units.length);
+  const leak = await guest.evaluate(() => { const w = E.game.world, src = w.visionSources(E.game.local); return w.s.units.filter(u => w.isEnemy(E.game.local, u.o) && !src.some(v => Math.hypot(v.x - u.x, v.y - u.y) < v.r + 260)).length; });
+  console.log('fog: host units', hostUnits, 'guest units', g1.units, 'unseen rivals sent', leak);
+  assert(hostUnits > g1.units && leak === 0, 'snapshots are culled to what the guest can see');
+  assert(await host.evaluate(() => [...E.game.relay.peers.values()].every(p => p.z)), 'links are compressed');
   // guest commands: hatch at its nucleus
   await guest.evaluate(() => { const g = E.game, n = g.world.s.structs.find(b => b.o === g.local); g.send({ c: 'hatch', sid: n.id, d: 'warden' }); });
   await host.waitForTimeout(7000);
@@ -61,6 +67,12 @@ const assert = require('assert');
   // in-game chat
   await guest.evaluate(() => { E.game.relay.toHost({ k: 'chat', text: 'gg' }); }); await host.waitForTimeout(400);
   assert((await host.textContent('#chat-log')).includes('gg'));
+  // the guest's link to the host breaks: it rejoins by itself, same seat
+  await guest.evaluate(() => { window.__oldRelay = E.game.relay; E.game.relay.peers.get(0).pc.close(); });
+  await guest.waitForFunction(() => E.game.running && E.game.relay !== window.__oldRelay && E.game.netMode === 'guest' && !E.game.reconnecting && document.getElementById('net-banner').hidden && E.game.world.s.units.length > 0, null, { timeout: 30000 });
+  await host.waitForTimeout(600);
+  const back = await host.evaluate(() => E.game.world.s.players[1].kind);
+  console.log('auto-rejoin', back, await guest.evaluate(() => E.game.local)); assert.strictEqual(back, 'remote');
   // guest disconnect -> bot takeover, then rejoin
   await guest.close(); await host.waitForTimeout(800);
   const kind = await host.evaluate(() => E.game.world.s.players[1].kind); console.log('after drop kind', kind); assert.strictEqual(kind, 'bot');
@@ -76,7 +88,7 @@ const assert = require('assert');
   const old = await page('old', { width: 1024, height: 700 });
   await old.evaluate(() => { E.PROTOCOL = 1; });
   await old.click('#m-mp'); await old.fill('#mp-name', 'Oldie'); await old.fill('#mp-code', room); await old.click('#mp-join');
-  await old.waitForFunction(() => /version/.test(document.getElementById('mp-status').textContent), null, { timeout: 10000 });
+  await old.waitForFunction(() => /update/i.test(document.getElementById('mp-status').textContent), null, { timeout: 10000 });
   const oldSt = await old.evaluate(() => ({ status: document.getElementById('mp-status').textContent, inGame: !document.getElementById('game').hidden }));
   console.log('old protocol', JSON.stringify(oldSt)); assert(!oldSt.inGame && /update/i.test(oldSt.status));
   assert.strictEqual(await host.evaluate(() => E.game.world.s.players[1].kind), 'remote', 'host match unaffected');

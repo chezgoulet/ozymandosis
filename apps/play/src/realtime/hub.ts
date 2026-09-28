@@ -6,6 +6,7 @@
 // Protocol (JSON over one WebSocket per client; the first message must be auth):
 //   → auth {token, version, proto, platform}            ← hello {user, ent, ice, key, announcements, config}
 //   → host {title?, public?, mode?, max?}         ← hosted {room, id: 0, ice}
+//   → host {resume: room}                         ← hosted {room, id: 0, ice, resumed}  (host back after a signaling drop)
 //   → join {room}                                 ← joined {room, id, ice, hostName}; host ← peer {id, name, uid, sub, muted}
 //   → signal {to, data}                           ← signal {from, data}      (host ↔ guest only)
 //   → meta {title?, public?, mode?, players?, max?} (host: lobby listing)
@@ -27,6 +28,7 @@ import { recordClaim, settle, dueMatches, type Settled } from './results.js';
 
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS = 6;
+const HOST_GRACE_MS = 120e3; // a started match waits this long for its host to reconnect to signaling
 const QUEUE_MODES: Record<string, { size: number; min: number; waitMin: number }> = { duel: { size: 2, min: 2, waitMin: 0 }, ffa: { size: 4, min: 3, waitMin: 45 }, team: { size: 4, min: 4, waitMin: 0 } };
 const cmpVersion = (a: string, b: string) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
 
@@ -40,6 +42,7 @@ interface Lobby {
   started: boolean; matchId: string | null; ticket: string | null; ranked: boolean; reserved: Set<string> | null; kicked: Set<string>;
   seats: Map<string, number>; // user id → lobby id, so a player who drops and rejoins keeps their seat
   pending: boolean; waiting: Conn[]; // quick match: guests wait until the chosen host claims the lobby
+  hostGone: number; goneTimer: NodeJS.Timeout | null; // the host's signaling dropped mid-match
 }
 
 export class Hub {
@@ -181,6 +184,16 @@ export class Hub {
 
   private newCode() { let s = ''; do { s = ''; for (let i = 0; i < 5; i++) s += LETTERS[randomInt(LETTERS.length)]; } while (this.lobbies.has(s)); return s; }
   private host(c: Conn, m: any, opts: { reserved?: Set<string>; ranked?: boolean; mode?: string; pending?: boolean } = {}) {
+    if (m.resume) {
+      const L = this.lobbies.get(String(m.resume));
+      if (!L || !L.hostGone || L.host.user!.id !== c.user!.id) return this.send(c, { op: 'error', code: 'resume', msg: 'That match is no longer on the server.' });
+      if (c.lobby && c.lobby !== L) this.leaveLobby(c, true);
+      if (L.goneTimer) clearTimeout(L.goneTimer);
+      L.host = c; L.hostGone = 0; L.goneTimer = null; c.lobby = L; c.lid = 0;
+      this.send(c, { op: 'hosted', room: L.code, id: 0, ice: this.ice(c), ranked: L.ranked, mode: L.mode, resumed: true });
+      if (L.ticket) this.send(c, { op: 'ticket', ticket: L.ticket, match: L.matchId });
+      return L;
+    }
     if (m.claim) {
       const P = this.lobbies.get(String(m.claim));
       if (!P || P.host !== c || !P.pending) return this.send(c, { op: 'error', msg: 'That match is no longer available.' });
@@ -197,7 +210,7 @@ export class Hub {
       title: filterChat(String(m.title || `${c.user!.display_name}'s bloom`).slice(0, 40)).text, public: m.public !== false && !opts.reserved,
       mode: String(opts.mode || m.mode || 'custom').slice(0, 20), max: Math.max(2, Math.min(MAX_PLAYERS, Number(m.max) || MAX_PLAYERS)), players: 1,
       started: false, matchId: null, ticket: null, ranked: !!opts.ranked, reserved: opts.reserved || null, kicked: new Set(), seats: new Map(),
-      pending: !!opts.pending, waiting: [],
+      pending: !!opts.pending, waiting: [], hostGone: 0, goneTimer: null,
     };
     this.lobbies.set(L.code, L); c.lobby = L; c.lid = 0;
     if (!L.pending) this.send(c, { op: 'hosted', room: L.code, id: 0, ice: this.ice(c), ranked: L.ranked });
@@ -208,6 +221,7 @@ export class Hub {
     const L = this.lobbies.get(code);
     if (!L) return this.send(c, { op: 'error', msg: 'No lobby with that code. It may have closed.' });
     if (L.host === c) return;
+    if (L.hostGone) return this.send(c, { op: 'error', code: 'host_away', msg: 'The host is reconnecting. Trying again…' });
     if (L.pending) { if (!L.reserved || L.reserved.has(c.user!.id)) { if (!L.waiting.includes(c)) L.waiting.push(c); } else this.send(c, { op: 'error', msg: 'That lobby is private to its matched players.' }); return; }
     const uid = c.user!.id;
     if (L.kicked.has(uid)) return this.send(c, { op: 'error', msg: 'The host removed you from this lobby.' });
@@ -227,10 +241,19 @@ export class Hub {
   }
   // Leaving before the match starts tells the host. During a match the players'
   // own connection decides: a signaling blip must not tear down a healthy game.
-  private leaveLobby(c: Conn, notify: boolean) {
+  private leaveLobby(c: Conn, notify: boolean, dropped = false) {
     const L = c.lobby; if (!L) return;
     c.lobby = null;
+    if (L.host === c && dropped && L.started) {
+      // the host's signaling dropped mid-match: the match itself runs peer to peer, so keep
+      // the lobby for the host to resume (and for guests to rejoin through) for a while
+      L.hostGone = Date.now();
+      L.goneTimer = setTimeout(() => { if (L.hostGone && this.lobbies.get(L.code) === L) { for (const o of L.members.values()) o.lobby = null; this.lobbies.delete(L.code); } }, HOST_GRACE_MS);
+      L.goneTimer.unref?.();
+      return;
+    }
     if (L.host === c) {
+      if (L.goneTimer) clearTimeout(L.goneTimer);
       if (!L.started) for (const o of L.members.values()) { this.send(o, { op: 'closed' }); o.lobby = null; }
       else for (const o of L.members.values()) o.lobby = null;
       this.lobbies.delete(L.code);
@@ -239,7 +262,7 @@ export class Hub {
       if (notify && !L.started) this.send(L.host, { op: 'left', id: c.lid });
     }
   }
-  private drop(c: Conn) { this.unqueue(c); this.leaveLobby(c, true); this.conns.delete(c); }
+  private drop(c: Conn) { this.unqueue(c); this.leaveLobby(c, true, true); this.conns.delete(c); }
 
   // lobbies the asking client can actually join (same peer protocol)
   listing(c?: Conn) {

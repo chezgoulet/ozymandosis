@@ -13,7 +13,8 @@
 //   - a player who claimed "disconnected" and would be given a loss disputes it;
 //   - a player who never claimed accepts the others' account (leaving is losing);
 //   - a guest's audit that found tampering disputes the match and flags the host;
-//   - with no finals, a lone non-forfeiter wins; otherwise the match is void.
+//   - with no finals, a lone non-forfeiter wins; a host that vanished without a word
+//     while its guests lost the connection abandoned the match; otherwise it is void.
 import type { Ctx } from '../context.js';
 import { bump } from '../auth/service.js';
 
@@ -88,9 +89,15 @@ export async function settle(ctx: Ctx, mid: string): Promise<Settled | null> {
       if (tamper.length) { status = 'disputed'; reason = 'a player\'s check of the host found tampering'; }
     } else {
       const stay = players.filter(u => !forfeit.has(u));
+      const lostHost = m.host_id && !claims[m.host_id] && players.some(u => u !== m.host_id && claims[u]?.kind === 'disconnected');
       for (const u of forfeit) result.set(u, 'loss');
       if (stay.length === 1 && forfeit.size) result.set(stay[0], 'win');
-      else { status = 'void'; reason = 'no one reported an ending'; }
+      else if (lostHost) {
+        // the host vanished and never reported: it abandoned the match (a duel goes to the guest)
+        result.set(m.host_id, 'loss');
+        const rest = players.filter(u => u !== m.host_id && !forfeit.has(u));
+        if (rest.length === 1) result.set(rest[0], 'win');
+      } else { status = 'void'; reason = 'no one reported an ending'; }
     }
     if (status === 'disputed') result.clear();
     const elapsed = Math.max(0, Math.round((ctx.now() - new Date(m.started_at).getTime()) / 1000));

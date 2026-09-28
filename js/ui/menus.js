@@ -420,8 +420,32 @@
   }
   function applyUi() { document.documentElement.style.setProperty('--ui', E.Settings.uiScale || 1); }
 
+  // Back into a match in progress after the link to the host dropped (the game calls
+  // this in a loop): a fresh signaling connection, the same room, the same seat.
+  async function rejoin(code, online, url) {
+    let r;
+    try {
+      if (online) { r = await E.Online.openRelay(); E.Online.wire(r); }
+      else { r = new E.Relay(); await r.connect(url || E.Relay.defaultUrl()); }
+    } catch (e) { return { ok: false, msg: e.message }; }
+    return new Promise(res => {
+      let done = false;
+      const finish = (v, keep) => { if (done) return; done = true; clearTimeout(to); if (!keep) r.close(); res(v); };
+      const to = setTimeout(() => finish({ ok: false, msg: 'The host did not answer.' }), 20000);
+      r.on('error', m => finish({ ok: false, msg: m.msg, code: m.code }));
+      r.on('closed', () => finish({ ok: false, msg: 'The host closed the game.', closed: true }));
+      r.on('msg', m => {
+        const d = m.data; if (!d || d.k !== 'init' || done) return;
+        finish({ ok: true }, true);
+        game.start({ mode: 'guest', init: d, relay: r, online, slotUid: game.slotUid, rejoined: true });
+      });
+      r.join(code, online && E.Online.me ? E.Online.me.name : (E.Settings.name || '').trim() || 'Tender');
+    });
+  }
+
   // ── screen routing ──────────────────────────────────────────────
   E.Menus = {
+    rejoin,
     home() {
       lobby = null;
       E.Audio.theme('title');
