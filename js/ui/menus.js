@@ -316,6 +316,7 @@
   E.Menus = {
     home() {
       lobby = null;
+      E.Audio.theme('title');
       $('bg').hidden = false; E.Screens.stack = []; E.Screens.show('scr-menu');
       $('m-continue').hidden = !E.Saves.read('auto');
       const pr = E.Profile.summary();
@@ -361,6 +362,9 @@
   // ── boot ────────────────────────────────────────────────────────
   applyUi();
   E.hydrateIcons();
+  // music needs a user gesture; the title theme starts on the first touch or key
+  const wake = () => { E.Audio.init(); removeEventListener('pointerdown', wake, true); removeEventListener('keydown', wake, true); };
+  addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
   if (E.Settings.backend === 'webgpu' || /[?&]bench/.test(location.search)) E.loadWebGPU();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !/[?&]nosw/.test(location.search)) navigator.serviceWorker.register('sw.js').catch(() => {});
   requestAnimationFrame(bgFrame);

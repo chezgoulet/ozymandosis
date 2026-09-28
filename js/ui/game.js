@@ -54,7 +54,7 @@
       const c = this.renderer.cam;
       if (home) { c.x = home.x; c.y = home.y; } else { c.x = w.s.map.w / 2; c.y = w.s.map.h / 2; }
       c.z = Math.min(this.renderer.W, this.renderer.H) < 700 ? 0.75 : 1;
-      if (me) { const cult = E.CULTURES[me.culture]; document.documentElement.style.setProperty('--pc0', cult.hex[0]); document.documentElement.style.setProperty('--pc1', cult.hex[1]); E.Audio.setCulture(cult.idx); }
+      if (me) { const cult = E.CULTURES[me.culture]; document.documentElement.style.setProperty('--pc0', cult.hex[0]); document.documentElement.style.setProperty('--pc1', cult.hex[1]); E.Audio.setCulture(cult.idx); E.Audio.theme(cult.id); }
       this.lockOrientation();
       $('mm-wrap').classList.toggle('collapsed', !!E.Settings.mmCollapsed);
       $('h-chat').hidden = this.netMode === 'local'; $('chat').hidden = this.netMode === 'local';
@@ -217,7 +217,7 @@
       this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 0.1; this.updateHud(); }
       if (!$('ov-tech').hidden) { this.techT = (this.techT || 0) - dt; if (this.techT <= 0) { this.techT = 0.25; this.tech.update(); } }
       if (this.forge && !$('ov-forge').hidden) this.forge.frame(dt);
-      const me = this.me(); if (me) E.Audio.mood(me.energy, me.fever);
+      const me = this.me(); if (me) E.Audio.mood(me.energy, me.fever, E.clamp((20 - me.lumen) / 20, 0, 1));
       if (w.s.over && !this.ended) this.onOver();
     }
     handleEvents(events) {
@@ -725,7 +725,7 @@
       $('end-text').textContent = winners ? `Victory to ${winners} after ${E.fmtTime(s.t)}.` : `The Dreamscape falls dark after ${E.fmtTime(s.t)}.`;
       const rows = s.players.map(p => { const c = E.CULTURES[p.culture]; return `<tr><td><span style="color:${c.hex[1]}">●</span> ${E.esc(p.name)}${p.idx === this.local ? ' (you)' : ''}</td><td>${p.alive ? 'Alive' : 'Gone'}</td><td>${p.stats.hatched}</td><td>${p.stats.kills}</td><td>${p.stats.lost}</td><td>${Math.round(p.stats.gathered)}</td><td>${Math.round(p.stats.spore)}</td><td>${p.stats.evolved || 0}</td></tr>`; }).join('');
       $('end-stats').innerHTML = `<tr><th>Culture</th><th>State</th><th>Hatched</th><th>Kills</th><th>Lost</th><th>Lumen</th><th>Spore</th><th>Evolutions</th></tr>${rows}`;
-      E.Audio.play(won ? 'victory' : 'defeat');
+      E.Audio.play(won ? 'victory' : 'defeat'); E.Audio.cadence(!!won);
       if (this.netMode !== 'guest') E.Saves.remove('auto');
       // meta-progression
       const box = $('end-xp'); box.innerHTML = '';
@@ -762,8 +762,18 @@
       this.guideTick();
       this.updateThreats(); this.updateObjective();
       this.measT = (this.measT || 0) - 0.1; if (this.measT <= 0) { this.measT = 1; this.measureSheet(); }
+      this.musicTick();
       // the HUD membrane takes on the colony's live palette (fever, starvation, blight)
       if (me) { const pal = E.playerPalette(w, me), rs = document.documentElement.style; rs.setProperty('--pal-p', E.toHex(pal.primary)); rs.setProperty('--pal-a', E.toHex(pal.accent)); rs.setProperty('--fever', me.fever.toFixed(2)); rs.setProperty('--energy', me.energy.toFixed(2)); }
+    }
+    // How hard is the fighting? Drives the score between drift, pulse and surge.
+    musicTick() {
+      const w = this.world, L = this.local; if (!w || L < 0) return;
+      let mine = 0, foesNear = 0;
+      for (const u of w.s.units) if (u.engaged) { if (u.o === L) mine++; else if (w.isEnemy(L, u.o) && this.renderer.seen(u.x, u.y)) foesNear++; }
+      const now = performance.now() / 1000, alert = this.alerts.length ? Math.max(0, 1 - (now - this.alerts[this.alerts.length - 1].t) / 12) : 0;
+      const me = this.me(), fever = me ? me.fever : 0;
+      E.Audio.intensity(Math.max(Math.min(1, (mine + foesNear) / 14), alert * 0.9, fever * 0.55, w.s.t < 20 ? 0 : 0.18));
     }
     // Tutorial: the rival stays passive until you have learned to build an army.
     unleashTutor() {
