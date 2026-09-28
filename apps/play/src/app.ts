@@ -22,6 +22,7 @@ import authRoutes from './auth/routes.js';
 import oauthRoutes from './auth/oauth.js';
 import meRoutes from './auth/me.js';
 import billingRoutes from './billing/stripe.js';
+import promoRoutes from './billing/promo.js';
 import reportRoutes from './reports/routes.js';
 import moderationRoutes from './moderation/routes.js';
 import adminRoutes from './admin/routes.js';
@@ -129,6 +130,7 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   await oauthRoutes(app, ctx);
   await meRoutes(app, ctx);
   await billingRoutes(app, ctx);
+  await promoRoutes(app, ctx);
   await reportRoutes(app, ctx);
   await moderationRoutes(app, ctx);
   await adminRoutes(app, ctx);

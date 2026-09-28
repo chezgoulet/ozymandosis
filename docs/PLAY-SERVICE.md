@@ -8,9 +8,10 @@ The play service (`apps/play`) introduces players and vouches for them. It never
 |---|---|
 | Accounts | Email and password (Argon2id), email verification, password reset, display names with a slur/evasion filter and reserved staff names. |
 | Two-factor | TOTP (RFC 6238, any authenticator app), QR setup, 10 single-use recovery codes, replay protection (a code's time step is used once), email notice when turned on or off. Staff tools require 2FA on the current session in production. |
-| Other sign-ins | Google, Apple, Discord, GitHub (OAuth 2 / OIDC, PKCE where supported) and Steam (OpenID 2.0 in the browser; `POST /api/auth/steam-ticket` for native Steam builds). A provider appears when its credentials are set. Linking by email happens only when both sides have verified it. |
+| Other sign-ins | Google and Apple (OpenID Connect; PKCE for Google) and Steam (OpenID 2.0 in the browser; `POST /api/auth/steam-ticket` for native Steam builds). A provider appears when its credentials are set. Linking by email happens only when both sides have verified it. |
 | Game sign-in | Browser hand-off: the client registers `sha256(verifier)`, opens `/login?handoff=…`, the player signs in there by any method, the client claims a game session with the verifier. |
 | Membership | Stripe Checkout ($1/month price created by `npm run admin -- stripe:setup`), Stripe Customer Portal, signed and idempotent webhooks. `past_due` keeps access for 3 days. Staff and complimentary grants count as members. |
+| Promo codes | Admins mint codes (one custom code or random batches up to 1,000, `OZY-XXXX-XXXX-XXXX` without look-alike characters) granting a month, a year or life, each with a finite number of uses, once per player, optional expiry, disable, CSV export and a redemption list. Players redeem in their account or in the game; months and years stack on existing free time. |
 | Matchmaking | Public lobby browser, private lobbies (5-letter codes), rated quick match (duel; 4-player FFA that starts with 3 after 45 s). Rating gap widens the longer a player waits. A member hosts when possible. |
 | Signaling | WebRTC offers, answers and ICE candidates, host↔guest only. TURN credentials (coturn REST format, 12 h, pseudonymous usernames). |
 | Tickets | On start: an Ed25519-signed list of players (lobby id, user id, name, member, deadline). Re-issued when someone joins mid-match; earlier deadlines are kept. |
@@ -19,7 +20,7 @@ The play service (`apps/play`) introduces players and vouches for them. It never
 | Moderation | Player reports (with chat lines from the reporter's client), queue, warn, mute, suspend, ban, force rename, sign out everywhere, reset 2FA; role hierarchy; every action audited and applied live. |
 | Announcements | Composed in the admin console, pushed instantly over WebSockets and fetched by clients at start; audience (all, members, free), severity, end time. |
 | Live config | Maintenance mode (players disconnected from matchmaking; matches continue), minimum client version, free match minutes, feature flags. |
-| Admin console | `/admin`: dashboard (live players, lobbies, DAU/WAU/MAU, members, MRR, open crashes and reports, 30-day charts), crash triage, report queue, players, announcements, matches, config, audit log. |
+| Admin console | `/admin`: promo codes, dashboard (live players, lobbies, DAU/WAU/MAU, members, MRR, open crashes and reports, 30-day charts), crash triage, report queue, players, announcements, matches, config, audit log. |
 | Operator CLI | `npm run admin -- create-owner <email> <password>`, `promote <email|name> <role>`, `grant <email|name> <days>`, `stripe:setup`, `migrate`. |
 
 ## Realtime protocol (`/ws`)

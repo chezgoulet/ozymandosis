@@ -85,15 +85,18 @@ export function assertCanPlay(u: UserRow) {
 }
 
 // ── entitlements ─────────────────────────────────────────────────
-export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatchMinutes: number }
+export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatchMinutes: number; lifetime: boolean; source: 'stripe' | 'promo' | 'gift' | 'staff' | null; billing: boolean }
 export async function entitlements(ctx: Ctx, u: UserRow): Promise<Entitlements> {
-  const sub = await ctx.db.one<any>(`select status, current_period_end, cancel_at_period_end from subscriptions where user_id = $1 order by current_period_end desc nulls last limit 1`, [u.id]);
+  const sub = await ctx.db.one<any>(`select id, status, current_period_end, cancel_at_period_end from subscriptions where user_id = $1 order by current_period_end desc nulls last limit 1`, [u.id]);
+  const billing = !!(await ctx.db.one(`select 1 from subscriptions where user_id = $1 and id like 'sub\\_%'`, [u.id]));
   const end = sub?.current_period_end ? new Date(sub.current_period_end).getTime() : 0;
   // active or trialing while paid up; past_due keeps access for a three-day grace
   const paid = !!sub && ((['active', 'trialing'].includes(sub.status) && end > ctx.now()) || (sub.status === 'past_due' && end + 3 * 864e5 > ctx.now()));
   const staff = u.role !== 'player';
   const free = await freeMinutes(ctx);
-  return { subscriber: paid || staff, until: sub?.current_period_end ? new Date(sub.current_period_end).toISOString() : null, status: sub?.status ?? null, cancelAtPeriodEnd: !!sub?.cancel_at_period_end, freeMatchMinutes: free };
+  const lifetime = paid && end >= Date.UTC(9999, 0, 1);
+  const source = paid ? (String(sub.id).startsWith('promo_') ? 'promo' : String(sub.id).startsWith('comp_') ? 'gift' : 'stripe') : staff ? 'staff' : null;
+  return { subscriber: paid || staff, until: sub?.current_period_end ? new Date(sub.current_period_end).toISOString() : null, status: sub?.status ?? null, cancelAtPeriodEnd: !!sub?.cancel_at_period_end, freeMatchMinutes: free, lifetime, source, billing };
 }
 export async function freeMinutes(ctx: Ctx): Promise<number> {
   const r = await ctx.db.one<any>(`select value from remote_config where key = 'freeMatchMinutes'`);

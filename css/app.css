@@ -489,3 +489,13 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 .hrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
 .hrow .cmd { max-width: none; min-width: 0; width: 100%; }
 .hrow .cmd span { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sound-hint { display: inline-flex; align-items: center; gap: 8px; margin: 6px 0 0; font-size: .85rem; color: var(--ink-soft); animation: threatpulse 2.4s ease-in-out infinite; }
+.sound-hint svg { width: 18px; height: 18px; }
+.menu-main .btn.quit { min-height: 44px; width: auto; min-width: 160px; margin-top: 4px; color: var(--ink-soft); border-color: var(--line); }
+.farewell { position: fixed; inset: 0; z-index: 400; background: var(--abyss); display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; padding: 24px; animation: slidein .6s ease; }
+.farewell .logo-text { font-family: var(--logo); font-size: clamp(2rem, 8vw, 4rem); color: var(--ink-soft); letter-spacing: .04em; }
+.farewell p { color: var(--ink-dim); margin: 0 0 8px; }
+/* the living title: a canvas wider than the menu column, centred over it */
+.logo.living { background: none; filter: none; padding: 0; margin: 0 0 6px; width: min(96vw, 1040px); line-height: 0; }
+#logo-cv { display: block; width: 100%; aspect-ratio: 708 / 120; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

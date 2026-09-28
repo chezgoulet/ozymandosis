@@ -7,19 +7,18 @@
   const game = new E.Game();
   E.game = game;
 
-  // ── backdrop: the seed pack, unmodified ─────────────────────────
-  const bg = $('bg'), bgx = bg.getContext('2d');
-  let bgT = 0, bgLast = performance.now();
+  // ── title backdrop: the abyss and its school; the living word ──
+  const bg = $('bg'), scene = new E.MenuScene(bg), logo = new E.LivingLogo($('logo-cv'));
+  let bgLast = performance.now(), logoLast = bgLast, bgAcc = 0;
   function bgFrame(now) {
     requestAnimationFrame(bgFrame);
-    if (bg.hidden || document.hidden || now - bgLast < 32) return; // 30 fps is plenty for a backdrop
-    const dt = Math.min(0.05, (now - bgLast) / 1000); bgLast = now;
-    bgT += dt;
-    const r = bg.getBoundingClientRect(), dpr = 1;
-    if (bg.width !== Math.round(r.width * dpr)) { bg.width = Math.round(r.width * dpr); bg.height = Math.round(r.height * dpr); }
-    bgx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const load = 0.45 + 0.35 * Math.sin(bgT * 0.09) + 0.12 * Math.sin(bgT * 0.31);
-    BioluminescentDreamscape.render(bgx, r.width, r.height, { lowPowerMode: false, isProcessing: load > 0.4, inferenceLoad: E.clamp(load, 0, 1), queueDepth: load * 14, isHealthy: true, isCharging: false, batteryLevel: 80, batteryTemperature: 33 }, bgT, dt);
+    if (bg.hidden || document.hidden) { bgLast = logoLast = now; return; }
+    const menuUp = !$('scr-menu').hidden;
+    if (menuUp) { logo.frame((now - logoLast) / 1000); } logoLast = now;
+    bgAcc += now - bgLast; bgLast = now;
+    if (bgAcc < 32) return; // the backdrop is fine at 30 fps
+    const dt = Math.min(0.05, bgAcc / 1000); bgAcc = 0;
+    scene.frame(dt);
     if (forgeLab && !$('scr-forge').hidden) forgeLab.frame(dt);
   }
 
@@ -300,9 +299,10 @@
     }
     $('mp-online-play').hidden = false;
     const ent = O.ent || {};
-    acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.subscriber ? 'Member' : `Free · ${ent.freeMatchMinutes || 15}-minute matches`),
+    acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.lifetime ? 'Lifetime member' : ent.subscriber ? 'Member' : `Free · ${ent.freeMatchMinutes || 15}-minute matches`),
       h('span', { class: 'mono', title: 'Rating' }, '◆ ' + (O.me.rating || 1200))),
       h('div', { class: 'row' }, ent.subscriber ? null : h('button', { class: 'btn small', onclick: () => O.subscribe().catch(e => E.toast(e.message)) }, 'Membership · $1/month'),
+        ent.lifetime ? null : h('button', { class: 'btn small ghost', onclick: async () => { if (await O.redeemDialog()) renderOnline(); } }, 'Redeem a code'),
         h('button', { class: 'btn small ghost', onclick: () => O.openExternal(O.accountUrl()) }, 'Account'),
         h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); if (browse) { browse.close(); browse = null; } renderOnline(); } }, 'Sign out')));
     if (O.hello && O.hello.config && O.hello.config.needsVerify) acc.append(h('p', { class: 'hint-s warn' }, 'Confirm your email to play online. Check your inbox for the link.'));
@@ -408,7 +408,7 @@
         : h('button', { class: 'btn small primary', onclick: async () => { if (await O.signInDialog()) renderSettings(); } }, 'Sign in')),
       tog('Hide my IP address from other players (relays the match; adds a little delay)', 'relayOnly'),
       tog('Send automatic crash reports (nothing personal)', 'crashReports'),
-      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug')),
+      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug'), h('button', { class: 'btn small', onclick: async () => { if (await O.redeemDialog()) renderSettings(); } }, 'Redeem a code')),
       h('div', { class: 'field', style: 'margin-top:12px' }, h('label', null, 'Play server (advanced)'), playIn)));
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
@@ -446,10 +446,26 @@
   }));
 
   $('m-continue').onclick = () => loadSave('auto');
+  // Quit: closes the desktop app and Android app; iOS apps may not quit themselves (Apple rule), so it is hidden there.
+  const ios = E.Native && E.Native.is && E.Native.platform === 'ios';
+  $('m-quit').hidden = ios;
+  $('m-quit').onclick = async () => {
+    if (!(await E.confirm('Leave Ozymandosis?', 'Your progress is saved. The bloom will be waiting.', 'Quit'))) return;
+    game.autosave(); E.Audio.play('defeat');
+    const P = window.Capacitor && Capacitor.Plugins;
+    if (E.Native && E.Native.is && P && P.App && P.App.exitApp) { P.App.exitApp(); return; }
+    setTimeout(() => {
+      window.close(); // desktop app and installed web apps close here
+      setTimeout(() => {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        document.body.appendChild(h('div', { class: 'farewell' }, h('div', { class: 'logo-text' }, 'Ozymandosis'), h('p', null, 'Nothing beside remains. You can close this tab.'), h('button', { class: 'btn', onclick: e => e.target.parentNode.remove() }, 'Return')));
+      }, 150);
+    }, 350);
+  };
   $('m-tutorial').onclick = () => {
     E.Audio.init();
     const cfg = { map: Object.assign({}, E.DEFAULT_MAP, { size: 's', seed: 4242, startLumen: 320, mode: 'annihilation', popCap: 60 }),
-      players: [{ name: playerName(), culture: 'verdant', team: 0, kind: 'human', designs: [] }, { name: 'Current-born', culture: 'current', team: 0, kind: 'bot', diff: 'easy', persona: 'tutor' }] };
+      players: [{ name: playerName(), culture: 'verdant', team: 0, kind: 'human', designs: [] }, { name: 'Slither', culture: 'current', team: 0, kind: 'bot', diff: 'easy', persona: 'tutor' }] };
     game.start({ mode: 'local', cfg, local: 0, tutorial: true });
   };
   $('m-skirmish').onclick = () => { E.Audio.init(); lobby = null; setup = defaultSetup(); E.Screens.show('scr-setup'); renderSetup(); };
@@ -477,8 +493,15 @@
   applyUi();
   E.hydrateIcons();
   // music needs a user gesture; the title theme starts on the first touch or key
-  const wake = () => { E.Audio.init(); removeEventListener('pointerdown', wake, true); removeEventListener('keydown', wake, true); };
-  addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
+  // The score starts with the game. Where the platform allows it (desktop app, Android,
+  // installed PWAs, sites the browser trusts) that is immediately; otherwise browsers
+  // hold audio until the first touch, click or key, and a quiet hint says so.
+  E.Audio.init();
+  const WAKE = ['pointerdown', 'keydown', 'touchend', 'mousedown'];
+  const woke = () => { WAKE.forEach(ev => removeEventListener(ev, wake, true)); $('sound-hint').hidden = true; };
+  const wake = () => { E.Audio.init(); const ac = E.Audio.ctx; if (!ac) return; if (ac.state === 'running') woke(); else ac.resume().then(() => { if (ac.state === 'running') woke(); }).catch(() => {}); };
+  WAKE.forEach(ev => addEventListener(ev, wake, true));
+  setTimeout(() => { const c = E.Audio.ctx; if (c && c.state !== 'running' && !E.Settings.muted) $('sound-hint').hidden = false; else wake(); }, 700);
   if (E.Settings.backend === 'webgpu' || /[?&]bench/.test(location.search)) E.loadWebGPU();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !/[?&]nosw/.test(location.search)) navigator.serviceWorker.register('sw.js').catch(() => {});
   requestAnimationFrame(bgFrame);

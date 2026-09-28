@@ -65,7 +65,7 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 | Procedural, moody soundtrack | `js/core/music.js`: Markov harmony, leitmotifs, adaptive sections, synthwave + generative-ambient palette |
 | Server in the monorepo | `apps/play` (Fastify, Postgres), `apps/site`, `deploy/` (Caddy, coturn, Postgres, backups) |
 | Discovery and matching only; P2P encrypted games | WebRTC DataChannels (D11); LAN and online signaling |
-| Accounts: email + TOTP 2FA; Google, Apple, Discord, GitHub, Steam | `apps/play/src/auth` |
+| Accounts: email + TOTP 2FA; Google, Apple, Steam | `apps/play/src/auth` |
 | Stripe, $1/month, >15-minute matches | `apps/play/src/billing`, signed tickets enforced by peers (D12) |
 | Minimal PII in logs | D16, `docs/PLAY-SERVICE.md` → Privacy |
 | Crash and bug reports as reports | `js/core/crash.js`, `/api/reports`, admin → Crashes & bugs |
@@ -79,3 +79,16 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 - The soundtrack was checked by recording it in headless Chromium and measuring spectra and levels, not by ear. Tune by listening.
 - `@capacitor/cli` 6 pulls a vulnerable `tar` (build tooling only); upgrading Capacitor needs JDK 21 (D7).
 - Legal pages are drafts for counsel.
+
+## Follow-up: title screen, promo codes, culture names
+| Request | Where it lives |
+|---|---|
+| Selection box follows the UI palette | both renderers draw it in the colony's live accent |
+| Music from launch | audio starts at boot; Android WebView and the desktop shell allow it at once; browsers wake it on the first touch, click or key (with a hint) |
+| Quit on the main screen | closes the desktop and Android apps and installed web apps; a farewell screen in a browser tab; hidden on iOS (Apple forbids apps quitting themselves) |
+| Persistent, varied title creatures | `js/render/menuscene.js` MenuScene: a fixed school covering every chassis, every organ and every culture; they turn back from beyond the screen edges and steer around the title |
+| Tagline removed | |
+| The word built from creatures | LivingLogo: letter strokes are creature spines with tapered glowing bodies, chassis textures, and organs from the library as serifs, tails and limbs; heartbeat, breathing, undulation and palette drift. OCR reads it as OZYMANDOSIS in 12 of 12 sampled frames on desktop and phone |
+| Culture names | The Slither, The Choir, The Seethe, The Bloom (ids unchanged, so saves and settings still load) |
+| Promo codes | `apps/play/src/billing/promo.ts`, admin → Promo codes, portal and game redemption |
+| Identity: Google, Apple, Steam, email | Discord and GitHub removed |

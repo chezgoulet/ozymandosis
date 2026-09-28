@@ -11,7 +11,7 @@
   const q = new URLSearchParams(location.search);
   const handoff = q.get('handoff');
   let cfg = { providers: [], billing: false, freeMatchMinutes: 15 }, me = null;
-  const PROVIDER = { google: 'Google', apple: 'Apple', discord: 'Discord', github: 'GitHub', steam: 'Steam', dev: 'Dev account' };
+  const PROVIDER = { google: 'Google', apple: 'Apple', steam: 'Steam', dev: 'Dev account' };
 
   async function api(method, url, body) {
     const r = await fetch(url, { method, credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-ozy': '1' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -134,13 +134,23 @@
     // membership
     const mem = h('div', { class: 'card' }, h('h2', null, 'Membership'));
     if (ent.subscriber) {
-      add(mem, h('p', null, h('span', { class: 'pill good' }, 'Member'), ' Online matches have no time limit.'), ent.until ? h('p', { class: 'soft' }, (ent.cancelAtPeriodEnd ? 'Ends ' : 'Renews ') + new Date(ent.until).toLocaleDateString()) : null);
-      if (cfg.billing && ent.status) { const b = h('button', { class: 'btn' }, 'Manage billing'); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/portal')).url; }); mem.append(b); }
+      const until = ent.lifetime ? 'Lifetime membership' : !ent.until ? null : ent.source === 'stripe' ? (ent.cancelAtPeriodEnd ? 'Ends ' : 'Renews ') + new Date(ent.until).toLocaleDateString() : 'Free membership until ' + new Date(ent.until).toLocaleDateString();
+      add(mem, h('p', null, h('span', { class: 'pill good' }, ent.lifetime ? 'Lifetime member' : 'Member'), ' Online matches have no time limit.'), until ? h('p', { class: 'soft' }, until) : null);
+      if (cfg.billing && ent.billing) { const b = h('button', { class: 'btn' }, 'Manage billing'); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/portal')).url; }); mem.append(b); }
     } else {
       mem.append(h('p', null, `Free players can play online matches of up to ${ent.freeMatchMinutes} minutes. Membership removes the limit for $1 a month and keeps the servers running.`));
       if (cfg.billing) { const b = h('button', { class: 'btn primary' }, 'Become a member · $1/month'); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/checkout')).url; }); mem.append(b); }
       else mem.append(h('p', { class: 'muted' }, 'Membership is not available on this server.'));
     }
+    // promo codes: a month, a year or life
+    const code = h('input', { placeholder: 'OZY-XXXX-XXXX-XXXX', maxlength: 40, autocapitalize: 'characters', spellcheck: 'false', 'aria-label': 'Promo code', style: 'text-transform:uppercase;letter-spacing:.08em' });
+    const use = h('button', { class: 'btn small' }, 'Redeem');
+    use.onclick = () => busy(use, async () => {
+      const r = await api('POST', '/api/billing/redeem', { code: code.value });
+      me = await api('GET', '/api/me'); account();
+      flash(r.lifetime ? 'Code accepted: you are a member for life.' : `Code accepted: membership until ${new Date(r.until).toLocaleDateString()}.` + (r.stripeActive ? ' Your paid subscription is still active; cancel it under Manage billing if you like.' : ''), 'ok');
+    });
+    add(mem, h('details', { style: 'margin-top:14px' }, h('summary', null, 'Have a code?'), h('div', { class: 'row', style: 'flex-wrap:nowrap;margin-top:10px' }, code, use)));
     cards.push(mem);
     // security
     const sec = h('div', { class: 'card' }, h('h2', null, 'Security'));

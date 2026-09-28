@@ -1,9 +1,9 @@
-// Sign in with Google, Apple, Discord, GitHub (OAuth 2 / OIDC with PKCE where
-// supported) and Steam (OpenID 2.0 in the browser, session tickets for native
-// Steam builds). Providers switch on when their credentials are configured.
+// Sign in with Google and Apple (OpenID Connect; PKCE for Google) and Steam
+// (OpenID 2.0 in the browser, session tickets for native Steam builds), alongside
+// email accounts. Google and Apple switch on when their credentials are configured.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { Apple, Discord, GitHub, Google, decodeIdToken, generateCodeVerifier, generateState } from 'arctic';
+import { Apple, Google, decodeIdToken, generateCodeVerifier, generateState } from 'arctic';
 import type { Ctx, UserRow } from '../context.js';
 import { bad, notFound, unauthorized } from '../context.js';
 import { SESSION_COOKIE } from '../app.js';
@@ -22,30 +22,6 @@ export function providers(ctx: Ctx): Record<string, Provider> {
     out.google = {
       start: (s, v) => g.createAuthorizationURL(s, v, ['openid', 'email', 'profile']),
       async finish(code, v) { const t = await g.validateAuthorizationCode(code, v); const id = decodeIdToken(t.idToken()) as any; return { subject: id.sub, email: id.email, emailVerified: !!id.email_verified, name: id.given_name || id.name }; },
-    };
-  }
-  if (c.DISCORD_CLIENT_ID && c.DISCORD_CLIENT_SECRET) {
-    const d = new Discord(c.DISCORD_CLIENT_ID, c.DISCORD_CLIENT_SECRET, cb('discord'));
-    out.discord = {
-      start: (s, v) => d.createAuthorizationURL(s, v, ['identify', 'email']),
-      async finish(code, v) {
-        const t = await d.validateAuthorizationCode(code, v);
-        const me: any = await (await fetch('https://discord.com/api/users/@me', { headers: { authorization: `Bearer ${t.accessToken()}` } })).json();
-        return { subject: me.id, email: me.email, emailVerified: !!me.verified, name: me.global_name || me.username };
-      },
-    };
-  }
-  if (c.GITHUB_CLIENT_ID && c.GITHUB_CLIENT_SECRET) {
-    const gh = new GitHub(c.GITHUB_CLIENT_ID, c.GITHUB_CLIENT_SECRET, cb('github'));
-    out.github = {
-      start: s => gh.createAuthorizationURL(s, ['read:user', 'user:email']),
-      async finish(code) {
-        const t = await gh.validateAuthorizationCode(code), h = { authorization: `Bearer ${t.accessToken()}`, 'user-agent': 'ozymandosis' };
-        const me: any = await (await fetch('https://api.github.com/user', { headers: h })).json();
-        const emails: any[] = await (await fetch('https://api.github.com/user/emails', { headers: h })).json().catch(() => []);
-        const prim = Array.isArray(emails) ? emails.find(e => e.primary && e.verified) : null;
-        return { subject: String(me.id), email: prim?.email, emailVerified: !!prim, name: me.login };
-      },
     };
   }
   if (c.APPLE_CLIENT_ID && c.APPLE_TEAM_ID && c.APPLE_KEY_ID && c.APPLE_PRIVATE_KEY) {

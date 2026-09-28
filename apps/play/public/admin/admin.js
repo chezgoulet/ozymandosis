@@ -27,7 +27,7 @@
   const SECTIONS = [
     ['dashboard', 'Dashboard', 'support', dashboard], ['issues', 'Crashes & bugs', 'support', issues], ['reports', 'Player reports', 'moderator', reports],
     ['players', 'Players', 'support', players], ['announce', 'Announcements', 'moderator', announcements], ['matches', 'Matches', 'support', matches],
-    ['config', 'Live config', 'admin', config], ['audit', 'Audit log', 'admin', audit],
+    ['promos', 'Promo codes', 'admin', promos], ['config', 'Live config', 'admin', config], ['audit', 'Audit log', 'admin', audit],
   ];
   function nav(counts) {
     $('#nav').replaceChildren(...SECTIONS.filter(s => can(s[2])).map(([id, label]) => h('button', { 'aria-current': location.hash.slice(1).split('/')[0] === id || (!location.hash && id === 'dashboard') ? 'page' : null, onclick: () => { location.hash = id; } }, label, counts && counts[id] ? h('span', { class: 'count' }, counts[id]) : null)));
@@ -222,6 +222,58 @@
       h('div', { class: 'card' }, h('h2', null, 'Recent matches'), h('p', { class: 'muted' }, 'Matches run peer to peer; the server only records who played, for how long, and the result the host reported.'),
         h('div', { class: 'scroll' }, h('table', { class: 't' }, h('thead', null, h('tr', null, h('th', null, 'Started'), h('th', null, 'Mode'), h('th', null, 'Host'), h('th', null, 'Players'), h('th', { class: 'num' }, 'Length'))),
           h('tbody', null, r.matches.map(m => h('tr', null, h('td', null, when(m.started_at)), h('td', null, m.mode), h('td', null, m.host || '—'), h('td', null, (m.players || []).map(p => `${p.name}${p.result ? ' (' + p.result + ')' : ''}${p.until ? ' ⏱' : ''}`).join(', ')), h('td', { class: 'num' }, m.duration_s ? Math.round(m.duration_s / 60) + ' min' : m.ended_at ? '—' : 'live'))))))));
+  }
+
+  // ── promo codes ────────────────────────────────────────────────
+  const KIND = { month: '1 month', year: '1 year', life: 'Lifetime' };
+  async function promos(id) {
+    if (id) return promoDetail(id);
+    const kind = h('select', null, Object.entries(KIND).map(([v, l]) => h('option', { value: v }, l)));
+    const uses = h('input', { type: 'number', min: 1, max: 100000, value: 1, 'aria-label': 'Uses per code' });
+    const count = h('input', { type: 'number', min: 1, max: 1000, value: 1, 'aria-label': 'How many codes' });
+    const custom = h('input', { placeholder: 'e.g. BLOOMDAY (optional)', maxlength: 32 });
+    const expires = h('input', { type: 'date', 'aria-label': 'Expires' });
+    const note = h('input', { placeholder: 'Who or what these are for', maxlength: 200 });
+    const make = h('button', { class: 'btn primary' }, 'Create');
+    const out = h('div');
+    const q = h('input', { type: 'search', placeholder: 'Search codes or notes' });
+    const box = h('div');
+    const csv = (codes, meta) => { const blob = new Blob(['code,kind,uses_each\n' + codes.map(c => `${c},${meta.kind},${meta.uses}`).join('\n')], { type: 'text/csv' }); const a = h('a', { href: URL.createObjectURL(blob), download: `ozymandosis-codes-${Date.now()}.csv` }); document.body.append(a); a.click(); a.remove(); };
+    make.onclick = () => act(make, async () => {
+      const body = { kind: kind.value, maxUses: +uses.value, count: +count.value, note: note.value, code: custom.value || undefined, expiresAt: expires.value ? new Date(expires.value + 'T23:59:59Z').toISOString() : undefined };
+      const r = await api('POST', '/api/admin/promos', body);
+      const meta = { kind: KIND[kind.value], uses: uses.value };
+      out.replaceChildren(h('div', { class: 'msg ok' }, h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', null, `${r.codes.length} code${r.codes.length > 1 ? 's' : ''} · ${meta.kind} · ${meta.uses} use${+meta.uses > 1 ? 's' : ''} each`),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => navigator.clipboard.writeText(r.codes.join('\n')).then(() => toast('Copied')) }, 'Copy all'), h('button', { class: 'btn small', onclick: () => csv(r.codes, meta) }, 'Download CSV'))),
+        h('pre', { class: 'stack', style: 'max-height:200px' }, r.codes.join('\n'))));
+      custom.value = ''; await load();
+    }, 'Created');
+    const load = async () => {
+      const r = await api('GET', '/api/admin/promos?q=' + encodeURIComponent(q.value));
+      box.replaceChildren(h('p', { class: 'muted' }, `${fmt(r.totals.codes)} codes, ${fmt(r.totals.redemptions)} redemptions in all`),
+        h('div', { class: 'scroll' }, h('table', { class: 't' }, h('thead', null, h('tr', null, h('th', null, 'Code'), h('th', null, 'Grants'), h('th', { class: 'num' }, 'Used'), h('th', null, 'Expires'), h('th', null, 'Note'), h('th', null, 'State'), h('th', null, ''))),
+          h('tbody', null, r.promos.map(p => {
+            const left = p.max_uses - p.uses, state = p.disabled ? h('span', { class: 'pill' }, 'disabled') : left <= 0 ? h('span', { class: 'pill' }, 'used up') : p.expires_at && new Date(p.expires_at) < new Date() ? h('span', { class: 'pill' }, 'expired') : h('span', { class: 'pill good' }, 'live');
+            const tog = h('button', { class: 'btn small' + (p.disabled ? '' : ' danger') }, p.disabled ? 'Enable' : 'Disable');
+            tog.onclick = e => { e.stopPropagation(); act(tog, async () => { await api('PATCH', '/api/admin/promos/' + p.id, { disabled: !p.disabled }); await load(); }, p.disabled ? 'Enabled' : 'Disabled'); };
+            return h('tr', { class: 'click', onclick: () => { location.hash = 'promos/' + p.id; } }, h('td', { class: 'mono' }, p.code), h('td', null, KIND[p.kind]), h('td', { class: 'num' }, `${p.uses} / ${p.max_uses}`), h('td', null, p.expires_at ? new Date(p.expires_at).toLocaleDateString() : '—'), h('td', null, p.note || ''), h('td', null, state), h('td', null, tog));
+          })))));
+    };
+    q.onchange = load;
+    main(h('div', { class: 'card stack' }, h('h2', null, 'Create promo codes'), h('p', { class: 'muted' }, 'Each code gives free membership and works a set number of times, once per player. Codes stack on a player\'s existing free time.'),
+      h('div', { class: 'fields' }, h('div', { class: 'fld' }, h('label', null, 'Grants'), kind), h('div', { class: 'fld' }, h('label', null, 'Uses per code'), uses), h('div', { class: 'fld' }, h('label', null, 'How many codes'), count), h('div', { class: 'fld' }, h('label', null, 'Expires (optional)'), expires)),
+      h('div', { class: 'fields two' }, h('div', { class: 'fld' }, h('label', null, 'Custom code (single code only)'), custom), h('div', { class: 'fld' }, h('label', null, 'Note'), note)), h('div', null, make), out),
+      h('div', { class: 'card' }, h('h2', null, 'Codes'), h('div', { class: 'filters' }, q), box));
+    await load();
+  }
+  async function promoDetail(id) {
+    const { promo: p, redemptions } = await api('GET', '/api/admin/promos/' + id);
+    const max = h('input', { type: 'number', min: p.uses || 1, max: 100000, value: p.max_uses });
+    const save = h('button', { class: 'btn small' }, 'Save uses'); save.onclick = () => act(save, () => api('PATCH', '/api/admin/promos/' + id, { maxUses: +max.value }), 'Saved');
+    main(h('p', null, h('a', { href: '#promos' }, '← Promo codes')),
+      h('div', { class: 'card' }, h('h2', { class: 'mono' }, p.code), h('dl', { class: 'kv' }, h('dt', null, 'Grants'), h('dd', null, KIND[p.kind]), h('dt', null, 'Used'), h('dd', null, `${p.uses} of ${p.max_uses}`), h('dt', null, 'Expires'), h('dd', null, when(p.expires_at)), h('dt', null, 'State'), h('dd', null, p.disabled ? 'disabled' : 'enabled'), h('dt', null, 'Note'), h('dd', null, p.note || '—'), h('dt', null, 'Created'), h('dd', null, when(p.created_at))),
+        h('div', { class: 'row', style: 'margin-top:12px;flex-wrap:nowrap' }, h('label', { style: 'margin:0' }, 'Uses allowed'), max, save)),
+      h('div', { class: 'card' }, h('h2', null, `Redeemed by (${redemptions.length})`), redemptions.length ? h('div', { class: 'list' }, redemptions.map(r => h('div', { class: 'item' }, h('a', { href: '#players/' + r.user_id }, r.display_name), h('span', { class: 'muted' }, when(r.redeemed_at))))) : h('p', { class: 'muted' }, 'Not used yet.')));
   }
 
   // ── live config ────────────────────────────────────────────────

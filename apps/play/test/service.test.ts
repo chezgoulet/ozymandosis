@@ -99,3 +99,41 @@ test('portal, admin console and fonts are served with a strict CSP', async () =>
   assert.match(String(r.headers['content-security-policy']), /script-src 'self'/);
   assert.match(r.body, /Ozymandosis/);
 });
+
+test('promo codes: finite uses, once per player, stacking, lifetime, expiry, disable, staff only', async () => {
+  const admin = await staff('admin'), mod = await staff('moderator');
+  assert.equal((await t.api('POST', '/api/admin/promos', { kind: 'month', maxUses: 1 }, mod.token)).status, 403, 'moderators cannot mint codes');
+  const month = (await t.api('POST', '/api/admin/promos', { kind: 'month', maxUses: 2, note: 'streamer' }, admin.token)).json.codes[0];
+  assert.match(month, /^OZY-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+  const [a, b, c] = [await signup(t), await signup(t), await signup(t)];
+  const r1 = await t.api('POST', '/api/billing/redeem', { code: month.toLowerCase().replace(/-/g, ' ') }, a.token);
+  assert.equal(r1.status, 200, 'codes forgive case and spacing');
+  const days = (new Date(r1.json.until).getTime() - Date.now()) / 864e5;
+  assert.ok(days > 27 && days < 32, 'about a month');
+  assert.equal((await t.api('GET', '/api/me', undefined, a.token)).json.entitlements.subscriber, true);
+  assert.equal((await t.api('POST', '/api/billing/redeem', { code: month }, a.token)).json.code, 'already');
+  assert.equal((await t.api('POST', '/api/billing/redeem', { code: month }, b.token)).status, 200);
+  assert.equal((await t.api('POST', '/api/billing/redeem', { code: month }, c.token)).json.code, 'used_up');
+  // a second month stacks onto the first
+  const month2 = (await t.api('POST', '/api/admin/promos', { kind: 'month', maxUses: 5 }, admin.token)).json.codes[0];
+  const r2 = await t.api('POST', '/api/billing/redeem', { code: month2 }, a.token);
+  assert.ok((new Date(r2.json.until).getTime() - Date.now()) / 864e5 > 56, 'two months in all');
+  // a batch of yearly codes, a lifetime code, an expired one, a disabled one
+  const batch = await t.api('POST', '/api/admin/promos', { kind: 'year', maxUses: 1, count: 25 }, admin.token);
+  assert.equal(new Set(batch.json.codes).size, 25);
+  const life = (await t.api('POST', '/api/admin/promos', { kind: 'life', maxUses: 3, code: 'FOREVERBLOOM' }, admin.token)).json.codes[0];
+  const lr = await t.api('POST', '/api/billing/redeem', { code: life }, c.token);
+  assert.equal(lr.json.lifetime, true);
+  const ent = (await t.api('GET', '/api/me', undefined, c.token)).json.entitlements;
+  assert.equal(ent.lifetime, true); assert.equal(ent.source, 'promo'); assert.equal(ent.billing, false);
+  const old = (await t.api('POST', '/api/admin/promos', { kind: 'year', maxUses: 5, expiresAt: new Date(Date.now() - 864e5).toISOString() }, admin.token)).json.codes[0];
+  assert.equal((await t.api('POST', '/api/billing/redeem', { code: old }, b.token)).json.code, 'expired');
+  const list = await t.api('GET', '/api/admin/promos?q=' + encodeURIComponent(month2), undefined, admin.token);
+  const row = list.json.promos[0];
+  await t.api('PATCH', '/api/admin/promos/' + row.id, { disabled: true }, admin.token);
+  assert.equal((await t.api('POST', '/api/billing/redeem', { code: month2 }, b.token)).json.code, 'invalid');
+  assert.equal((await t.api('PATCH', '/api/admin/promos/' + row.id, { maxUses: 0 }, admin.token)).status, 400);
+  const detail = await t.api('GET', '/api/admin/promos/' + row.id, undefined, admin.token);
+  assert.equal(detail.json.redemptions.length, 1);
+  assert.equal((await t.api('POST', '/api/billing/redeem', { code: 'NOPE-NOPE' }, b.token)).json.code, 'invalid');
+});

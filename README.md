@@ -37,7 +37,7 @@ android/, ios/                   Capacitor projects
 
 ## What's in the game
 
-- **Six cultures**, one for each of the seed's color sets. Each has a rule that changes play: Verdant harvest faster, Luminants research faster, Current-born move faster, Deep Choir are unseen and ambush, Umbral Kin convert kills, Bloomtide are cheap swarms that live 90 seconds.
+- **Six cultures**, one for each of the seed's color sets. Each has a rule that changes play: Verdant harvest faster, Luminants research faster, Slither move faster, Choir are unseen and ambush, Seethe convert kills, Bloom are cheap swarms that live 90 seconds.
 - **Six chassis**: Serpent, Carapace, Ctenophore, Medusa, Siphonophore, Nautiloid (plus the Leviathan apex). Each has its own body renderer, stats, slot count and trait.
 - **Thirty organs**: 5 classes (legs, flagella, pili, mandibles, antennae) × 6 forms. Each has its own renderer, stats and passive, and each class grows through four research tiers.
 - **Twelve unit abilities** granted by organs or chassis: Jet Dash, Ink Cloud, Dazzle, Camouflage, Spit Volley, Venom Burst, Harden, Tentacle Lash, War Song, Mend Spores, Tether Drain, Bud Split. All auto-cast by default, and you can toggle each one.

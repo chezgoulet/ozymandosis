@@ -89,7 +89,8 @@
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       if (pal.blighted) { ctx.fillStyle = E.rgba({ r: 255, g: 70, b: 70 }, 0.03 + 0.05 * (0.5 + 0.5 * Math.sin(t * 3))); ctx.fillRect(0, 0, W, H); }
       if (ui && ui.box) {
-        const b = ui.box; ctx.fillStyle = 'rgba(96,240,255,.07)'; ctx.strokeStyle = 'rgba(96,240,255,.7)'; ctx.lineWidth = 1;
+        // the selection membrane takes the colony's live palette, like the rest of the HUD
+        const b = ui.box, bc = pal.accent; ctx.fillStyle = E.rgba(bc, 0.08); ctx.strokeStyle = E.rgba(E.mix(bc, E.WHITE, 0.2), 0.8); ctx.lineWidth = 1.25;
         ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.strokeRect(b.x0 + 0.5, b.y0 + 0.5, b.x1 - b.x0, b.y1 - b.y0);
       }
     }

@@ -55,8 +55,6 @@ Each needs an app registered with the provider; the redirect URI is `https://pla
 |---|---|---|
 | Google | Google Cloud console → APIs & Services → Credentials → OAuth client (Web) | Scopes: openid, email, profile. |
 | Apple | Apple Developer → Identifiers → Services ID (enable Sign in with Apple, add the domain and return URL) and a Sign in with Apple key (.p8) | `APPLE_CLIENT_ID` is the Services ID; paste the .p8 with `\n` for newlines. |
-| Discord | discord.com/developers → Applications → OAuth2 | Scopes: identify, email. |
-| GitHub | Settings → Developer settings → OAuth Apps | |
 | Steam | Works without setup for web sign-in. For native builds set `STEAM_APP_ID` and a publisher `STEAM_API_KEY`. |
 
 ## 7. Email

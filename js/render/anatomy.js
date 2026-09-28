@@ -7,8 +7,8 @@
 //   Luminant   evolution   a golden nautilus shell, tracking eye-stalks, lanterns
 //   Current    mobility    a vortex of trailing flagella, comb-rows, jet pulses
 //   Choir      sensing     long sweeping antennae, song rings, chasing photophores
-//   Umbral     parasitism  a toothed maw, clustered eyes, hooked tethers that reach
-//   Bloomtide  aggression  carapace plates, spikes, egg sacs that swell and burst
+//   Seethe     parasitism  a toothed maw, clustered eyes, hooked tethers that reach
+//   Bloom      aggression  carapace plates, spikes, egg sacs that swell and burst
 //
 // The drawing is backend independent: it talks to an adapter D with
 //   D.glow(x, y, r, kind, c, a, p0, p1)       under the bodies (kinds as GlowBatch)
@@ -338,7 +338,7 @@
         }
       },
     },
-    // Current-born: a vortex of trailing flagella, comb rows rippling colour, jet pulses.
+    // Slither: a vortex of trailing flagella, comb rows rippling colour, jet pulses.
     vortex: {
       under(c) {
         const { D, g, t, Rr, at, hc, acc, A, sk, lod } = c;
@@ -362,7 +362,7 @@
         void x; void y; void bf;
       },
     },
-    // Deep Choir: long antennae sweep the dark; song rings spread; photophores chase round the bell.
+    // Choir: long antennae sweep the dark; song rings spread; photophores chase round the bell.
     song: {
       under(c) {
         const { D, g, t, Rr, at, hc, acc, A, sk, lod } = c;
@@ -389,7 +389,7 @@
         }
       },
     },
-    // Umbral Kin: a toothed maw, a cluster of eyes on one side, hooked tethers that reach for prey.
+    // Seethe: a toothed maw, a cluster of eyes on one side, hooked tethers that reach for prey.
     maw: {
       under(c) {
         const { D, R, view, b, g, st, t, x, y, Rr, at, hc, acc, A, sk, lod } = c;
@@ -426,7 +426,7 @@
         }
       },
     },
-    // Bloomtide: carapace plates, spikes that twitch, egg sacs that swell and burst.
+    // Bloom: carapace plates, spikes that twitch, egg sacs that swell and burst.
     carapace: {
       under(c) {
         const { D, g, t, at, hc, A, sk, lod } = c;

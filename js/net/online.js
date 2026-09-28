@@ -79,6 +79,18 @@
     }
     return { cancelled: true };
   };
+  // Promo codes: a month, a year or a lifetime of membership.
+  O.redeemDialog = async function () {
+    if (!O.signedIn() && !(await O.signInDialog())) return false;
+    const code = await E.prompt('Redeem a code', '');
+    if (!code) return false;
+    try {
+      const r = await O.api('POST', '/api/billing/redeem', { code });
+      await O.refresh();
+      E.modal('Welcome, member', r.lifetime ? 'Your code gives you membership for life. Online matches have no time limit.' : `Your code gives you membership until ${new Date(r.until).toLocaleDateString()}. Online matches have no time limit.`);
+      return true;
+    } catch (e) { E.toast(e.message, 4000); return false; }
+  };
   O.accountUrl = (path) => O.base() + (path || '/account');
   O.subscribe = async function () {
     if (!O.signedIn()) throw new Error('Sign in first.');
@@ -162,7 +174,7 @@
           } catch (x) { say(x.message); go.disabled = false; }
         };
         const provs = ((O.config && O.config.providers) || []).filter(p => p !== 'dev' || /localhost/.test(O.base()));
-        const names = { google: 'Google', apple: 'Apple', discord: 'Discord', github: 'GitHub', steam: 'Steam', dev: 'Dev' };
+        const names = { google: 'Google', apple: 'Apple', steam: 'Steam', dev: 'Dev' };
         const pbtn = p => h('button', { class: 'btn small', type: 'button', onclick: () => viaBrowser(p) }, names[p] || p);
         box.replaceChildren(
           h('h3', { id: 'si-t' }, 'Play online'),
