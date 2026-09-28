@@ -60,3 +60,25 @@ Recorded so the consequences are not rediscovered:
   - *Web checkout (Stripe)* is not in the scheme — there is no platform for a web subscription to belong to — so it is **off** (`WEB_BILLING=false`); the code stays for an operator who decides otherwise. Rows created by Stripe before this change keep working as they did (none existed in production).
   - *Promo codes and staff gifts* are comps, not purchases, and remain platform-less (honoured everywhere). If that should change, give `promo.ts` rows a platform.
   - *iOS* also gets in-app account deletion (Settings → Delete account) and hides third-party sign-in unless Sign in with Apple is offered (guideline 4.8).
+
+**D21. The host stays on the smallest plan until subscribers pay for the next one.**
+Recorded in `HOSTING.md`. The server is a Linode Nanode in Toronto — 1 GB, one
+shared vCPU, 25 GB disk, 1 TB transfer, $5/month — on Ubuntu 26.04 LTS, and it
+is deliberately not sized for load. Measured, the bandwidth is nowhere near the
+limit: per `D19` a six-player match relays about 125 MB of egress over twenty
+minutes, so the included terabyte covers roughly 6,800 matches a month. What
+binds is RAM (PostgreSQL) and CPU (argon2id, which is expensive on purpose), and
+both bind only under load, which is zero. So the size is set by subscribers
+rather than by hopes: at $1.70 net per subscriber-month, three cover the $5
+plan, eight cover $12, fourteen cover $24. **Upgrade when subscriber revenue
+covers the next plan** — which makes spending too early impossible by
+construction. Two standing notes: a swap file and memory caps go on the box now
+because the failure mode of a small host is the kernel killing PostgreSQL, and a
+host in this House has already been lost to an uncapped unit OOM-looping. And
+deployment is already automated — `deploy.yml` deploys on a successful `ci` run
+against `main`, with a pre-deploy backup that aborts the deploy if it fails, a
+ninety-second health window, and automatic rollback — but **no GitHub
+environments exist yet**, so it currently no-ops. Making it live needs the host
+bootstrapped once by hand, the two environments and their four secrets, and then
+promotion to `main` does the rest.
+
