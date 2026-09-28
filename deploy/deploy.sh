@@ -2,7 +2,7 @@
 # Deploy a revision to this server, with a backup first and an automatic rollback
 # if the new play service does not come up healthy.
 #   deploy/deploy.sh               deploy origin/main
-#   deploy/deploy.sh v1.2.0        deploy a tag or commit
+#   deploy/deploy.sh v0.5.0        deploy a tag or commit
 # Migrations run when the service starts and only move forward, so every
 # migration must keep the previous release working (add columns, never drop in
 # the same release that stops using them).

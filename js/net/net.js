@@ -4,9 +4,10 @@
 (function (E) {
   'use strict';
 
-  // Peer-to-peer transport. A signaling server (the LAN server or play.ozymandosis.com)
+  // Peer-to-peer transport. A signaling server (the LAN host or play.ozymandosis.com)
   // introduces the players; every game message then travels over WebRTC
-  // DataChannels straight between host and guest, encrypted end to end (DTLS).
+  // DataChannels between host and guest, encrypted end to end (DTLS): directly on
+  // a LAN, through the TURN relay online (D19).
   // The server never sees game traffic, and a match survives the server going away.
   // API (unchanged from the old relay): host(name), join(room, name), send(to, data),
   // toHost(data), kick(id), close(); events hosted, joined, peer, left, msg, closed,
@@ -92,7 +93,11 @@
         default: this.emit(m.op, m);
       }
     }
-    iceConfig() { return { iceServers: this.ice, iceTransportPolicy: this.opts.relayOnly ? 'relay' : 'all' }; }
+    // D19. Online, every match travels through the TURN relay, unconditionally: no
+    // player learns another's address, and no saved setting can turn that off.
+    // A LAN match (same network, no service) connects directly, with no ICE
+    // servers at all, so it never touches the relay or any outside host.
+    iceConfig() { return this.opts.lan ? { iceServers: [], iceTransportPolicy: 'all' } : { iceServers: this.ice, iceTransportPolicy: 'relay' }; }
     makePeer(id, name, initiator, info) {
       this.dropPeer(id, false);
       const pc = new RTCPeerConnection(this.iceConfig());

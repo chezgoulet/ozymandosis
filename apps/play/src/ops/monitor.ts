@@ -9,6 +9,7 @@
 // docs/OPERATIONS.md for the uptime monitor and the backup dead man's switch.
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import type { Ctx } from '../context.js';
+import { TurnHealth } from './turn.js';
 
 export interface Alert { key: string; title: string; body: string }
 const RESEND_H = 6, LOCK = 7_021_882;
@@ -20,7 +21,8 @@ export class Monitor {
   private lag = monitorEventLoopDelay({ resolution: 20 });
   private timer: NodeJS.Timeout | null = null;
   readonly started = Date.now();
-  constructor(private ctx: Ctx) { this.lag.enable(); }
+  readonly turn: TurnHealth;
+  constructor(private ctx: Ctx) { this.lag.enable(); this.turn = new TurnHealth(ctx.cfg.TURN_URLS, ctx.cfg.TURN_SECRET); }
 
   record(status: number) {
     this.requests++;
@@ -35,6 +37,9 @@ export class Monitor {
     const recent = this.errors.filter(t => now - t < 5 * 60e3).length;
     if (recent >= cfg.ALERT_5XX_PER_5MIN) out.push({ key: 'http.5xx', title: `${recent} server errors in 5 minutes`, body: 'The play service is failing requests. Check `docker compose logs play`.' });
     const lag = this.lagMs(); this.lag.reset();
+    // D19: every online match goes through TURN, so a dead relay is no online play at all
+    const turn = await this.turn.check(0);
+    if (turn && !turn.ok) out.push({ key: 'turn.down', title: 'The TURN relay is not working: online matches cannot connect', body: `Probe: ${turn.detail}. Check \`docker compose logs turn\` (logging is off by design; restart it with \`docker compose restart turn\`), the firewall (3478 udp/tcp, 5349 tcp, 49160-49400 udp) and that TURN_SECRET matches.` });
     if (lag.p99 > 250) out.push({ key: 'eventloop', title: `The play service is stalling (p99 event-loop delay ${Math.round(lag.p99)} ms)`, body: 'Something is blocking the process: a slow query, a large payload, or CPU starvation on the host.' });
     try {
       const hb = await db.one<any>(`select at, ok, detail from ops_heartbeats where name = 'backup'`);
@@ -118,6 +123,7 @@ export class Monitor {
       '# TYPE ozy_matches_live gauge', `ozy_matches_live ${hub.matches}`,
       '# TYPE ozy_queued_players gauge', `ozy_queued_players ${hub.queued}`,
       '# TYPE ozy_memory_bytes gauge', `ozy_memory_bytes{kind="rss"} ${m.rss}`, `ozy_memory_bytes{kind="heap"} ${m.heapUsed}`,
+      ...(this.turn.configured ? ['# TYPE ozy_turn_up gauge', `ozy_turn_up ${this.turn.peek()?.ok ? 1 : 0}`, '# TYPE ozy_turn_probe_ms gauge', `ozy_turn_probe_ms ${this.turn.peek()?.ms ?? -1}`] : []),
       '# TYPE ozy_event_loop_delay_ms gauge', `ozy_event_loop_delay_ms{q="p50"} ${lag.p50.toFixed(2)}`, `ozy_event_loop_delay_ms{q="p99"} ${lag.p99.toFixed(2)}`,
     ];
     return lines.join('\n') + '\n';

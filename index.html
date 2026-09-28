@@ -37,7 +37,7 @@
     </div>
     <button class="btn ghost quit" id="m-quit">Quit</button>
     <p class="sound-hint" id="sound-hint" hidden><i data-icon="conch"></i><span>Touch, click or press a key to wake the music</span></p>
-    <div class="menu-foot"><a href="docs/concept.html" target="_blank" rel="noopener">Concept document</a><span id="m-version">v1.1</span></div>
+    <div class="menu-foot"><span id="m-version">v0.5</span></div>
   </div>
 </section>
 
@@ -91,13 +91,17 @@
       </div>
       <p class="mono status-line" id="mp-online-status"></p>
     </div>
-    <div class="card">
+    <div class="card" id="mp-lan">
       <h3>Local network</h3>
-      <p class="hint-s">Everyone on one network: run <code>node server/server.js</code> on one machine and connect to it. The match itself still runs directly between players, encrypted.</p>
+      <p class="hint-s">Everyone on one network plays directly: no account, no internet connection and no relay. Always free.</p>
       <div class="field"><label>Name</label><input type="text" id="mp-name" maxlength="18"></div>
-      <div class="field"><label>Local server</label><input type="text" id="mp-server" spellcheck="false"></div>
-      <button class="btn" id="mp-host" style="width:100%;margin-bottom:12px">Host on this network</button>
-      <div class="field"><label>Join with room code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code" maxlength="6" placeholder="ABCD" class="code-in"><button class="btn" id="mp-join">Join</button></div></div>
+      <button class="btn primary" id="mp-host" style="width:100%;margin-bottom:12px">Host on this network</button>
+      <div class="field" id="mp-find-field"><label>Games nearby</label><div class="row"><button class="btn" id="mp-find">Find games nearby</button></div><div class="lobby-list" id="mp-lan-found"></div></div>
+      <div class="field"><label>Join with a code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code" maxlength="24" placeholder="60N00-H87WG" class="code-in" autocapitalize="characters" spellcheck="false" aria-label="Join code"><button class="btn" id="mp-join">Join</button></div>
+        <small class="hint-s">The host's screen shows the code. It works even when this network hides devices from each other's search.</small></div>
+      <details class="lan-adv"><summary>A computer as the host</summary>
+        <p class="hint-s">Run <code>node server/server.js</code> on it, enter its address here, then join with the 4-letter room code.</p>
+        <div class="field"><label>Local server</label><input type="text" id="mp-server" spellcheck="false"></div></details>
       <p class="mono status-line" id="mp-status"></p>
     </div>
   </div>
@@ -235,10 +239,12 @@
 <script src="js/core/audio.js"></script>
 <script src="js/core/profile.js"></script>
 <script src="js/net/net.js"></script>
+<script src="js/net/lan.js"></script>
 <script src="js/net/audit.js"></script>
 <script src="js/net/online.js"></script>
 <script src="js/net/cloud.js"></script>
 <script src="js/ui/perf.js"></script>
+<script src="js/ui/framestats.js"></script>
 <script src="js/ui/dom.js"></script>
 <script src="js/ui/icons.js"></script>
 <script src="js/ui/forge.js"></script>

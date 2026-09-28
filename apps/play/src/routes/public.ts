@@ -13,6 +13,13 @@ export async function activeAnnouncements(ctx: Ctx, subscriber: boolean | null) 
 
 export default async function publicRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get('/healthz', async () => { await ctx.db.one('select 1'); return { ok: true }; });
+  // For the external uptime monitor: the relay every online match depends on (D19).
+  // Kept apart from /healthz so a TURN outage never rolls back a deploy of this service.
+  app.get('/healthz/turn', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (_req, reply) => {
+    const r = await ctx.monitor.turn.check();
+    if (!r) return reply.code(503).send({ ok: false, detail: 'TURN is not configured (TURN_URLS with a udp turn: URL, and TURN_SECRET)' });
+    return reply.code(r.ok ? 200 : 503).send({ ok: r.ok, ms: r.ms, detail: r.detail });
+  });
 
   app.get('/api/config', async () => {
     const rows = await ctx.db.query<any>(`select key, value from remote_config`);

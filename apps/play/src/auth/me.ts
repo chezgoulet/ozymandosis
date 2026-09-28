@@ -39,7 +39,8 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
     return {
       user: { ...publicUser(u), email: u.email, emailVerified: u.email_verified, hasPassword: !!u.password_hash, mfa: u.totp_enabled, crashReports: u.crash_reports, mutedUntil: u.muted_until, suspendedUntil: u.suspended_until,
         ageBand: u.age_band, needsAge: !u.age_band, chat: u.chat, freeChat: freeChatAllowed(u.age_band) },
-      entitlements: await entitlements(ctx, u),
+      // the game says which platform it runs on; a store subscription only counts there
+      entitlements: await entitlements(ctx, u, String((req.query as any)?.platform || '').slice(0, 20) || undefined),
       identities: ids.map(i => i.provider),
       notice: sanction && Date.now() - new Date(sanction.created_at).getTime() < 14 * 864e5 ? sanction : null,
       session: { mfa: a.mfa, via: a.via },
@@ -208,6 +209,8 @@ export async function deleteAccount(ctx: Ctx, userId: string, actor?: string) {
     await t.query(`update users set display_name = $2, name_key = $3, email = null, email_verified = false, password_hash = null, totp_secret_enc = null, totp_enabled = false, status = 'deleted', stripe_customer_id = null where id = $1`, [userId, tomb, 'deleted:' + userId]);
     for (const tbl of ['identities', 'sessions', 'recovery_codes', 'email_tokens', 'cloud_items']) await t.query(`delete from ${tbl} where user_id = $1`, [userId]);
     await t.query('update reports set user_id = null, screenshot = null where user_id = $1', [userId]);
+    // store purchase tokens go too; a store subscription is cancelled in that store (the account page says so)
+    await t.query('update subscriptions set store_token_enc = null where user_id = $1', [userId]);
   });
   await audit(ctx, actor || userId, 'account.delete', userId);
   ctx.hub.kickUser(userId, 'This account was deleted.');

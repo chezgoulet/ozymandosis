@@ -1,5 +1,5 @@
-// Subscriptions through Stripe: $1 per player per month unlocks multiplayer
-// matches longer than the free limit. Checkout and the Customer Portal are
+// Subscriptions through Stripe (the web portal): $2 a month or $12 a year
+// (docs/MONETIZATION.md) unlocks online play beyond the free allowance. Checkout and the Customer Portal are
 // hosted by Stripe (no card data touches this server); webhooks keep our
 // subscription table and the player's live entitlements in sync.
 import type { FastifyInstance } from 'fastify';
@@ -43,8 +43,8 @@ export async function setupStripeProduct(stripe: Stripe, yearlyCents?: number) {
   const list = await stripe.prices.list({ lookup_keys: [PRICE_LOOKUP_KEY, YEARLY_LOOKUP_KEY], limit: 2 });
   let monthly = list.data.find(p => p.lookup_key === PRICE_LOOKUP_KEY), yearly = list.data.find(p => p.lookup_key === YEARLY_LOOKUP_KEY);
   const product = monthly ? (typeof monthly.product === 'string' ? monthly.product : monthly.product.id)
-    : (await stripe.products.create({ name: 'Ozymandosis Membership', description: 'Unlimited-length online matches. Supports development and servers.', tax_code: 'txcd_10201000' })).id;
-  if (!monthly) monthly = await stripe.prices.create({ product, unit_amount: 100, currency: 'usd', recurring: { interval: 'month' }, lookup_key: PRICE_LOOKUP_KEY, tax_behavior: 'inclusive' });
+    : (await stripe.products.create({ name: 'Ozymandosis Membership', description: 'Online play beyond the free daily match. Supports development and servers.', tax_code: 'txcd_10201000' })).id;
+  if (!monthly) monthly = await stripe.prices.create({ product, unit_amount: 200, currency: 'usd', recurring: { interval: 'month' }, lookup_key: PRICE_LOOKUP_KEY, tax_behavior: 'inclusive' });
   if (!yearly && yearlyCents) yearly = await stripe.prices.create({ product, unit_amount: yearlyCents, currency: 'usd', recurring: { interval: 'year' }, lookup_key: YEARLY_LOOKUP_KEY, tax_behavior: 'inclusive' });
   return { monthly, yearly };
 }

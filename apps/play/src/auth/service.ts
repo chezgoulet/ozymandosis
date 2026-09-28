@@ -85,9 +85,15 @@ export function assertCanPlay(u: UserRow) {
 }
 
 // ── entitlements ─────────────────────────────────────────────────
-export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatchMinutes: number; lifetime: boolean; source: 'stripe' | 'promo' | 'gift' | 'staff' | null; billing: boolean }
-export async function entitlements(ctx: Ctx, u: UserRow): Promise<Entitlements> {
-  const sub = await ctx.db.one<any>(`select id, status, current_period_end, cancel_at_period_end from subscriptions where user_id = $1 order by current_period_end desc nulls last limit 1`, [u.id]);
+export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatchMinutes: number; lifetime: boolean; source: 'stripe' | 'promo' | 'gift' | 'play' | 'staff' | null; billing: boolean; platform: string | null }
+// Entitlements are per platform (docs/MONETIZATION.md): a store subscription counts
+// only on its own platform; Stripe, promo codes and gifts (platform null) count
+// everywhere. `platform` is the client asking ('android', 'ios', 'web'…); '*' is the
+// staff view, which sees every source.
+export async function entitlements(ctx: Ctx, u: UserRow, platform?: string): Promise<Entitlements> {
+  const scope = platform === '*' ? 'true' : `(platform is null or platform = $2)`;
+  const sub = await ctx.db.one<any>(`select id, status, current_period_end, cancel_at_period_end, platform from subscriptions where user_id = $1 and ${scope}
+    order by (status in ('active', 'trialing', 'past_due') and current_period_end > now()) desc, current_period_end desc nulls last limit 1`, platform === '*' ? [u.id] : [u.id, platform || '']);
   const billing = !!(await ctx.db.one(`select 1 from subscriptions where user_id = $1 and id like 'sub\\_%'`, [u.id]));
   const end = sub?.current_period_end ? new Date(sub.current_period_end).getTime() : 0;
   // active or trialing while paid up; past_due keeps access for a three-day grace
@@ -95,8 +101,9 @@ export async function entitlements(ctx: Ctx, u: UserRow): Promise<Entitlements> 
   const staff = u.role !== 'player';
   const free = await freeMinutes(ctx);
   const lifetime = paid && end >= Date.UTC(9999, 0, 1);
-  const source = paid ? (String(sub.id).startsWith('promo_') ? 'promo' : String(sub.id).startsWith('comp_') ? 'gift' : 'stripe') : staff ? 'staff' : null;
-  return { subscriber: paid || staff, until: sub?.current_period_end ? new Date(sub.current_period_end).toISOString() : null, status: sub?.status ?? null, cancelAtPeriodEnd: !!sub?.cancel_at_period_end, freeMatchMinutes: free, lifetime, source, billing };
+  const id = String(sub?.id || '');
+  const source = paid ? (id.startsWith('promo_') ? 'promo' : id.startsWith('comp_') ? 'gift' : id.startsWith('gp_') ? 'play' : 'stripe') : staff ? 'staff' : null;
+  return { subscriber: paid || staff, until: sub?.current_period_end ? new Date(sub.current_period_end).toISOString() : null, status: sub?.status ?? null, cancelAtPeriodEnd: !!sub?.cancel_at_period_end, freeMatchMinutes: free, lifetime, source, billing, platform: sub?.platform ?? null };
 }
 export async function freeMinutes(ctx: Ctx): Promise<number> {
   const r = await ctx.db.one<any>(`select value from remote_config where key = 'freeMatchMinutes'`);

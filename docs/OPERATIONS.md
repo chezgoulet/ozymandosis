@@ -31,7 +31,7 @@ The service alerts on what it can see (below). These watch what it cannot:
 |---|---|---|
 | Site up | Uptime monitor (Better Stack, UptimeRobot, …) on `https://ozymandosis.com/` | down 2 minutes |
 | Service up | Uptime monitor on `https://play.ozymandosis.com/healthz` (checks the database too) | down 2 minutes |
-| TURN up | TCP port monitor on `turn.ozymandosis.com:3478` | down 5 minutes |
+| TURN up | Uptime monitor on `https://play.ozymandosis.com/healthz/turn` (a real authenticated TURN allocation, made by the service: proves coturn is up, reachable and shares `TURN_SECRET`), plus a TCP port monitor on `turn.ozymandosis.com:3478` as a second opinion | down 2 minutes. **Since D19 every online match is relayed: TURN down means no online play at all.** |
 | Certificates | The uptime monitors' TLS expiry check | under 14 days (Caddy renews at 30) |
 | Backups | healthchecks.io (or similar) check; its URL in `BACKUP_PING_URL`, period 6 h, grace 2 h | a backup is late or failed |
 | The machine | Linode Cloud Manager → the Linode → Settings → alert thresholds (CPU, disk I/O, network, transfer quota) | defaults are fine; set transfer to 80% |
@@ -49,6 +49,7 @@ Checked every minute and sent to `ALERT_EMAIL` and/or `ALERT_WEBHOOK_URL` (a Dis
 | Disk over 85% | the host disk is filling | `docker image prune -a --filter until=720h`, `docker builder prune`, old local backups |
 | Crash back / crash spike | a resolved crash reappeared, or a new crash reached 25 reports in a day | Admin console → Crashes & bugs |
 | Checkout without tax | Stripe Tax is not active | Stripe → Tax: activate it and add registrations |
+| TURN relay not working | the service's own allocation probe failed (no answer, or credentials refused) | online matches cannot connect. `dc logs turn` is empty by design: `dc restart turn`; check the firewall (3478 udp/tcp, 5349 tcp, 49160–49400 udp) and that `TURN_SECRET` is the same in both services. `/metrics` has `ozy_turn_up` |
 | Disputed results | 10+ disputed match results today | Admin console → Matches → Disputed; many at once suggests a circulating cheat or a desync bug |
 
 Container logs rotate (5 × 10 MB each), so they never fill the disk. The play service's logs never contain emails, IPs or tokens.

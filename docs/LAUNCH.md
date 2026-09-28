@@ -17,12 +17,7 @@ Stripe's standard card fee is 2.9% + 30¢, and prices now include tax (EU and UK
 Still worth asking Stripe support for **micropayment pricing** (about 5% + 5¢), which would lift the $2 month from ~$1.64 to ~$1.85 — but confirm the current eligibility terms rather than relying on these figures. Prices shown to players come from Stripe, so changing them needs no release.
 
 ### Store billing
-App stores and Steam require their own payment systems for digital goods. Store builds of the game therefore never show prices, checkout or code redemption, and memberships bought on the website still work in them. Apple's rule 3.1.3(b) expects content bought elsewhere to also be purchasable in the app, so before the iOS release choose one:
-
-- add in-app purchase on iOS and Android (RevenueCat is the least work; the service's entitlements already accept more than one source), or
-- ship mobile as free play with the online time limit, web membership honoured, and accept that App Review may ask for in-app purchase.
-
-On Steam, subscriptions are awkward; the usual answer is a one-time purchase (the game or a DLC) that grants lifetime membership via Steam's ownership check.
+The scheme is `docs/MONETIZATION.md`. **Android is built**: Google Play Billing sells the subscription in the app (prices come from Play), and the service validates every purchase with the Play Developer API before granting it; the entitlement counts only on Android. What needs a person: the Play Console product and base plans, the service account and the notification topic (docs/RELEASE-ANDROID.md, "Play Billing"). **iOS and Steam are not built yet**: iOS needs StoreKit plus App Store Server API validation as another entitlement source (the same shape as `apps/play/src/billing/play.ts`), Steam an ownership check. Until then those builds show no prices or checkout.
 
 ## Legal
 
@@ -50,7 +45,7 @@ On Steam, subscriptions are awkward; the usual answer is a one-time purchase (th
 
 - [ ] **Windows**: Azure Trusted Signing (or an OV certificate) for the Electron installer; otherwise SmartScreen warns every player.
 - [ ] **macOS**: Apple Developer Program, a Developer ID Application certificate, and notarization (electron-builder's `mac.notarize` with an App Store Connect API key).
-- [ ] **Android**: Play App Signing; back up the upload key.
+- [ ] **Android**: `npm run android:keygen` once, then **back the upload key up somewhere that is not this machine** (it is the one irrecoverable-in-a-hurry item); accept Play App Signing when creating the app; `npm run android:aab` for every release (docs/RELEASE-ANDROID.md).
 - [ ] **iOS**: App Store Connect record, bundle ID `com.ozymandosis.game`.
 
 ## Test with real things (on staging)
@@ -60,7 +55,9 @@ Automated tests cover the code paths with stand-ins; these need the real service
 - [ ] Sign in with a real Google account, a real Apple ID (including "Hide my email"), and Steam.
 - [ ] Buy a membership with a real card in live mode, check the receipt and tax line, cancel it, refund it in Stripe; redeem a promo code.
 - [ ] Safari on macOS and iOS: a full match, sound, fullscreen, sign-in, and the site's living title. (CI runs WebKit, but not a real iPhone.)
-- [ ] A low-end Android phone (3 GB RAM or less): the quality governor should hold 30+ fps; play 15 minutes.
-- [ ] An online match between a phone on mobile data (carrier NAT) and a computer on office or hotel Wi-Fi; then again with **Hide my IP** on (forces TURN).
+- [ ] A low-end and a mid-range Android phone (3 GB RAM or less; and a typical mid-range): play 15 minutes against bots at the default population, twice. Settings → Performance shows p50/p95/p99 and tier changes for each run (they also reach Admin → Performance). The two runs should agree within about 10%; if p95 is above 33 ms the quality tiers or population defaults need work before the store page claims the device (docs/PERFORMANCE.md).
+- [ ] An online match between a phone on mobile data (carrier NAT) and a computer on office or hotel Wi-Fi. Every online match is relayed (D19): check the admin console or `chrome://webrtc-internals` shows a `relay` candidate pair.
+- [ ] **LAN** on two real devices on one Wi-Fi, with the service unreachable (block `play.ozymandosis.com` on the router, or airplane mode + Wi-Fi): host on one, find it from the other, play to the end. Then again joining with the code only. Then on an Android API 36 build with `adb shell am compat enable RESTRICT_LOCAL_NETWORK com.ozymandosis.game` on both phones (docs/RELEASE-ANDROID.md). On iPhone, confirm the Local Network prompt appears on first host/find.
+- [ ] **Play Billing** from the internal testing track (docs/RELEASE-ANDROID.md): subscribe, reinstall and restore, cancel, refund; the admin console shows each change.
 - [ ] Pull the network mid-match on the guest (it should rejoin by itself) and on the host (the match continues; the host reattaches).
 - [ ] A restore drill from Object Storage (OPERATIONS.md).

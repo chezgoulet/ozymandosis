@@ -8,7 +8,7 @@
 <main class="doc">
 <h1>Privacy</h1>
 <p class="note">Draft for review by counsel before launch. It describes exactly what the software does.</p>
-<p>Ozymandosis collects as little about you as the service can run on. Playing offline sends nothing anywhere.</p>
+<p>Ozymandosis collects as little about you as the service can run on. Playing offline, or with other people on your own network, sends nothing to us. The full list of what is collected, generated from the software itself, is the <a href="https://github.com/chezgoulet/efflorescent/blob/main/docs/DATA-INVENTORY.md">data inventory</a>.</p>
 <h2>What we keep when you make an account</h2>
 <ul>
 <li><strong>Email address</strong> (email accounts, or when a sign-in provider shares a verified one): to sign you in, confirm it is yours, and let you reset your password.</li>
@@ -18,7 +18,7 @@
 <li><strong>Age range</strong>: we ask the month and year you were born, work out whether you are 13–15, 16–17 or an adult, and keep only that range. We do not make accounts for children under 13; if we learn an account belongs to one, we delete it.</li>
 <li><strong>Game progress</strong> (when signed in): your lineage, your Spawnforge designs and your save slots are backed up to your account so they follow you between devices.</li>
 <li><strong>Signed-in devices</strong>: a coarse label such as “Chrome on Android” and when each was last used, so you can sign them out.</li>
-<li><strong>Membership</strong>: its status and renewal date. Payments are handled by Stripe; we never see or store card details.</li>
+<li><strong>Membership</strong>: its status, plan and renewal date. Payments are handled by Stripe on the web and by Google Play on Android; we never see or store card details. For a Google Play membership we keep Google’s purchase token, encrypted, so we can confirm the purchase with Google; it is erased when you delete your account. A Google Play membership is cancelled in Google Play.</li>
 <li><strong>Reports</strong>: player reports you send (with the recent chat lines attached from your own game) and moderation decisions.</li>
 </ul>
 <h2>What we do not keep</h2>
@@ -27,7 +27,7 @@
 <ul>
 <li>Sign-in sessions: until they expire or you sign them out. Email links and sign-in hand-offs: one day after use or expiry.</li>
 <li>Email sign-ups that are never confirmed or used: deleted after 30 days.</li>
-<li>Crash and bug reports: 180 days; screenshots attached to them: 30 days.</li>
+<li>Crash and bug reports: 180 days; screenshots attached to them: 30 days. Performance measurements: 180 days.</li>
 <li>Chat lines attached to a player report: 90 days after the report is resolved; the report itself: two years.</li>
 <li>Staff action log: two years. Payment webhook records: 90 days.</li>
 <li>Server logs: a few days of rotating files, pseudonymous as described above. Database backups: 14 days, encrypted.</li>
@@ -35,13 +35,15 @@
 </ul>
 <h2>Crash and bug reports</h2>
 <p>If the game crashes it can send a report: the error, the game version, your device type, the renderer and a short summary of the match. Emails, IP addresses and file paths are removed before storage. You can turn automatic reports off in the game’s Settings or in your account. Bug reports you send yourself may include a screenshot of the game if you choose.</p>
+<p><strong>Performance.</strong> At the end of a single-player or online match the game measures how smoothly it ran: frame-time percentiles, how often it lowered or raised its graphics quality, the renderer, and a device class (desktop, mobile or low-end), plus the processor core count, memory size and screen size the browser reports. It keeps the last runs on your device (Settings → Performance) and, unless reports are turned off, sends them to us without your account or anything that identifies you. Matches on your local network are never reported.</p>
 <h2>Online matches</h2>
 <p><strong>Chat.</strong> In online lobbies and matches, chat passes through our server so it can be filtered, so mutes work, and so players under 16 only send and see preset quick-chat phrases. We keep the last lines of a match’s chat in memory while it runs and for 30 minutes after; they are stored only if someone reports a player from that match, attached to the report. You can turn chat off or limit it to quick chat in Settings or your account.</p>
-<p>Matches connect players’ devices directly (WebRTC, encrypted with DTLS). As with any direct connection, the other players’ devices can see your IP address. Turn on <em>Hide my IP address</em> in Settings to route the match through our relay server instead; the relay forwards encrypted traffic it cannot read.</p>
+<p>Every online match travels through our relay server (WebRTC, encrypted with DTLS end to end), so other players never learn your IP address and the relay forwards traffic it cannot read. The relay keeps no logs.</p>
+<p><strong>Local network play</strong> connects the devices in your home directly. It needs no account and never contacts our servers; on Android and iOS the system asks your permission to use the local network.</p>
 <h2>Your controls</h2>
 <p>From your account you can download all of your data, sign out devices, turn off crash reports, and delete your account. Deletion erases your email, sign-ins, name and two-factor data and cancels your membership; anonymised match records remain.</p>
 <h2>Processors</h2>
-<p>Stripe (payments), our email delivery provider (account emails), and our hosting provider. Sign-in providers only when you choose them.</p>
+<p>Stripe (web payments), Google Play (Android payments), our email delivery provider (account emails), Cloudflare Turnstile (a check against automated sign-ups, when enabled), and our hosting provider. Sign-in providers only when you choose them.</p>
 <h2>Contact</h2>
 <p>privacy@ozymandosis.com</p>
 </main>

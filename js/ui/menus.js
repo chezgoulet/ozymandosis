@@ -41,7 +41,7 @@
   function renderSetup() {
     const isHost = lobby && lobby.role === 'host', isGuest = lobby && lobby.role === 'guest';
     $('setup-title').textContent = lobby ? (lobby.save ? 'Resume together' : 'Lobby') : 'Skirmish';
-    $('setup-room').textContent = lobby ? 'ROOM ' + lobby.room : '';
+    $('setup-room').textContent = lobby ? (lobby.joinCode ? 'JOIN CODE ' + lobby.joinCode : 'ROOM ' + lobby.room) : '';
     $('lobby-chat-card').hidden = !lobby;
     const host = $('slots'); host.innerHTML = '';
     setup.slots.forEach((s, i) => {
@@ -223,28 +223,40 @@
     if (e.code === 'age') { E.Online.ageDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
     onlineStatus(e.message); E.toast(e.message);
   }
-  async function connect(src) {
+  async function connect(src, lanUrl) {
     if (src === 'online') {
       if (browse && browse.ws) { const r = browse; browse = null; r.handlers = {}; E.Online.wire(r); return r; }
       onlineStatus('Connecting…');
       try { const r = await E.Online.openRelay(); E.Online.wire(r); onlineStatus(''); return r; } catch (e) { onlineError(e); return null; }
     }
+    // LAN: never the service. The address is this device's own host, a code, a
+    // discovered game, or a computer running server/server.js.
     const typed = $('mp-server').value.trim();
-    const url = E.Relay.fromInput(typed || E.Relay.defaultUrl());
+    const url = lanUrl || E.Relay.fromInput(typed || E.Relay.defaultUrl());
     E.Settings.server = typed; E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
-    if (!url) { $('mp-status').textContent = 'Enter the address of the host on your network — the machine running this game, as host:port.'; return null; }
+    if (!url) { $('mp-status').textContent = 'Enter the join code shown on the host’s screen, or find the game nearby.'; return null; }
     $('mp-status').textContent = 'Connecting to ' + url + '…';
-    const r = new E.Relay();
+    const r = new E.Relay({ lan: true });
     try { await r.connect(url); } catch (e) { $('mp-status').textContent = e.message + '. Is the server running?'; return null; }
     $('mp-status').textContent = 'Connected.';
     return r;
   }
   async function hostGame(save, opts) {
     opts = opts || {}; const online = opts.src === 'online';
-    const r = opts.relay || await connect(opts.src); if (!r) return;
+    // This device hosts the LAN game itself when it can (the app); a browser opened
+    // from server/server.js, or given its address, uses that server instead.
+    let own = null;
+    if (!online && !opts.relay && E.Lan.available() && !$('mp-server').value.trim()) {
+      E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
+      $('mp-status').textContent = 'Opening a game on this network…';
+      try { own = await E.Lan.host(playerName()); }
+      catch (e) { $('mp-status').textContent = e.message; if (e.code === 'denied') E.Lan.denied(e.message); return; }
+    }
+    const r = opts.relay || await connect(opts.src, own && own.url); if (!r) { if (own) E.Lan.stopHost(); return; }
+    if (own) { const close = r.close.bind(r); r.close = () => { close(); E.Lan.stopHost(); }; }
     if (opts.relay) E.Online.wire(r);
     r.on('hosted', m => {
-      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null, online, quick: opts.quick || null }; renderLobbyChat.done = false;
+      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null, online, quick: opts.quick || null, joinCode: own && own.code }; renderLobbyChat.done = false;
       if (save) {
         const st = JSON.parse(save.state), local = save.extra && save.extra.local !== undefined ? save.extra.local : 0;
         setup = { map: Object.assign({}, st.cfg.map), slots: st.players.map((p, i) => ({ kind: i === local ? 'you' : p.kind === 'bot' ? 'bot' : 'open', culture: p.culture, team: p.team, diff: p.diff || 'normal', name: p.name })) };
@@ -260,7 +272,7 @@
         }
       }
       $('lobby-log').innerHTML = '';
-      lobbyLog('Room', opts.quick ? 'Matched. Waiting for your rivals to connect…' : online ? `Lobby ${m.room} is ${$('mp-private').checked ? 'private: share the code' : 'listed for everyone, and joinable with its code'}.` : `Share code ${m.room}. Friends open this page, choose Multiplayer, and enter the code.`);
+      lobbyLog('Room', opts.quick ? 'Matched. Waiting for your rivals to connect…' : online ? `Lobby ${m.room} is ${$('mp-private').checked ? 'private: share the code' : 'listed for everyone, and joinable with its code'}.` : own ? (own.code ? `Others on this network find this game under Games nearby, or join with code ${own.code}.` : 'Others on this network find this game under Games nearby. (This device has no local address to make a code from: is it on Wi-Fi?)') : `Share code ${m.room}. Friends open this page, choose Multiplayer, and enter the code.`);
       E.Screens.show('scr-setup'); renderSetup();
     });
     r.on('peer', m => {
@@ -287,8 +299,18 @@
   }
   async function joinGame(code, opts) {
     opts = opts || {}; const online = opts.src === 'online';
-    if (!code) { code = $('mp-code').value.trim().toUpperCase(); if (code.length < 4) { $('mp-status').textContent = 'Enter the 4-letter room code.'; return; } }
-    const r = opts.relay || await connect(opts.src); if (!r) return;
+    let lanUrl = opts.url || null;
+    if (!code && !online) {
+      const typed = $('mp-code').value.trim();
+      const t = E.Lan.target(typed);
+      if (t) {
+        lanUrl = t.url; code = t.room;
+        if (!(await E.Lan.access())) { $('mp-status').textContent = E.Lan.explain({ code: 'denied' }); E.Lan.denied(); return; }
+      }
+      else if (/^[a-z]{4}$/i.test(typed)) code = typed.toUpperCase(); // a room on a computer running server/server.js
+      else { $('mp-status').textContent = typed ? 'That code does not look right. It has ten letters and numbers, like 60N00-H87WG.' : 'Enter the join code shown on the host’s screen.'; return; }
+    }
+    const r = opts.relay || await connect(opts.src, lanUrl); if (!r) return;
     if (opts.relay) E.Online.wire(r);
     r.on('chat', m => { if (lobby) lobbyLog(m.from, m.text); });
     r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id, online }; renderLobbyChat.done = false; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
@@ -321,7 +343,7 @@
     acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.lifetime ? 'Lifetime member' : ent.subscriber ? 'Member' : `Free · ${ent.freeMatchMinutes || 15}-minute matches`),
       h('span', { class: 'mono', title: 'Rating' }, '◆ ' + (O.me.rating || 1200))),
       h('div', { class: 'row' }, ent.subscriber || !O.canPurchase() ? null : h('button', { class: 'btn small', onclick: () => O.membershipDialog() }, `Membership · ${O.priceLabel()}`),
-        ent.lifetime || !O.canPurchase() ? null : h('button', { class: 'btn small ghost', onclick: async () => { if (await O.redeemDialog()) renderOnline(); } }, 'Redeem a code'),
+        ent.lifetime || !O.canRedeem() ? null : h('button', { class: 'btn small ghost', onclick: async () => { if (await O.redeemDialog()) renderOnline(); } }, 'Redeem a code'),
         h('button', { class: 'btn small ghost', onclick: () => O.openExternal(O.accountUrl()) }, 'Account'),
         h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); if (browse) { browse.close(); browse = null; } renderOnline(); } }, 'Sign out')));
     if (O.hello && O.hello.config && O.hello.config.needsVerify) acc.append(h('p', { class: 'hint-s warn' }, 'Confirm your email to play online. Check your inbox for the link.'));
@@ -427,10 +449,16 @@
         : h('button', { class: 'btn small primary', onclick: async () => { if (await O.signInDialog()) renderSettings(); } }, 'Sign in')),
       O.me ? chatPref(O) : null,
       O.me ? cloudRow() : null,
-      tog('Hide my IP address from other players (relays the match; adds a little delay)', 'relayOnly'),
-      tog('Send automatic crash reports (nothing personal)', 'crashReports'),
-      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug'), O.canPurchase() ? h('button', { class: 'btn small', onclick: async () => { if (await O.redeemDialog()) renderSettings(); } }, 'Redeem a code') : null),
+      tog('Send automatic crash and performance reports (nothing personal)', 'crashReports'),
+      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug'), O.canRedeem() ? h('button', { class: 'btn small', onclick: async () => { if (await O.redeemDialog()) renderSettings(); } }, 'Redeem a code') : null),
       h('div', { class: 'field', style: 'margin-top:12px' }, h('label', null, 'Play server (advanced)'), playIn)));
+    // the frame-rate instrument: the last runs measured on this device (js/ui/framestats.js)
+    const runs = E.FrameStats.runs();
+    body.appendChild(h('div', { class: 'card', id: 'perf-runs' }, h('h3', null, 'Performance'),
+      h('p', { class: 'hint-s' }, `Every match of ${E.FrameStats.MIN_SECONDS} seconds or more is measured on this device: frame times (p50, p95, p99), how often the quality governor changed tier, and the device class (${E.Perf.deviceClass()}).`),
+      runs.length ? h('ol', { class: 'perf-list' }, runs.slice(0, 8).map(r => h('li', null, h('b', null, new Date(r.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) + ' · ' + r.mode), h('br'), h('span', { class: 'mono' }, E.FrameStats.describe(r))))) : h('p', { class: 'hint-s' }, 'No matches measured yet.'),
+      runs.length ? h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(JSON.stringify(runs, null, 1)); E.toast('Copied'); } catch (e) { E.modal('Performance runs', h('pre', { class: 'mono', style: 'max-height:50vh;overflow:auto;font-size:.7rem' }, JSON.stringify(runs, null, 1))); } } }, 'Copy all runs'),
+        h('button', { class: 'btn small ghost', onclick: () => { E.FrameStats.clear(); renderSettings(); } }, 'Clear')) : null));
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
       seg('Right-click / tap on ground', 'rightClick', [['amove', 'Attack-move'], ['move', 'Move']]),
@@ -463,7 +491,7 @@
     let r;
     try {
       if (online) { r = await E.Online.openRelay(); E.Online.wire(r); }
-      else { r = new E.Relay(); await r.connect(url || E.Relay.defaultUrl()); }
+      else { r = new E.Relay({ lan: true }); await r.connect(url || E.Relay.defaultUrl()); }
     } catch (e) { return { ok: false, msg: e.message }; }
     return new Promise(res => {
       let done = false;
@@ -534,7 +562,7 @@
     game.start({ mode: 'local', cfg, local: 0, tutorial: true });
   };
   $('m-skirmish').onclick = () => { E.Audio.init(); lobby = null; setup = defaultSetup(); E.Screens.show('scr-setup'); renderSetup(); };
-  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl() || 'e.g. 192.168.1.50:8080'; $('mp-status').textContent = location.protocol === 'file:' ? 'Tip: open the game from the local server URL to play on your network.' : ''; onlineStatus(''); E.Screens.show('scr-mp'); renderOnline(); renderLobbies([]); if (E.Online.signedIn()) E.Online.refresh().then(() => { renderOnline(); openBrowse(); }); };
+  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl() || 'e.g. 192.168.1.50:8080'; $('mp-find-field').hidden = !E.Lan.available(); $('mp-lan-found').innerHTML = ''; $('mp-status').textContent = location.protocol === 'file:' && !E.Lan.available() ? 'Tip: open the game from the local server URL to play on your network.' : ''; onlineStatus(''); E.Screens.show('scr-mp'); renderOnline(); renderLobbies([]); if (E.Online.signedIn()) E.Online.refresh().then(() => { renderOnline(); openBrowse(); }); };
   E.Screens.onLeave['scr-mp'] = () => { if (browse && !lobby) { browse.close(); browse = null; } clearInterval(openBrowse.t); };
   $('mp-host-online').onclick = () => hostGame(null, { src: 'online' });
   $('mp-join-online').onclick = () => { const code = $('mp-code-online').value.trim().toUpperCase(); if (code.length !== 5) { onlineStatus('Online codes have 5 letters.'); return; } joinGame(code, { src: 'online' }); };
@@ -546,6 +574,18 @@
   $('m-codex').onclick = () => E.Menus.openCodex(false);
   $('m-forge').onclick = () => { E.Screens.show('scr-forge'); if (!forgeLab) forgeLab = new E.Forge($('forge-lab'), { mode: 'lab' }); else forgeLab.renderAll(); };
   $('mp-host').onclick = () => hostGame(null, { src: 'lan' });
+  $('mp-find').onclick = async () => {
+    const box = $('mp-lan-found'); box.innerHTML = '';
+    $('mp-status').textContent = 'Looking for games on this network…';
+    let r;
+    try { r = await E.Lan.find(3000); } catch (e) { $('mp-status').textContent = e.message; if (e.code === 'denied') E.Lan.denied(e.message); return; }
+    if (r.picker) { // Android 17+: the system picker chose (and granted) one device
+      if (!r.found.length) { $('mp-status').textContent = r.cancelled ? '' : 'No game was chosen.'; return; }
+      $('mp-status').textContent = ''; joinGame('*', { src: 'lan', url: r.found[0].url }); return;
+    }
+    $('mp-status').textContent = r.found.length ? '' : 'No games found. The host’s screen shows a code you can enter instead.';
+    for (const g of r.found) box.append(h('button', { class: 'lobby-item', onclick: () => joinGame('*', { src: 'lan', url: g.url }) }, h('span', { class: 'lobby-title' }, g.name), h('span', { class: 'mono' }, 'Join')));
+  };
   $('mp-join').onclick = () => joinGame(null, { src: 'lan' });
   $('load-import').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;

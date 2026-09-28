@@ -38,4 +38,15 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Local-network play (js/net/lan.js, LanPlugin). From API 37 the local network is
+         blocked by default: hosting (accepting connections) and joining by code need
+         ACCESS_LOCAL_NETWORK; joining through the system picker does not. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- API 33–36: the same guard, and no location is ever derived from it. -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        android:maxSdkVersion="36" />
+    <!-- mDNS on Wi-Fi before T extensions 7 needs a multicast lock. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 </manifest>

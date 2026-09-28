@@ -43,6 +43,18 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ozymandosis._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Ozymandosis finds and hosts games with other players on your Wi-Fi network. Local matches connect your devices directly, with no internet connection.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- the local signalling hop is cleartext on the players' own network (D19); the match itself is DTLS -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

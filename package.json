@@ -1,12 +1,12 @@
 {
   "name": "ozymandosis",
-  "version": "1.0.0",
+  "version": "0.5.0",
   "private": true,
   "description": "A real-time strategy game of bioluminescent evolution.",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node test/sim.test.cjs && node test/content.test.cjs && node test/audit.test.cjs",
-    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/features.test.cjs && node test/mp.test.cjs && node test/online.test.cjs",
+    "test": "node tools/version.cjs check && node test/sim.test.cjs && node test/content.test.cjs && node test/audit.test.cjs",
+    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/features.test.cjs && node test/mp.test.cjs && node test/online.test.cjs && node test/lan.test.cjs && node test/frames.test.cjs",
     "build": "node tools/build-web.cjs",
     "icons": "node tools/make-icons.cjs",
     "vendor:three": "node tools/vendor-three.cjs",
@@ -18,7 +18,11 @@
     "play:dev": "npm run dev -w apps/play",
     "play:test": "npm test -w apps/play",
     "play:build": "npm run build -w apps/play",
-    "test:all": "npm test && npm run play:test && npm run test:ui"
+    "test:all": "npm test && npm run play:test && npm run test:ui",
+    "android:aab": "bash tools/android-release.sh",
+    "android:keygen": "bash tools/android-keygen.sh",
+    "version:set": "node tools/version.cjs",
+    "test:lan": "node test/lan.test.cjs"
   },
   "engines": {
     "node": ">=18"

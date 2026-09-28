@@ -19,6 +19,7 @@ export const RETENTION = {
   unverifiedAccountDays: 30,       // email sign-ups never confirmed and never used
   endedAnnouncementsDays: 365,
   staleMatchHours: 24,             // matches that started but never reported an end
+  perfRunsDays: 180,               // frame-rate runs (anonymous)
 } as const;
 
 const LOCK = 7_021_881; // arbitrary, stable advisory lock key
@@ -43,6 +44,7 @@ export async function sweep(ctx: Ctx): Promise<Record<string, number>> {
     await run('report_chat', `update player_reports set chat = '[]'::jsonb where status <> 'open' and chat <> '[]'::jsonb and resolved_at < now() - make_interval(days => $1)`, [R.reportChatDays]);
     await run('player_reports', `delete from player_reports where status <> 'open' and resolved_at < now() - make_interval(days => $1)`, [R.playerReportsDays]);
     await run('audit_log', `delete from audit_log where at < now() - make_interval(days => $1)`, [R.auditDays]);
+    await run('perf_runs', `delete from perf_runs where created_at < now() - make_interval(days => $1)`, [R.perfRunsDays]);
     await run('announcements', `delete from announcements where ends_at is not null and ends_at < now() - make_interval(days => $1)`, [R.endedAnnouncementsDays]);
     await run('stale_matches', `update matches set status = 'void', settled_at = now(), ended_at = coalesce(ended_at, started_at) where status = 'open' and started_at < now() - make_interval(hours => $1)`, [R.staleMatchHours]);
     // email sign-ups that never confirmed, never linked a provider, never paid and never played

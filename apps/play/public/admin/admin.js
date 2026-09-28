@@ -26,7 +26,7 @@
 
   const SECTIONS = [
     ['dashboard', 'Dashboard', 'support', dashboard], ['issues', 'Crashes & bugs', 'support', issues], ['reports', 'Player reports', 'moderator', reports],
-    ['players', 'Players', 'support', players], ['announce', 'Announcements', 'moderator', announcements], ['matches', 'Matches', 'support', matches], ['balance', 'Balance', 'support', balance],
+    ['players', 'Players', 'support', players], ['announce', 'Announcements', 'moderator', announcements], ['matches', 'Matches', 'support', matches], ['balance', 'Balance', 'support', balance], ['perf', 'Performance', 'support', perf],
     ['promos', 'Promo codes', 'admin', promos], ['config', 'Live config', 'admin', config], ['ops', 'Operations', 'admin', ops], ['audit', 'Audit log', 'admin', audit],
   ];
   function nav(counts) {
@@ -89,11 +89,22 @@
       h('tbody', null, list.map(i => h('tr', { class: 'click', onclick: () => { location.hash = 'issues/' + i.id; } }, h('td', null, h('span', { class: 'pill' + (i.kind === 'bug' ? '' : ' bad') }, i.kind || 'crash'), ' ', i.title), h('td', null, statusPill(i.status)), h('td', { class: 'num' }, fmt(i.count)), h('td', { class: 'mono' }, i.last_version || '—'), h('td', null, ago(i.last_seen)))))));
   }
   const statusPill = s => h('span', { class: 'pill ' + ({ open: 'warn', regressed: 'bad', resolved: 'good' }[s] || '') }, s);
+  // frame-rate runs from devices (the game's frame-rate instrument)
+  async function perf() {
+    const r = await api('GET', '/api/admin/perf?days=30');
+    const n = v => v == null ? '—' : Math.round(v * 10) / 10;
+    const table = (head, rows) => h('div', { style: 'overflow-x:auto' }, h('table', null, h('thead', null, h('tr', null, head.map(x => h('th', null, x)))), h('tbody', null, rows)));
+    main(h('div', { class: 'card' }, h('h2', null, 'Performance (last 30 days)'),
+      h('p', { class: 'muted' }, 'Medians per device class. Frame times in ms: p50 is typical, p99 is the worst 1%. Below 30 = share of frames slower than 33 ms.'),
+      table(['Device', 'Renderer', 'Platform', 'Runs', 'fps', 'p50', 'p95', 'p99', 'Below 30 %', 'Tier changes'], r.summary.map(s => h('tr', null, [s.device_class, s.renderer, s.platform, s.runs, n(s.fps), n(s.p50), n(s.p95), n(s.p99), n(s.below30), n(s.tier_changes)].map(v => h('td', null, String(v))))))),
+      h('div', { class: 'card' }, h('h2', null, 'Recent runs'),
+        table(['When', 'Version', 'Device', 'Renderer', 'Mode', 'Minutes', 'fps', 'p50', 'p95', 'p99', 'Tiers'], r.runs.map(x => h('tr', null, [when(x.created_at), x.version, x.device_class, x.renderer, x.mode, n(x.seconds / 60), n(x.fps), n(x.p50), n(x.p95), n(x.p99), `${x.tier_changes} (${x.tier_start || '?'}→${x.tier_end || '?'})`].map(v => h('td', null, String(v))))))));
+  }
   async function issues(id) {
     if (id) return issueDetail(id);
     const st = h('select', null, ['open', 'resolved', 'ignored', 'all'].map(s => h('option', { value: s }, s)));
     const kind = h('select', null, [['all', 'Crashes and bugs'], ['crash', 'Crashes'], ['bug', 'Bug reports']].map(([v, l]) => h('option', { value: v }, l)));
-    const ver = h('input', { placeholder: 'Version, e.g. 1.2.0' });
+    const ver = h('input', { placeholder: 'Version, e.g. 0.5.0' });
     const box = h('div');
     const load = async () => { const r = await api('GET', `/api/admin/issues?status=${st.value}&kind=${kind.value}${ver.value ? '&version=' + encodeURIComponent(ver.value) : ''}`); box.replaceChildren(issueTable(r.issues)); };
     st.onchange = kind.onchange = load; ver.onchange = load;
@@ -303,7 +314,7 @@
     const m = get('maintenance') || { on: false };
     const mOn = h('input', { type: 'checkbox', style: 'width:auto;min-height:0' }); mOn.checked = !!m.on;
     const mMsg = h('input', { value: m.message || '', placeholder: 'Message shown to players' });
-    const minV = h('input', { value: get('minClientVersion') || '', placeholder: '1.0.0' });
+    const minV = h('input', { value: get('minClientVersion') || '', placeholder: '0.5.0' });
     const free = h('input', { type: 'number', min: 1, max: 600, value: get('freeMatchMinutes') || 15 });
     const feats = h('textarea', { rows: 4 }, JSON.stringify(get('features') || {}, null, 2));
     const put = (key, value, btn) => act(btn, () => api('PUT', '/api/admin/config/' + key, { value }), 'Saved');

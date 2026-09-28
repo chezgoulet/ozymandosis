@@ -32,7 +32,7 @@
     }
     get tiers() { return this.r.kind === 'canvas2d' ? ['high', 'low'] : E.GL_TIER_ORDER; }
     current() { return this.r.kind === 'canvas2d' ? this.r.quality : this.r.tierName; }
-    set(t, why) { if (t === this.current()) return; this.log.push({ t: performance.now(), tier: t, why }); if (this.log.length > 20) this.log.shift(); if (this.r.setTier) this.r.setTier(t); else { this.r.quality = t; this.r.resize(); } }
+    set(t, why) { if (t === this.current()) return; if (E.FrameStats) E.FrameStats.tier(this.current(), t, why); this.log.push({ t: performance.now(), tier: t, why }); if (this.log.length > 20) this.log.shift(); if (this.r.setTier) this.r.setTier(t); else { this.r.quality = t; this.r.resize(); } }
     sample(gapMs, cpuMs, dt) {
       if (E.Settings.quality !== 'auto') return;
       this.gaps[this.i] = gapMs; this.cpu[this.i] = cpuMs; this.i = (this.i + 1) % this.gaps.length; this.n = Math.min(this.n + 1, this.gaps.length);

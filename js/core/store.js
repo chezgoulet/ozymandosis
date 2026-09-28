@@ -10,9 +10,12 @@
 
   const DEFAULTS = {
     quality: 'auto', backend: 'auto', markers: 'auto', orientation: 'auto', muted: false, organIcons: true, music: 0.5, sfx: 0.7, uiScale: 1, edgePan: true, showHp: true, tapCommand: true,
-    rightClick: 'amove', invertZoom: false, tips: true, guideStep: 0, name: '', server: '', lastSetup: null, mmCollapsed: false, speed: 1, haptics: true, fullscreen: true, crashReports: true, relayOnly: false, playServer: '',
+    rightClick: 'amove', invertZoom: false, tips: true, guideStep: 0, name: '', server: '', lastSetup: null, mmCollapsed: false, speed: 1, haptics: true, fullscreen: true, crashReports: true, playServer: '',
   };
   E.Settings = Object.assign({}, DEFAULTS, LS.get('efl.settings', {}));
+  // D19: relaying is no longer a choice. Installs that saved relayOnly: false must
+  // not keep an un-relayed path, so the old setting is dropped rather than obeyed.
+  delete E.Settings.relayOnly;
   E.saveSettings = () => LS.set('efl.settings', E.Settings);
 
   // Saves: index + one key per slot. slot ids: 'auto', 's1'..'s8'

@@ -30,6 +30,14 @@ const Env = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_PRICE_ID_YEARLY: z.string().optional(),
+  // Google Play Billing (Android subscription): a service account with the
+  // "View financial data / Manage orders and subscriptions" permission in Play Console
+  // (its JSON key, raw or base64), and the secret in the Pub/Sub push URL for
+  // Real-time Developer Notifications (…/api/billing/play/rtdn?token=…).
+  GOOGLE_PLAY_SERVICE_ACCOUNT: z.string().optional(),
+  GOOGLE_PLAY_PACKAGE: z.string().default('com.ozymandosis.game'),
+  GOOGLE_PLAY_PRODUCT: z.string().default('ozymandosis_membership'),
+  GOOGLE_PLAY_RTDN_TOKEN: z.string().min(24).optional(),
   // Stripe Tax computes VAT/GST/sales tax at checkout (activate Stripe Tax in the dashboard first)
   STRIPE_TAX: bool.default(true),
 
@@ -37,14 +45,15 @@ const Env = z.object({
   APPLE_CLIENT_ID: z.string().optional(), APPLE_TEAM_ID: z.string().optional(), APPLE_KEY_ID: z.string().optional(), APPLE_PRIVATE_KEY: z.string().optional(),
   STEAM_API_KEY: z.string().optional(), STEAM_APP_ID: z.string().optional(),
 
-  // WebRTC: public STUN, and a TURN server sharing this secret (coturn use-auth-secret)
-  STUN_URLS: z.string().default('stun:stun.l.google.com:19302'),
+  // WebRTC: a TURN server sharing this secret (coturn use-auth-secret). Every online
+  // match is relayed (D19), so clients never use STUN; none is handed out by default.
+  STUN_URLS: z.string().default(''),
   TURN_URLS: z.string().default(''),
   TURN_SECRET: z.string().optional(),
 
   FREE_MATCH_MINUTES: z.coerce.number().default(15),
   TURNSTILE_SECRET: z.string().optional(),
-  MIN_CLIENT_VERSION: z.string().default('1.0.0'),
+  MIN_CLIENT_VERSION: z.string().default('0.5.0'),
 
   // Operations: where alerts go, when they fire, and who may read /metrics (see docs/OPERATIONS.md)
   ALERT_EMAIL: z.string().optional(),

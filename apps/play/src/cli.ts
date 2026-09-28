@@ -1,7 +1,7 @@
 // Operator commands:  npm run admin -- <command>
 //   promote <email|name> <role>     grant a staff role (owner, admin, moderator, support, player)
 //   create-owner <email> <password> create the first owner account (email pre-verified)
-//   stripe:setup [yearlyCents]      create the product, the $1/month price, and optionally a yearly price
+//   stripe:setup [yearlyCents]      create the product, the $2/month price, and optionally a yearly price (1200)
 //   migrate                         apply database migrations
 //   grant <email|name> <days>       complimentary membership
 //   keys:rotate                     new match-ticket signing key (the old one verifies for a day)

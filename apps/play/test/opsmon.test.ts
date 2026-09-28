@@ -15,7 +15,7 @@ await new Promise<void>(r => hookServer.listen(0, '127.0.0.1', r));
 const hookUrl = `http://127.0.0.1:${(hookServer.address() as any).port}/hook`;
 
 let t: T;
-test('boot', async () => { t = await boot({ ALERT_WEBHOOK_URL: hookUrl, ALERT_EMAIL: 'ops@example.com', METRICS_TOKEN: 'a-long-enough-metrics-token-123' }); });
+test('boot', async () => { t = await boot({ ALERT_WEBHOOK_URL: hookUrl, ALERT_EMAIL: 'ops@example.com', METRICS_TOKEN: 'a-long-enough-metrics-token-123', TURN_URLS: '' }); }); // TURN has its own tests (turn.test.ts)
 after(async () => { await t.app.close(); hookServer.close(); });
 
 test('ticket keys rotate without breaking tickets already issued', async () => {

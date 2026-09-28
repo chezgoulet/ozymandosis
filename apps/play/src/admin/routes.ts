@@ -68,7 +68,7 @@ export default async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
     return {
       user: { id: u.id, name: u.display_name, email: admin ? u.email : (u.email ? '•••@' + u.email.split('@')[1] : null), emailVerified: u.email_verified, role: u.role, status: u.status, mfa: u.totp_enabled,
         rating: u.rating, matches: u.matches, wins: u.wins, createdAt: u.created_at, lastSeenAt: u.last_seen_at, mutedUntil: u.muted_until, suspendedUntil: u.suspended_until, stripeCustomer: admin ? u.stripe_customer_id : !!u.stripe_customer_id },
-      entitlements: await entitlements(ctx, u), identities, sanctions, reportsAgainst, reportsFiled: Number((reportsBy as any)?.n || 0), sessions, matches,
+      entitlements: await entitlements(ctx, u, '*'), identities, sanctions, reportsAgainst, reportsFiled: Number((reportsBy as any)?.n || 0), sessions, matches,
     };
   });
   app.post('/api/admin/users/:id/role', async req => {

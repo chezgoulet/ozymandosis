@@ -37,13 +37,17 @@ jobs:
       - run: node test/features.test.cjs
         env: { NOGPU: "1" }
       - run: node test/flow.test.cjs
-      - run: node test/mp.test.cjs && node test/online.test.cjs
+      - run: docker pull -q coturn/coturn:4.6   # online matches are always relayed (D19): the e2e runs a real TURN server
+        if: matrix.browser != 'webkit'
+      - run: node test/mp.test.cjs && node test/online.test.cjs && node test/lan.test.cjs
         if: matrix.browser != 'webkit'     # headless WebKit on Linux has no loopback WebRTC
+      - run: node test/frames.test.cjs
+        if: matrix.browser == 'chromium'
       - run: node test/touch.test.cjs
         if: matrix.browser == 'chromium'   # touch emulation (isMobile) is Chromium-only in Playwright
       - uses: actions/upload-artifact@v4
         if: failure()
-        with: { name: "screens-${{ matrix.browser }}", path: test/shots, retention-days: 7 }
+        with: { name: "screens-${{ matrix.browser }}", path: "test/shots\ntest/traces", retention-days: 7 }
 
   images:
     runs-on: ubuntu-latest

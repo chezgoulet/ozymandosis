@@ -72,6 +72,8 @@
       this.sheetSig = ''; this.renderSheet();
       if (this.netMode === 'host') this.hostSetup();
       if (this.netMode === 'guest') this.guestSetup();
+      // the frame-rate instrument measures every match (js/ui/framestats.js)
+      E.FrameStats.end(); E.FrameStats.begin({ mode: this.netMode === 'local' ? 'local' : this.online ? 'online' : 'lan', renderer: this.renderer, popCap: w.s.cfg.map.popCap, players: w.s.players.length });
       this.running = true;
       if (!this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(t => this.loop(t)); }
       E.Audio.play('build');
@@ -100,6 +102,7 @@
     }
     stop() {
       this.autosave();
+      this.perfRun = E.FrameStats.end(this.governor && this.governor.current());
       if (this.online && this.world && !this.world.s.over && !this.limitHit) this.claim('forfeit');
       this.running = false; this.root.hidden = true; $('bg').hidden = false;
       if (this.relay) {
@@ -412,7 +415,7 @@
     // ── loop ────────────────────────────────────────────────────
     loop(now) {
       this.raf = requestAnimationFrame(t => this.loop(t));
-      const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
+      const gap = now - this.last, dt = Math.min(0.1, gap / 1000); this.last = now;
       if (!this.running || !this.world) return;
       const w = this.world;
       let alpha = 1;
@@ -433,7 +436,9 @@
       const ui = { selection: this.selection, box: this.box, ghost: this.ghost, target: this.targetPreview, pings: this.pings, showHp: E.Settings.showHp };
       const f0 = performance.now();
       this.renderer.frame(w, alpha, this.netMode === 'guest' ? w.s.t + alpha * this.snapDt / 1000 : w.s.t + alpha * DT, dt, ui);
-      this.governor.sample(dt * 1000, performance.now() - f0 + (this.stepMs || 0), dt);
+      const cpu = performance.now() - f0 + (this.stepMs || 0);
+      this.governor.sample(dt * 1000, cpu, dt);
+      E.FrameStats.frame(gap, cpu, w.s.units.length);
       if (this.captureCb) { const cb = this.captureCb; this.captureCb = null; try { const src = this.renderer.cv, k = Math.min(1, 1280 / src.width), t = document.createElement('canvas'); t.width = src.width * k; t.height = src.height * k; t.getContext('2d').drawImage(src, 0, 0, t.width, t.height); if (this.renderer.ov) t.getContext('2d').drawImage(this.renderer.ov, 0, 0, t.width, t.height); cb(t.toDataURL('image/jpeg', 0.6)); } catch (e) { cb(null); } }
       if (!$('mm-wrap').classList.contains('collapsed')) this.minimap.draw(w, dt, this.alerts);
       this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 0.1; this.updateHud(); }
@@ -991,6 +996,7 @@
       }
       $('end-rematch').hidden = this.netMode === 'guest' || this.online; $('end-reseed').hidden = this.netMode === 'guest' || this.online;
       this.reportMatch();
+      this.perfRun = E.FrameStats.end(this.governor && this.governor.current()) || this.perfRun;
       if (this.online) {
         const box = $('end-online'); box.innerHTML = '';
         for (const r of this.rivals()) box.appendChild(h('button', { class: 'btn small ghost', onclick: () => this.reportDialog(r.uid) }, 'Report ' + r.name));

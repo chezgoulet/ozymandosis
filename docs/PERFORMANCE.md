@@ -24,3 +24,27 @@ WebGL2 on SwiftShader drops to 2–5 fps, so Auto selects Canvas2D when the GL r
 - **Tiers** (`E.GL_TIERS`): ultra, high, medium, low. They set DPR, caustics, pool-focus count, organ-detail budget (400 / 260 / 140 / 60 creatures), body segments, wake glows and atlas resolution.
 - **Hard caps:** fx ≤ 400, corpses ≤ 60, floating texts ≤ 80, population cap per culture (setup option 60–150; the default comes from the device class).
 - **Regression check:** `npm run test:perf` fails if results exceed `bench/budget.json`.
+
+## Measuring on a device
+
+The frame-rate instrument (`js/ui/framestats.js`) measures every match of 30 s or more:
+the real interval between frames (rAF gaps, so GPU time counts), as p50/p95/p99, the
+share of frames below 30 fps, the governor's tier changes (from, to, why, when), the
+device class the game derives, the renderer, and the peak creature count. It costs a
+fixed 2 KB per match (a 0.5 ms histogram), so a long match is fine.
+
+- **On the device:** Settings → Performance lists the last runs in plain words and
+  copies them all as JSON.
+- **Afterwards:** single-player and online runs reach the service (anonymous; not LAN
+  matches; not with diagnostics off). Admin console → Performance shows medians per
+  device class and the recent runs.
+
+The phone test: on a mid-range Android phone, a skirmish against bots at the default
+population, 15 minutes, twice. Compare the two runs: p50 and fps should agree within
+about 10%. Under vsync the tail percentiles move in whole frames (16.7 → 33.3 ms), so
+read p95/p99 together with *below 30 fps*. If the phone cannot hold 30 fps (p95 above
+33 ms, or tier changes that never settle), that changes the quality tiers, the
+population defaults and which devices the store page claims.
+
+`npm run test:ui` includes `test/frames.test.cjs`: two 32-second runs in headless
+Chromium produce a readable record and agree (desktop numbers, not a phone's).

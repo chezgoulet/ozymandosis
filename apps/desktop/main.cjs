@@ -2,8 +2,9 @@
 // F11 or Alt+Enter toggle fullscreen (handled by the game); links to accounts,
 // checkout and sign-in providers open in the system browser.
 'use strict';
-const { app, BrowserWindow, shell, Menu } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain } = require('electron');
 const path = require('path');
+const lan = require('./lan.cjs');
 
 app.commandLine.appendSwitch('enable-features', 'Vulkan,WebGPU');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -21,12 +22,16 @@ function create() {
   Menu.setApplicationMenu(null);
   const win = new BrowserWindow({
     fullscreen: true, backgroundColor: '#02070a', show: false, title: 'Ozymandosis',
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, preload: path.join(__dirname, 'preload.cjs') },
   });
   win.once('ready-to-show', () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); shell.openExternal(url); } });
   win.loadFile(path.join(__dirname, 'web', 'index.html'), { query: { nosw: '1', store: store() } });
 }
+// Local-network play: this machine hosts and finds games itself (js/net/lan.js).
+ipcMain.handle('lan:host', (_e, opts) => lan.startHost(opts || {}));
+ipcMain.handle('lan:stop', () => lan.stopHost());
+ipcMain.handle('lan:discover', (_e, opts) => lan.discover(opts || {}));
 app.whenReady().then(create);
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => { lan.shutdown().finally(() => app.quit()); });

@@ -523,3 +523,6 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 .logo.living .beta-badge { position: absolute; right: 1.5%; top: -2px; }
 @media (max-width: 560px) { .logo.living .beta-badge { font-size: .6rem; padding: 4px 7px 3px; top: -6px; right: 1%; } }
 .farewell-title { width: min(92vw, 900px); aspect-ratio: 708 / 120; display: block; }
+.lan-adv { margin: 4px 0 8px; }
+.lan-adv summary { cursor: pointer; color: var(--ink-dim); font-size: .85rem; padding: 6px 0; }
+.perf-list { padding-left: 18px; margin: 6px 0 10px; font-size: .8rem; } .perf-list li { margin-bottom: 6px; } .perf-list .mono { color: var(--ink-soft); }

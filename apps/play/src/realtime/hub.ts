@@ -114,7 +114,7 @@ export class Hub {
     if (cmpVersion(c.version, cfg.minClientVersion) < 0) { this.send(c, { op: 'upgrade', msg: 'A new version of Ozymandosis is out. Please update to play online.', min: cfg.minClientVersion }); c.ws.close(4010, 'upgrade'); return; }
     if (!a.user.age_band) { this.send(c, { op: 'error', code: 'age', msg: 'Before you play online, tell us your age.' }); c.ws.close(4012, 'age'); return; }
     if (cfg.maintenance?.on && a.user.role === 'player') { this.send(c, { op: 'maintenance', msg: cfg.maintenance.message || 'Online play is down for maintenance. Back soon.' }); c.ws.close(4011, 'maintenance'); return; }
-    c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user);
+    c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user, c.platform);
     this.send(c, {
       op: 'hello', user: this.pub(c), ent: c.ent, ice: this.ice(c),
       key: { kid: this.ctx.signer.id, x: this.ctx.signer.publicRaw }, keys: this.ctx.signer.publicKeys(),
@@ -395,7 +395,7 @@ export class Hub {
     const u = await this.ctx.db.one<UserRow>('select * from users where id = $1', [userId]);
     for (const c of this.conns) if (c.user?.id === userId) {
       if (!u || u.status === 'banned' || u.status === 'deleted') { this.kick(c, 'This account can no longer play online.'); continue; }
-      c.user = u; c.ent = await entitlements(this.ctx, u);
+      c.user = u; c.ent = await entitlements(this.ctx, u, c.platform);
       if (u.status === 'suspended') { this.kick(c, `Your account is suspended until ${new Date(u.suspended_until!).toUTCString()}.`); continue; }
       this.send(c, { op: 'me', user: this.pub(c), ent: c.ent, config: { needsVerify: this.needsVerify(u), mutedUntil: u.muted_until, chat: this.chatMode(u) } });
     }

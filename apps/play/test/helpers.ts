@@ -6,11 +6,11 @@ import { makeMailer } from '../src/lib/mail.js';
 import { hotp, stepAt } from '../src/lib/totp.js';
 
 export const WEBHOOK_SECRET = 'whsec_test_secret';
-export async function boot(env: Record<string, string> = {}, over: { stripe?: any } = {}) {
+export async function boot(env: Record<string, string> = {}, over: { stripe?: any; play?: any } = {}) {
   const cfg = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', PUBLIC_URL: 'http://play.test', SITE_URL: 'http://site.test', STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, TURN_SECRET: 'turnsecret', TURN_URLS: 'turn:turn.test:3478', ...env } as any);
   const mailer = makeMailer(undefined, 'test', () => {});
   const stripe = over.stripe || new Stripe('sk_test_dummy');
-  const built = await buildApp(cfg, { mailer, stripe });
+  const built = await buildApp(cfg, { mailer, stripe, play: over.play ?? null });
   await built.app.listen({ port: 0, host: '127.0.0.1' });
   const port = (built.app.server.address() as any).port;
   const api = async (method: string, url: string, body?: unknown, token?: string, headers: Record<string, string> = {}) => {

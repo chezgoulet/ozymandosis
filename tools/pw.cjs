@@ -19,6 +19,6 @@ exports.launch = (opts = {}) => {
     if (exe) o.executablePath = exe;
   }
   // loopback WebRTC between two pages needs real host candidates
-  if (name === 'firefox') o.firefoxUserPrefs = { 'media.peerconnection.ice.obfuscate_host_addresses': false, 'media.navigator.permission.disabled': true };
+  if (name === 'firefox') o.firefoxUserPrefs = { 'media.peerconnection.ice.obfuscate_host_addresses': false, 'media.navigator.permission.disabled': true, 'media.peerconnection.ice.loopback': true };
   return L[name].launch(o);
 };

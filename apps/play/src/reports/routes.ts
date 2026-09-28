@@ -11,6 +11,8 @@ import { Limiter } from '../lib/limiter.js';
 import { bump } from '../auth/service.js';
 
 const perClient = new Limiter(30, 60 * 60e3);
+// What a crash or bug report may carry as context: settings and game-state summaries only.
+export const REPORT_CONTEXT_KEYS = ['settings', 'backend', 'tier', 'fps', 'mode', 'players', 'mapSize', 'time', 'units', 'net', 'log', 'url', 'screen', 'memory', 'lang'] as const;
 const Report = z.object({
   kind: z.enum(['crash', 'bug']),
   message: z.string().max(4000).default(''),
@@ -43,9 +45,8 @@ export default async function reportRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!perClient.take(key)) throw tooMany();
     const message = scrub(r.message, 4000), stack = scrub(r.stack, 40000), description = scrub(r.description, 4000);
     // context is whitelisted: settings and game state summaries only
-    const allowed = ['settings', 'backend', 'tier', 'fps', 'mode', 'players', 'mapSize', 'time', 'units', 'net', 'log', 'url', 'screen', 'memory', 'lang'];
     const context: Record<string, unknown> = {};
-    for (const k of allowed) if (k in r.context) context[k] = typeof r.context[k] === 'string' ? scrub(r.context[k] as string, 8000) : r.context[k];
+    for (const k of REPORT_CONTEXT_KEYS) if (k in r.context) context[k] = typeof r.context[k] === 'string' ? scrub(r.context[k] as string, 8000) : r.context[k];
     if (typeof context.url === 'string') context.url = String(context.url).split(/[?#]/)[0];
     const shot = r.screenshot && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(r.screenshot) ? r.screenshot : null;
     const { fp, title } = fingerprint(r.kind, message, stack);

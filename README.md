@@ -8,7 +8,7 @@ You tend a glowing culture: you harvest drifting light, evolve organs and body p
 | How | Command | Notes |
 |---|---|---|
 | Single player | open `index.html` in a browser | Works from `file://`. No build step. three.js is vendored in `vendor/`. |
-| Local network | `npm start`, then open http://localhost:8080 | Zero-dependency LAN server (Node 18+). It only introduces players; matches run peer to peer over WebRTC. |
+| Local network | In the apps: Multiplayer → Host on this network (the device hosts; others find it or enter its join code). For development: `npm start`, then open http://localhost:8080 | No account, no internet, no relay. The host only introduces players; matches run directly over WebRTC. |
 | Online (development) | `npm run play:dev` in one terminal, `npm start` in another | The play service on :8787 with an embedded Postgres; the game on localhost talks to it automatically. Verification emails appear at http://localhost:8787/api/dev/outbox. |
 | Desktop app | `cd apps/desktop && npm install && npm start` | Electron shell that launches fullscreen (base for the Steam build). |
 | Install on a phone | open the served URL, then "Add to Home Screen" | Plays offline after the first visit. |
@@ -20,6 +20,7 @@ Production (ozymandosis.com, play.ozymandosis.com) is one Docker Compose stack o
 ```
 index.html, js/, css/, vendor/   the game client (web, PWA, Capacitor, desktop all load these files)
 server/server.js                 LAN server: static files + WebRTC signaling
+server/signal.cjs                LAN signaling, shared with the desktop shell (Android/iOS: LanPlugin)
 apps/play/                       play.ozymandosis.com: accounts, 2FA, OAuth, Stripe, matchmaking,
                                  signaling, tickets, crash reports, moderation, admin console
 apps/site/                       ozymandosis.com: the website; the web client is served at /play/

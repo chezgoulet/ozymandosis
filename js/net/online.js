@@ -3,7 +3,7 @@
 // peer to peer (js/net/net.js); this module only talks to the matchmaking service.
 (function (E) {
   'use strict';
-  E.VERSION = '1.2.0';
+  E.VERSION = '0.5.0';
   const O = E.Online = { me: null, ent: null, config: null, announcements: [], chatLog: [], listeners: new Set() };
   const TOKEN = 'efl.session';
 
@@ -16,14 +16,23 @@
     if (E.Native && E.Native.is) return E.Native.platform; // 'ios' | 'android'
     return 'web';
   })();
-  O.canPurchase = () => O.store === 'web' || O.store === 'direct';
-  // Prices from the service (Stripe), in the player's own number format; tax included.
+  // Android sells through Google Play Billing (PlayBillingPlugin); the service
+  // verifies every purchase with Google and binds it to the account. Other store
+  // builds (iOS, Steam) do not sell yet, and no store build redeems codes.
+  O.play = () => O.store === 'android' && window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.PlayBilling;
+  O.canPurchase = () => O.store === 'web' || O.store === 'direct' || !!O.play();
+  O.canRedeem = () => O.store === 'web' || O.store === 'direct';
+  O.platform = () => (E.Native && E.Native.is ? E.Native.platform : 'web');
+  const PLAY_PLAN = { month: 'monthly', year: 'annual' };
+  O.playPlans = null;
+  // Prices from the store on mobile (Play formats them), from the service (Stripe) elsewhere; tax included.
   O.price = plan => {
+    if (O.play()) { const p = (O.playPlans || []).find(x => x.plan === PLAY_PLAN[plan || 'month']); return p ? p.price : null; }
     const p = O.config && (O.config.plans || []).find(x => x.plan === (plan || 'month'));
-    if (!p) return plan === 'year' ? null : '$1';
+    if (!p) return plan === 'year' ? null : '$2';
     try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: p.currency.toUpperCase(), minimumFractionDigits: p.amount % 100 ? 2 : 0 }).format(p.amount / 100); } catch (e) { return '$' + (p.amount / 100); }
   };
-  O.priceLabel = () => `${O.price('month')}/month` + (O.price('year') ? ` or ${O.price('year')}/year` : '');
+  O.priceLabel = () => O.price('month') ? `${O.price('month')}/month` + (O.price('year') ? ` or ${O.price('year')}/year` : '') : 'prices in Google Play';
 
   // Chat words blocked in local-network games (online chat is filtered by the service).
   const BLOCK = ['fuck', 'shit', 'nigg', 'fagot', 'faggot', 'retard', 'hitler', 'kike', 'trany', 'whore', 'motherfuck'];
@@ -70,11 +79,23 @@
   O.refresh = async function () {
     try { O.config = await O.api('GET', '/api/config'); } catch (e) { O.config = O.config || null; }
     if (O.signedIn()) {
-      try { const r = await O.api('GET', '/api/me'); O.me = r.user; O.ent = r.entitlements; O.notice = r.notice; } catch (e) { if (e.status === 401) { O.me = null; O.ent = null; } }
+      try { const r = await O.api('GET', '/api/me?platform=' + O.platform()); O.me = r.user; O.ent = r.entitlements; O.notice = r.notice; } catch (e) { if (e.status === 401) { O.me = null; O.ent = null; } }
     }
     try { O.announcements = (await O.api('GET', '/api/announcements')).announcements || []; } catch (e) { /* offline */ }
+    if (O.play()) {
+      if (!O.playPlans) O.play().products({}).then(r => { O.playPlans = r.plans || []; changed(); }).catch(() => {});
+      if (O.signedIn() && O.me && !O.restored) { O.restored = true; O.restorePlay().catch(() => {}); }
+    }
     changed();
     return O;
+  };
+  // Hand every purchase Play knows about to the service (a reinstall, a new phone, a
+  // purchase that finished while the game was closed). The service decides; this never grants.
+  O.restorePlay = async function () {
+    const P = O.play(); if (!P || !O.signedIn()) return;
+    const r = await P.restore(); let any = false;
+    for (const p of r.purchases || []) { try { await O.api('POST', '/api/billing/play/verify', { purchaseToken: p.purchaseToken }); any = true; } catch (e) { /* another account's, or not a membership */ } }
+    if (any) { const m = await O.api('GET', '/api/me?platform=' + O.platform()); O.me = m.user; O.ent = m.entitlements; changed(); }
   };
   O.login = async function (email, password) {
     const r = await O.api('POST', '/api/auth/login', { email, password, client: 'game' });
@@ -126,6 +147,17 @@
   O.subscribe = async function (plan) {
     if (!O.canPurchase()) throw new Error('Membership is not sold in this version of the game.');
     if (!O.signedIn()) throw new Error('Sign in first.');
+    if (O.play()) {
+      const acct = await O.api('GET', '/api/billing/play/account');
+      const r = await O.play().purchase({ productId: acct.productId, plan: PLAY_PLAN[plan || 'month'], obfuscatedAccountId: acct.obfuscatedAccountId });
+      if (r.cancelled) return;
+      if (r.owned) { await O.restorePlay(); return; }
+      if (r.pending) { E.toast('Google Play is waiting for your payment. Membership starts when it goes through.', 5000); return; }
+      await O.api('POST', '/api/billing/play/verify', { purchaseToken: r.purchaseToken });
+      await O.refresh();
+      E.toast('Welcome, member. Thank you.', 4000);
+      return;
+    }
     const r = await O.api('POST', '/api/billing/checkout', { plan: plan || 'month' });
     O.openExternal(r.url);
   };
@@ -159,7 +191,7 @@
   // ── lobby connection (one per lobby, authenticated) ──────────────
   O.openRelay = async function () {
     if (!O.signedIn()) { const e = new Error('Sign in to play online.'); e.code = 'signin'; throw e; }
-    const r = new E.Relay({ relayOnly: !!E.Settings.relayOnly });
+    const r = new E.Relay();
     await r.connect(O.wsUrl());
     return new Promise((res, rej) => {
       const to = setTimeout(() => rej(new Error('The server did not answer. Try again.')), 8000);
@@ -294,6 +326,8 @@
   // Membership prompt shown when a free match ends at the limit.
   O.membershipDialog = async function (why) {
     const mins = (O.ent && O.ent.freeMatchMinutes) || (O.config && O.config.freeMatchMinutes) || 15;
+    if (O.play() && !O.playPlans) { try { O.playPlans = (await O.play().products({})).plans || []; } catch (e) { O.playPlans = []; } }
+    if (O.play() && !O.price('month')) { await E.modal('Membership', 'Google Play is not answering right now. Try again in a moment.'); return; }
     if (!O.canPurchase()) { await E.modal('The match has ended', `${why ? why + ' ' : ''}Free online matches last ${mins} minutes.`); return; }
     const year = O.price('year');
     const v = await E.modal('Keep the bloom going', `${why ? why + ' ' : ''}Free online matches last ${mins} minutes. Membership removes the limit for ${O.price('month')} a month${year ? ` (or ${year} a year)` : ''} and pays for the servers that introduce players.`,

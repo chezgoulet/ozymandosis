@@ -24,7 +24,7 @@ TSL If/ElseIf chains produced wrong results in the glow shader, so the TSL mater
 
 **D10. Meta-progression is cosmetic plus designs.** Achievements unlock titles and preset Forge designs, which any player could build anyway. Multiplayer stays fair.
 
-**D11. Matches are peer to peer; servers only introduce.** WebRTC DataChannels (DTLS) carry all game traffic host↔guest, so neither the LAN server nor play.ozymandosis.com can read or tamper with a match, and server outages don't end matches in progress. TURN (coturn) relays encrypted traffic for strict NATs and for players who choose to hide their IP.
+**D11. Matches are peer to peer; servers only introduce.** WebRTC DataChannels (DTLS) carry all game traffic host↔guest, so neither the LAN server nor play.ozymandosis.com can read or tamper with a match, and server outages don't end matches in progress. TURN (coturn) relays the encrypted traffic. *(Amended by D19: every online match is relayed; LAN matches are direct.)*
 
 **D12. The free time limit is a signed ticket enforced by peers.** The server cannot see inside a P2P match, so it signs who is playing and until when; honest clients enforce each other (the host hands expired guests to bots, guests leave when the host's time ends). Quick match makes a member the host when possible. A modified client can ignore its own limit if every peer in the match also runs modified clients; the limit is a gentle nudge, not DRM.
 
