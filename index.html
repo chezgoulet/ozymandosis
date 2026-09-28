@@ -21,7 +21,8 @@
 <section class="screen" id="scr-menu">
   <div class="menu-main">
     <div class="logo">Ozymandosis</div>
-    <p class="tagline">Grow a culture. Tend its light. Outshine the dark.</p>
+    <p class="tagline"><span>Grow a culture.</span> <span>Tend its light.</span> <span>Outshine the dark.</span></p>
+    <div class="news" id="m-news" aria-live="polite"></div>
     <button class="btn primary" id="m-continue" hidden>Continue</button>
     <div class="lineage" id="m-lineage"></div>
     <button class="btn primary" id="m-skirmish">Skirmish</button>
@@ -33,7 +34,7 @@
       <button class="btn" id="m-codex" style="flex:1">Codex</button>
       <button class="btn" id="m-settings" style="flex:1">Settings</button>
     </div>
-    <div class="menu-foot"><a href="docs/concept.html" target="_blank" rel="noopener">Concept document</a><span id="m-version">v1.0</span></div>
+    <div class="menu-foot"><a href="docs/concept.html" target="_blank" rel="noopener">Concept document</a><span id="m-version">v1.1</span></div>
   </div>
 </section>
 
@@ -74,17 +75,26 @@
 <section class="screen dim" id="scr-mp" hidden>
   <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Multiplayer</h2></div>
   <div class="scr-body grid2">
-    <div class="card">
-      <h3>You</h3>
-      <div class="field"><label>Name</label><input type="text" id="mp-name" maxlength="18"></div>
-      <div class="field"><label>Relay server</label><input type="text" id="mp-server" spellcheck="false"></div>
-      <p style="font-size:.84em;color:var(--ink-soft);margin:0">Run <code>node server/server.js</code> on one machine and everyone connects to it. Open slots can be filled by players or bots.</p>
+    <div class="card" id="mp-online">
+      <h3>Online</h3>
+      <div id="mp-account"></div>
+      <div id="mp-online-play" hidden>
+        <div class="field"><label>Quick match</label><div class="row"><button class="btn primary" id="mp-quick-duel">Duel · 1 vs 1</button><button class="btn" id="mp-quick-ffa">Free-for-all · 4</button></div></div>
+        <div class="queue-card" id="mp-queue" hidden><span class="spinner" aria-hidden="true"></span><span id="mp-queue-t">Searching for rivals…</span><button class="btn small" id="mp-unqueue">Cancel</button></div>
+        <div class="field"><label>Open lobbies</label><div class="lobby-list" id="mp-lobbies"></div>
+          <div class="row"><button class="btn small" id="mp-refresh">Refresh</button><button class="btn small primary" id="mp-host-online">Host a lobby</button><label class="check"><input type="checkbox" id="mp-private"><span>Private</span></label></div></div>
+        <div class="field"><label>Join with a code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code-online" maxlength="5" placeholder="ABCDE" class="code-in" autocapitalize="characters" spellcheck="false"><button class="btn" id="mp-join-online">Join</button></div></div>
+      </div>
+      <p class="mono status-line" id="mp-online-status"></p>
     </div>
     <div class="card">
-      <h3>Play</h3>
-      <button class="btn primary" id="mp-host" style="width:100%;margin-bottom:12px">Host a new game</button>
-      <div class="field"><label>Join with room code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code" maxlength="6" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em"><button class="btn" id="mp-join">Join</button></div></div>
-      <p class="mono" id="mp-status" style="color:var(--ink-dim);min-height:1.2em"></p>
+      <h3>Local network</h3>
+      <p class="hint-s">Everyone on one network: run <code>node server/server.js</code> on one machine and connect to it. The match itself still runs directly between players, encrypted.</p>
+      <div class="field"><label>Name</label><input type="text" id="mp-name" maxlength="18"></div>
+      <div class="field"><label>Local server</label><input type="text" id="mp-server" spellcheck="false"></div>
+      <button class="btn" id="mp-host" style="width:100%;margin-bottom:12px">Host on this network</button>
+      <div class="field"><label>Join with room code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code" maxlength="6" placeholder="ABCD" class="code-in"><button class="btn" id="mp-join">Join</button></div></div>
+      <p class="mono status-line" id="mp-status"></p>
     </div>
   </div>
 </section>
@@ -124,6 +134,7 @@
       <span class="chip" id="h-pop-chip" title="Population"><i>●</i><b id="h-pop">0/0</b></span>
       <span class="chip fever" title="Fever"><i>♨</i><span class="bar"><b id="h-fever"></b></span></span>
       <span class="chip clock" id="h-clock">0:00</span>
+      <span class="chip limit" id="h-limit" hidden title="Free online time left in this match"><i>◷</i><b id="h-limit-t">15:00</b></span>
       <span class="chip objective" id="h-obj" hidden title="Objective"><i>◎</i><span class="obar"><b id="h-obj-me"></b><b id="h-obj-foe"></b></span><em id="h-obj-t"></em></span>
     </div>
     <div class="hud-right">
@@ -168,6 +179,7 @@
       <button class="btn" id="p-save">Save game</button>
       <button class="btn" id="p-codex">Codex</button>
       <button class="btn" id="p-settings">Settings</button>
+      <div class="row" style="gap:10px"><button class="btn" id="p-bug" style="flex:1">Report a bug</button><button class="btn" id="p-report" style="flex:1" hidden>Report a player</button></div>
       <div class="row" style="gap:10px"><span class="lbl" style="width:70px;text-align:left">Music</span><input type="range" id="p-music" min="0" max="100" style="flex:1"></div>
       <div class="row" style="gap:10px"><span class="lbl" style="width:70px;text-align:left">Effects</span><input type="range" id="p-sfx" min="0" max="100" style="flex:1"></div>
       <div class="row" style="gap:6px"><span class="lbl" style="flex:1;text-align:left">Game speed</span><div class="seg" id="p-speed" style="flex:2"></div></div>
@@ -181,6 +193,7 @@
       <p id="end-text" style="color:var(--ink-soft)"></p>
       <div class="card" style="overflow-x:auto"><table class="stats-tbl" id="end-stats"></table></div>
       <div class="card end-xp" id="end-xp"></div>
+      <div class="row" id="end-online" style="justify-content:center" hidden></div>
       <div class="row" style="justify-content:center"><button class="btn primary" id="end-rematch">Rematch</button><button class="btn" id="end-reseed">New Dreamscape</button><button class="btn" id="end-watch">Keep watching</button><button class="btn" id="end-menu">Main menu</button></div>
     </div>
   </div>
@@ -190,6 +203,7 @@
 <script src="vendor/three.min.js"></script>
 <script src="js/core/seed.js"></script>
 <script src="js/core/util.js"></script>
+<script src="js/core/crash.js"></script>
 <script src="js/data/organs.js"></script>
 <script src="js/data/chassis.js"></script>
 <script src="js/data/specials.js"></script>
@@ -213,6 +227,7 @@
 <script src="js/core/audio.js"></script>
 <script src="js/core/profile.js"></script>
 <script src="js/net/net.js"></script>
+<script src="js/net/online.js"></script>
 <script src="js/ui/perf.js"></script>
 <script src="js/ui/dom.js"></script>
 <script src="js/ui/icons.js"></script>

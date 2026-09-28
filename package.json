@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server/server.js",
     "test": "node test/sim.test.cjs && node test/content.test.cjs",
-    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/features.test.cjs && node test/mp.test.cjs",
+    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/features.test.cjs && node test/mp.test.cjs && node test/online.test.cjs",
     "build": "node tools/build-web.cjs",
     "icons": "node tools/make-icons.cjs",
     "vendor:three": "node tools/vendor-three.cjs",
@@ -17,7 +17,8 @@
     "test:perf": "node bench/bench.cjs --backends webgl2,canvas2d --units 100,700 --label check --check",
     "play:dev": "npm run dev -w apps/play",
     "play:test": "npm test -w apps/play",
-    "play:build": "npm run build -w apps/play"
+    "play:build": "npm run build -w apps/play",
+    "test:all": "npm test && npm run play:test && npm run test:ui"
   },
   "engines": {
     "node": ">=18"

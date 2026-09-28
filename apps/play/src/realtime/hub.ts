@@ -38,6 +38,7 @@ interface Lobby {
   title: string; public: boolean; mode: string; max: number; players: number;
   started: boolean; matchId: string | null; ticket: string | null; ranked: boolean; reserved: Set<string> | null; kicked: Set<string>;
   seats: Map<string, number>; // user id → lobby id, so a player who drops and rejoins keeps their seat
+  pending: boolean; waiting: Conn[]; // quick match: guests wait until the chosen host claims the lobby
 }
 
 export class Hub {
@@ -165,7 +166,15 @@ export class Hub {
   }
 
   private newCode() { let s = ''; do { s = ''; for (let i = 0; i < 5; i++) s += LETTERS[randomInt(LETTERS.length)]; } while (this.lobbies.has(s)); return s; }
-  private host(c: Conn, m: any, opts: { reserved?: Set<string>; ranked?: boolean; mode?: string } = {}) {
+  private host(c: Conn, m: any, opts: { reserved?: Set<string>; ranked?: boolean; mode?: string; pending?: boolean } = {}) {
+    if (m.claim) {
+      const P = this.lobbies.get(String(m.claim));
+      if (!P || P.host !== c || !P.pending) return this.send(c, { op: 'error', msg: 'That match is no longer available.' });
+      P.pending = false; c.lobby = P; c.lid = 0;
+      this.send(c, { op: 'hosted', room: P.code, id: 0, ice: this.ice(c), ranked: P.ranked, mode: P.mode });
+      for (const w of P.waiting.splice(0)) if (w.ws.readyState === 1) this.join(w, P.code);
+      return P;
+    }
     if (this.needsVerify(c.user!)) return this.send(c, { op: 'error', msg: 'Confirm your email to play online. Check your inbox.', code: 'verify' });
     if (c.lobby) this.leaveLobby(c, true);
     this.unqueue(c);
@@ -174,9 +183,10 @@ export class Hub {
       title: filterChat(String(m.title || `${c.user!.display_name}'s bloom`).slice(0, 40)).text, public: m.public !== false && !opts.reserved,
       mode: String(opts.mode || m.mode || 'custom').slice(0, 20), max: Math.max(2, Math.min(MAX_PLAYERS, Number(m.max) || MAX_PLAYERS)), players: 1,
       started: false, matchId: null, ticket: null, ranked: !!opts.ranked, reserved: opts.reserved || null, kicked: new Set(), seats: new Map(),
+      pending: !!opts.pending, waiting: [],
     };
     this.lobbies.set(L.code, L); c.lobby = L; c.lid = 0;
-    this.send(c, { op: 'hosted', room: L.code, id: 0, ice: this.ice(c), ranked: L.ranked });
+    if (!L.pending) this.send(c, { op: 'hosted', room: L.code, id: 0, ice: this.ice(c), ranked: L.ranked });
     return L;
   }
   private join(c: Conn, code: string) {
@@ -184,6 +194,7 @@ export class Hub {
     const L = this.lobbies.get(code);
     if (!L) return this.send(c, { op: 'error', msg: 'No lobby with that code. It may have closed.' });
     if (L.host === c) return;
+    if (L.pending) { if (!L.reserved || L.reserved.has(c.user!.id)) { if (!L.waiting.includes(c)) L.waiting.push(c); } else this.send(c, { op: 'error', msg: 'That lobby is private to its matched players.' }); return; }
     const uid = c.user!.id;
     if (L.kicked.has(uid)) return this.send(c, { op: 'error', msg: 'The host removed you from this lobby.' });
     if (L.reserved && !L.reserved.has(uid)) return this.send(c, { op: 'error', msg: 'That lobby is private to its matched players.' });
@@ -290,7 +301,7 @@ export class Hub {
         // a subscriber hosts when possible, so free time limits never end the match for everyone
         const host = group.find(c => c.ent?.subscriber) || group[0];
         for (const c of group) c.queued = null;
-        const L = this.host(host, { title: 'Quick match' }, { reserved: new Set(group.map(c => c.user!.id)), ranked: true, mode });
+        const L = this.host(host, { title: 'Quick match' }, { reserved: new Set(group.map(c => c.user!.id)), ranked: true, mode, pending: true });
         if (!L) continue;
         L.max = group.length; L.players = group.length;
         this.send(host, { op: 'matched', room: L.code, role: 'host', mode, players: group.map(c => ({ name: c.user!.display_name, rating: c.user!.rating })) });

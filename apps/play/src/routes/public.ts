@@ -29,6 +29,9 @@ export default async function publicRoutes(app: FastifyInstance, ctx: Ctx) {
     };
   });
 
+  // Development and tests only: mail that would have been sent (there is no SMTP locally).
+  if (!ctx.cfg.prod && !ctx.cfg.SMTP_URL) app.get('/api/dev/outbox', async () => ({ mail: ctx.mail.outbox.slice(-20) }));
+
   app.get('/api/announcements', async req => {
     const sub = req.auth ? (await entitlements(ctx, req.auth.user)).subscriber : null;
     return { announcements: await activeAnnouncements(ctx, sub) };

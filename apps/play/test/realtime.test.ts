@@ -97,7 +97,13 @@ test('quick match pairs two players into a reserved, ranked lobby hosted by a me
   const outsider = await signup(t), O = await Client.open(t, outsider.token);
   O.send({ op: 'join', room: ma.room });
   assert.match((await O.wait('error')).msg, /private/);
-  A.send({ op: 'join', room: ma.room }); assert.equal((await A.wait('joined')).ranked, true);
+  A.send({ op: 'join', room: ma.room }); // waits for the host to claim
+  await new Promise(r => setTimeout(r, 100));
+  assert.ok(!A.msgs.some(m => m.op === 'joined'), 'guest is held until the host claims');
+  B.send({ op: 'host', claim: mb.room });
+  assert.equal((await B.wait('hosted')).room, mb.room);
+  assert.equal((await A.wait('joined')).ranked, true);
+  assert.equal((await B.wait('peer')).uid, a.id);
   A.close(); B.close(); O.close();
 });
 

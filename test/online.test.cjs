@@ -1,0 +1,72 @@
+// Online end to end: the play service (in-memory Postgres) introduces two browsers,
+// who play over WebRTC with a signed ticket; the free time limit ends the match.
+const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const { spawn } = require('child_process');
+const path = require('path');
+const assert = require('assert');
+process.env.PORT = process.env.PORT || '8095'; process.env.QUIET = '1';
+const lan = require('../server/server.js');
+const PLAY = 8791, PLAY_URL = `http://localhost:${PLAY}`, GAME = `http://localhost:${process.env.PORT}/?nosw=1&play=${encodeURIComponent(PLAY_URL)}`;
+const OUT = path.join(__dirname, 'shots');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+(async () => {
+  const play = spawn(process.execPath, [require.resolve('tsx/cli'), 'src/index.ts'], { cwd: path.join(__dirname, '../apps/play'), env: Object.assign({}, process.env, { NODE_ENV: 'test', PORT: String(PLAY), LOG_LEVEL: 'warn', PGLITE_DIR: '', PUBLIC_URL: PLAY_URL }), stdio: ['ignore', 'inherit', 'inherit'] });
+  const stopAll = code => { try { play.kill(); } catch (e) { /* */ } lan.close(); process.exit(code); };
+  for (let i = 0; i < 60; i++) { try { if ((await fetch(PLAY_URL + '/healthz')).ok) break; } catch (e) { /* booting */ } await sleep(500); }
+  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome', args: ['--disable-features=WebRtcHideLocalIpsWithMdns'] });
+  const errs = [];
+  const page = async (name, vp) => {
+    const ctx = await b.newContext({ viewport: vp }); const p = await ctx.newPage();
+    p.on('pageerror', e => errs.push(`[${name}] ${e.message}`));
+    p.on('console', m => { if (m.type() === 'error' && !/401|Failed to load resource/.test(m.text())) errs.push(`[${name}] ${m.text()}`); });
+    await p.goto(GAME); await p.waitForTimeout(600); return p;
+  };
+  const account = async (p, email, name) => {
+    await p.click('#m-mp'); await p.waitForSelector('#mp-account button');
+    await p.click('#mp-account button');
+    await p.click('.modal.signin .seg button:nth-child(2)');
+    await p.fill('.modal.signin input[type=email]', email); await p.fill('.modal.signin input[type=password]', 'a long enough password'); await p.fill('.modal.signin input[type=text]', name);
+    await p.click('.modal.signin button[type=submit]'); await p.waitForSelector('.modal.signin', { state: 'detached' });
+    const mail = (await (await fetch(PLAY_URL + '/api/dev/outbox')).json()).mail.filter(m => m.to === email).pop();
+    const token = /token=([A-Za-z0-9_-]+)/.exec(mail.text)[1];
+    assert((await fetch(PLAY_URL + '/api/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }) })).ok);
+    await p.click('#scr-mp [data-back]'); await p.click('#m-mp'); await p.waitForSelector('#mp-online-play:not([hidden])');
+  };
+  try {
+    const host = await page('host', { width: 1280, height: 800 }), guest = await page('guest', { width: 1024, height: 720 });
+    await account(host, `host${Date.now()}@example.com`, 'Hostling');
+    await account(guest, `guest${Date.now()}@example.com`, 'Guestling');
+    await host.screenshot({ path: OUT + '/online-01-mp.png' });
+    await host.click('#mp-host-online'); await host.waitForSelector('#scr-setup:not([hidden])');
+    const room = (await host.textContent('#setup-room')).replace('ROOM ', '').trim();
+    assert.match(room, /^[A-Z]{5}$/); console.log('online room', room);
+    // the public lobby shows up in the guest's browser
+    await guest.click('#mp-refresh'); await guest.waitForSelector(`#mp-lobbies .lobby-item`);
+    await guest.fill('#mp-code-online', room); await guest.click('#mp-join-online');
+    await guest.waitForSelector('#scr-setup:not([hidden])'); await host.waitForTimeout(800);
+    const hostSeesGuest = await host.evaluate(() => [...document.querySelectorAll('#slots .slot-row select:nth-child(2)')].map(s => s.selectedOptions[0].textContent));
+    console.log('host slots', hostSeesGuest); assert(hostSeesGuest.some(t => /Guestling/.test(t)));
+    await host.screenshot({ path: OUT + '/online-02-lobby.png' });
+    await host.click('#setup-start');
+    await guest.waitForSelector('#game:not([hidden])', { timeout: 10000 }); await guest.waitForTimeout(2000);
+    const tk = await Promise.all([host, guest].map(p => p.evaluate(() => E.game.ticket && { n: E.game.ticket.players.length, until: E.game.ticket.players.map(x => x.until), unverified: !!E.game.ticket.unverified })));
+    console.log('tickets', JSON.stringify(tk)); assert(tk[0] && tk[1] && tk[0].n === 2 && tk[0].until.every(Boolean), 'free players carry deadlines');
+    assert(await guest.evaluate(() => !document.getElementById('h-limit').hidden), 'free time chip shows');
+    const g = await guest.evaluate(() => ({ local: E.game.local, mode: E.game.netMode, units: E.game.world.s.units.length }));
+    console.log('guest', JSON.stringify(g)); assert.strictEqual(g.mode, 'guest'); assert(g.units > 5);
+    await guest.screenshot({ path: OUT + '/online-03-guest.png' });
+    // reports reach the service
+    const rep = await host.evaluate(() => E.Online.reportPlayer(E.game.rivals()[0].uid, 'other', 'e2e check').then(() => 'ok', e => e.message));
+    assert.strictEqual(rep, 'ok');
+    assert(await host.evaluate(() => E.Crash.send({ kind: 'bug', description: 'e2e bug report', message: 'e2e' })), 'bug report accepted');
+    // the host's free time runs out: the match ends for both
+    await host.evaluate(() => { E.game.ticketOffset += 16 * 60e3; });
+    await guest.waitForSelector('#scr-menu:not([hidden])', { timeout: 10000 });
+    await host.waitForSelector('#scr-menu:not([hidden])', { timeout: 10000 });
+    assert(await guest.evaluate(() => !!document.querySelector('.modal')), 'membership prompt offered');
+    await guest.screenshot({ path: OUT + '/online-04-limit.png' });
+    console.log('limit enforced on both sides');
+  } catch (e) { console.error(e); errs.push(e.message); }
+  console.log(errs.length ? errs.join('\n') : 'no errors');
+  await b.close(); stopAll(errs.length ? 1 : 0);
+})();

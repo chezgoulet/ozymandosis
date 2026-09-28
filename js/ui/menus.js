@@ -31,7 +31,7 @@
     return { map: Object.assign({}, E.DEFAULT_MAP, { seed: 1 + Math.floor(Math.random() * 99999) }),
       slots: [{ kind: 'you', culture: 'verdant', team: 0, diff: 'normal' }, { kind: 'bot', culture: 'bloom', team: 0, diff: 'normal' }] };
   }
-  function playerName() { return (E.Settings.name || '').trim() || 'Tender'; }
+  function playerName() { if (lobby && lobby.online && E.Online.me) return E.Online.me.name; return (E.Settings.name || '').trim() || 'Tender'; }
   function freeCulture(except) { const used = new Set(setup.slots.filter(s => s !== except).map(s => s.culture)); return E.CULTURE_LIST.find(c => !used.has(c.id)).id; }
   function setCulture(slot, cid) {
     const other = setup.slots.find(s => s !== slot && s.culture === cid);
@@ -111,7 +111,16 @@
   function changed() {
     if (!lobby || lobby.role === 'host') { if (!lobby) { E.Settings.lastSetup = setup; E.saveSettings(); } }
     renderSetup();
-    if (lobby && lobby.role === 'host') broadcastLobby();
+    if (lobby && lobby.role === 'host') { broadcastLobby(); sendMeta(); }
+  }
+  function sendMeta() {
+    if (!lobby || !lobby.online || lobby.role !== 'host') return;
+    const seats = setup.slots.filter(s => s.kind === 'you' || s.kind === 'human' || s.kind === 'open');
+    lobby.relay.raw({ op: 'meta', players: setup.slots.filter(s => s.kind === 'you' || s.kind === 'human').length, max: Math.max(2, seats.length), mode: setup.map.mode || 'annihilation' });
+    if (lobby.quick && !lobby.starting && setup.slots.every(s => s.kind !== 'open')) {
+      lobby.starting = true; lobbyLog('Room', 'Everyone is here. The bloom begins in 3…');
+      setTimeout(() => { if (lobby && lobby.starting) startFromSetup(); }, 3000);
+    }
   }
   function drawMapPreview() {
     const cv = $('map-preview'), r = cv.getBoundingClientRect(); if (!r.width) return;
@@ -149,6 +158,7 @@
     };
   }
   function lobbyLog(from, text) {
+    if (from !== 'Room') E.Online.logChat(from, text);
     const log = $('lobby-log'); log.appendChild(h('div', null, h('b', null, from + ': '), text)); log.scrollTop = 1e9; E.Audio.play('chat');
   }
   function buildCfg() {
@@ -168,17 +178,19 @@
     if (lobby) {
       for (const s of setup.slots) if (s.kind === 'open') { s.kind = 'bot'; s.diff = 'normal'; }
       const peers = new Map();
-      setup.slots.forEach((s, i) => { if (s.kind === 'human') peers.set(s.peer, { slot: i, name: s.name }); });
+      setup.slots.forEach((s, i) => { if (s.kind === 'human') peers.set(s.peer, { slot: i, name: s.name, muted: s.muted }); });
       const local = setup.slots.findIndex(s => s.kind === 'you');
-      const relay = lobby.relay;
+      const relay = lobby.relay, online = !!lobby.online;
+      const slotUid = {}; setup.slots.forEach((s, i) => { if (s.uid) slotUid[i] = s.uid; if (s.kind === 'you' && online && E.Online.me) slotUid[i] = E.Online.me.id; });
+      if (online) relay.raw({ op: 'start' });
       if (lobby.save) {
         const st = JSON.parse(lobby.save.state);
         st.players.forEach((p, i) => { const s = setup.slots[i]; if (s.kind === 'human') { p.kind = 'remote'; p.name = s.name; p.dropped = false; } else if (s.kind === 'you') { p.kind = 'human'; } else if (p.kind !== 'bot') { p.kind = 'bot'; p.dropped = true; p.diff = p.diff || 'normal'; } });
         lobby = null;
-        game.start({ mode: 'host', save: st, local, relay, peers });
+        game.start({ mode: 'host', save: st, local, relay, peers, online, slotUid });
       } else {
         const cfg = buildCfg(); lobby = null;
-        game.start({ mode: 'host', cfg, local, relay, peers });
+        game.start({ mode: 'host', cfg, local, relay, peers, online, slotUid });
       }
       return;
     }
@@ -190,7 +202,19 @@
   // ── multiplayer lobby ───────────────────────────────────────────
   function lobbyView() { return { k: 'lobby', setup, room: lobby.room, save: !!lobby.save }; }
   function broadcastLobby() { if (lobby && lobby.role === 'host') lobby.relay.send('all', lobbyView()); }
-  async function connect() {
+  let browse = null; // the online connection kept open while the multiplayer screen is showing
+  function onlineStatus(t) { $('mp-online-status').textContent = t || ''; }
+  function onlineError(e) {
+    if (e.code === 'signin' || e.code === 'unauthorized') { renderOnline(); E.Online.signInDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
+    if (e.code === 'upgrade') { E.modal('Update Ozymandosis', e.message); return; }
+    onlineStatus(e.message); E.toast(e.message);
+  }
+  async function connect(src) {
+    if (src === 'online') {
+      if (browse && browse.ws) { const r = browse; browse = null; r.handlers = {}; E.Online.wire(r); return r; }
+      onlineStatus('Connecting…');
+      try { const r = await E.Online.openRelay(); E.Online.wire(r); onlineStatus(''); return r; } catch (e) { onlineError(e); return null; }
+    }
     const url = $('mp-server').value.trim() || E.Relay.defaultUrl();
     E.Settings.server = $('mp-server').value.trim(); E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
     $('mp-status').textContent = 'Connecting to ' + url + '…';
@@ -199,10 +223,12 @@
     $('mp-status').textContent = 'Connected.';
     return r;
   }
-  async function hostGame(save) {
-    const r = await connect(); if (!r) return;
+  async function hostGame(save, opts) {
+    opts = opts || {}; const online = opts.src === 'online';
+    const r = opts.relay || await connect(opts.src); if (!r) return;
+    if (opts.relay) E.Online.wire(r);
     r.on('hosted', m => {
-      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null };
+      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null, online, quick: opts.quick || null };
       if (save) {
         const st = JSON.parse(save.state), local = save.extra && save.extra.local !== undefined ? save.extra.local : 0;
         setup = { map: Object.assign({}, st.cfg.map), slots: st.players.map((p, i) => ({ kind: i === local ? 'you' : p.kind === 'bot' ? 'bot' : 'open', culture: p.culture, team: p.team, diff: p.diff || 'normal', name: p.name })) };
@@ -210,8 +236,15 @@
         setup = defaultSetup();
         const mine = setup.slots[0].culture;
         setup.slots = [{ kind: 'you', culture: mine, team: 0, diff: 'normal' }, { kind: 'open', culture: E.CULTURE_LIST.find(c => c.id !== mine).id, team: 0, diff: 'normal' }];
+        if (opts.quick) {
+          // quick match: one seat per matched player, a fair map, no bots
+          while (setup.slots.length < opts.quick.players) setup.slots.push({ kind: 'open', culture: freeCulture(), team: 0, diff: 'normal' });
+          setup.slots.length = opts.quick.players;
+          Object.assign(setup.map, { size: opts.quick.players > 2 ? 'm' : 's', mode: 'annihilation', layout: 'ring' });
+        }
       }
-      $('lobby-log').innerHTML = ''; lobbyLog('Room', `Share code ${m.room}. Friends open this page, choose Multiplayer, and enter the code.`);
+      $('lobby-log').innerHTML = '';
+      lobbyLog('Room', opts.quick ? 'Matched. Waiting for your rivals to connect…' : online ? `Lobby ${m.room} is ${$('mp-private').checked ? 'private: share the code' : 'listed for everyone, and joinable with its code'}.` : `Share code ${m.room}. Friends open this page, choose Multiplayer, and enter the code.`);
       E.Screens.show('scr-setup'); renderSetup();
     });
     r.on('peer', m => {
@@ -219,7 +252,7 @@
       let s = setup.slots.find(s => s.kind === 'open' && (!lobby.save || s.name === m.name)) || setup.slots.find(s => s.kind === 'open');
       if (!s && setup.slots.length < 6 && !lobby.save) { s = { kind: 'open', culture: freeCulture(), team: 0, diff: 'normal' }; setup.slots.push(s); }
       if (!s) { r.kick(m.id); return; }
-      s.kind = 'human'; s.peer = m.id; s.name = m.name;
+      s.kind = 'human'; s.peer = m.id; s.name = m.name; s.uid = m.uid; s.sub = m.sub; s.muted = m.muted;
       lobbyLog('Room', `${m.name} joined`); changed();
     });
     r.on('left', m => { if (!lobby) return; const s = setup.slots.find(s => s.peer === m.id); if (s) { s.kind = 'open'; delete s.peer; lobbyLog('Room', `${s.name} left`); changed(); } });
@@ -227,25 +260,89 @@
       if (!lobby) return;
       const d = m.data, s = setup.slots.find(s => s.peer === m.from);
       if (d.k === 'pick' && s) { if (!lobby.save) { setCulture(s, d.culture); s.team = d.team || 0; } changed(); }
-      else if (d.k === 'chat' && s) { lobbyLog(s.name, String(d.text).slice(0, 140)); r.send('all', { k: 'chat', from: s.name, text: String(d.text).slice(0, 140) }); }
+      else if (d.k === 'chat' && s) { if (s.muted) return; lobbyLog(s.name, String(d.text).slice(0, 140)); r.send('all', { k: 'chat', from: s.name, text: String(d.text).slice(0, 140) }); }
       else if (d.k === 'hello') broadcastLobby();
     });
     r.on('close', () => { if (lobby) { E.toast('Disconnected from the lobby'); lobby = null; E.Screens.show('scr-mp'); } });
-    r.host(playerName());
+    r.on('error', m => { onlineStatus(m.msg); E.toast(m.msg); });
+    if (online) r.host(playerName(), opts.claim ? { claim: opts.claim } : { public: !$('mp-private').checked, title: `${E.Online.me ? E.Online.me.name : 'A'}'s bloom` });
+    else r.host(playerName());
   }
-  async function joinGame() {
-    const code = $('mp-code').value.trim().toUpperCase(); if (code.length < 4) { $('mp-status').textContent = 'Enter the 4-letter room code.'; return; }
-    const r = await connect(); if (!r) return;
-    r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id }; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
-    r.on('error', m => { $('mp-status').textContent = m.msg; E.toast(m.msg); });
+  async function joinGame(code, opts) {
+    opts = opts || {}; const online = opts.src === 'online';
+    if (!code) { code = $('mp-code').value.trim().toUpperCase(); if (code.length < 4) { $('mp-status').textContent = 'Enter the 4-letter room code.'; return; } }
+    const r = opts.relay || await connect(opts.src); if (!r) return;
+    if (opts.relay) E.Online.wire(r);
+    r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id, online }; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
+    r.on('error', m => { $('mp-status').textContent = m.msg; onlineStatus(m.msg); E.toast(m.msg); if (!lobby && online) E.Screens.show('scr-mp'); });
     r.on('msg', m => {
       const d = m.data;
       if (d.k === 'lobby' && lobby) { setup = d.setup; lobby.save = d.save; renderSetup(); }
       else if (d.k === 'chat') lobbyLog(d.from, d.text);
-      else if (d.k === 'init') { const rl = lobby ? lobby.relay : r; lobby = null; game.start({ mode: 'guest', init: d, relay: rl }); }
+      else if (d.k === 'init') {
+        const rl = lobby ? lobby.relay : r, slotUid = {};
+        if (setup) setup.slots.forEach((s, i) => { if (s.uid) slotUid[i] = s.uid; });
+        lobby = null; game.start({ mode: 'guest', init: d, relay: rl, online, slotUid });
+      }
     });
     r.on('closed', () => { E.toast('The host closed the room.'); lobby = null; E.Screens.show('scr-mp'); });
     r.join(code, playerName());
+  }
+
+  // ── online: account card, lobby browser, quick match ─────────────
+  function renderOnline() {
+    const O = E.Online, acc = $('mp-account'); acc.innerHTML = '';
+    if (!O.signedIn() || !O.me) {
+      $('mp-online-play').hidden = true;
+      acc.append(h('p', { class: 'hint-s' }, 'Find rivals anywhere. Matches run directly between players, encrypted; the server only introduces you.'),
+        h('button', { class: 'btn primary', style: 'width:100%', onclick: async () => { if (await O.signInDialog()) { renderOnline(); openBrowse(); } } }, 'Sign in or create an account'));
+      return;
+    }
+    $('mp-online-play').hidden = false;
+    const ent = O.ent || {};
+    acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.subscriber ? 'Member' : `Free · ${ent.freeMatchMinutes || 15}-minute matches`),
+      h('span', { class: 'mono', title: 'Rating' }, '◆ ' + (O.me.rating || 1200))),
+      h('div', { class: 'row' }, ent.subscriber ? null : h('button', { class: 'btn small', onclick: () => O.subscribe().catch(e => E.toast(e.message)) }, 'Membership · $1/month'),
+        h('button', { class: 'btn small ghost', onclick: () => O.openExternal(O.accountUrl()) }, 'Account'),
+        h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); if (browse) { browse.close(); browse = null; } renderOnline(); } }, 'Sign out')));
+    if (O.hello && O.hello.config && O.hello.config.needsVerify) acc.append(h('p', { class: 'hint-s warn' }, 'Confirm your email to play online. Check your inbox for the link.'));
+  }
+  function renderLobbies(list) {
+    const box = $('mp-lobbies'); box.innerHTML = '';
+    if (!list.length) { box.append(h('p', { class: 'hint-s' }, 'No open lobbies right now. Host one, or try a quick match.')); return; }
+    for (const l of list) box.append(h('button', { class: 'lobby-item', onclick: () => joinGame(l.room, { src: 'online' }) },
+      h('span', { class: 'lobby-title' }, l.title), h('span', { class: 'mono' }, `${l.players}/${l.max}`),
+      h('span', { class: 'hint-s' }, `${l.host}${l.hostSub ? ' · member host' : ''} · ${(E.MODES[l.mode] || { name: l.mode }).name}`)));
+  }
+  async function openBrowse() {
+    if (!E.Online.signedIn() || (browse && browse.ws)) { if (browse && browse.ws) browse.raw({ op: 'lobbies' }); return; }
+    try {
+      const r = await E.Online.openRelay(); browse = r; E.Online.wire(r);
+      r.on('lobbies', m => renderLobbies(m.list));
+      r.on('close', () => { if (browse === r) browse = null; });
+      r.raw({ op: 'lobbies' }); renderOnline();
+      clearInterval(openBrowse.t); openBrowse.t = setInterval(() => { if (browse && browse.ws && !$('scr-mp').hidden) browse.raw({ op: 'lobbies' }); }, 8000);
+    } catch (e) { onlineError(e); }
+  }
+  async function quick(mode) {
+    const r = await connect('online'); if (!r) return;
+    $('mp-queue').hidden = false; $('mp-queue-t').textContent = 'Searching for rivals…';
+    const stop = () => { $('mp-queue').hidden = true; };
+    $('mp-unqueue').onclick = () => { r.raw({ op: 'unqueue' }); r.close(); stop(); openBrowse(); };
+    r.on('queued', m => { $('mp-queue-t').textContent = m.waiting > 1 ? `Searching… ${m.waiting} players waiting` : 'Searching for rivals…'; });
+    r.on('matched', m => {
+      stop(); E.Audio.play('research'); E.toast('Match found');
+      if (m.role === 'host') hostGame(null, { src: 'online', relay: r, claim: m.room, quick: { mode: m.mode, players: m.players.length } });
+      else joinGame(m.room, { src: 'online', relay: r });
+    });
+    r.on('error', m => { stop(); onlineStatus(m.msg); E.toast(m.msg); });
+    r.raw({ op: 'queue', mode });
+  }
+  E.Online.on(() => { if (!$('scr-mp').hidden) renderOnline(); renderNews(); });
+  function renderNews() {
+    const box = $('m-news'); if (!box) return; box.innerHTML = '';
+    for (const a of E.Online.visibleNews().slice(0, 2)) box.append(h('div', { class: 'news-item sev-' + a.severity, role: a.severity === 'critical' ? 'alert' : null },
+      h('div', null, h('b', null, a.title), h('span', null, a.body)), h('button', { class: 'btn small ghost', 'aria-label': 'Dismiss', onclick: () => E.Online.dismiss(a.id) }, E.icon('cancel'))));
   }
 
   // ── load screen ─────────────────────────────────────────────────
@@ -260,7 +357,7 @@
         h('div', null, h('b', null, m.name || (m.id === 'auto' ? 'Autosave' : m.id)), h('small', null, `${new Date(m.date).toLocaleString()} · ${E.fmtTime(m.time)} · ${E.MAP_SIZES[m.size] ? E.MAP_SIZES[m.size].name : 'Custom'} · ${m.players.length} cultures`), dots),
         h('div', { class: 'row', style: 'flex-wrap:nowrap' },
           h('button', { class: 'btn small primary', onclick: () => loadSave(m.id) }, 'Play'),
-          humans > 1 ? h('button', { class: 'btn small', onclick: () => { const d = E.Saves.read(m.id); if (d) { E.Screens.show('scr-mp'); hostGame(d); } } }, 'Host') : null,
+          humans > 1 ? h('button', { class: 'btn small', onclick: () => { const d = E.Saves.read(m.id); if (d) { E.Screens.show('scr-mp'); hostGame(d, { src: E.Online.signedIn() ? 'online' : 'lan' }); } } }, 'Host') : null,
           h('button', { class: 'btn small', onclick: () => exportSave(m.id) }, '⤓'),
           h('button', { class: 'btn small ghost', 'aria-label': 'Delete', onclick: async () => { if (await E.confirm('Delete save?', m.name || m.id, 'Delete')) { E.Saves.remove(m.id); renderLoad(); } } }, '✕'))));
     }
@@ -302,6 +399,17 @@
       seg('Orientation', 'orientation', [['auto', 'Auto'], ['landscape', 'Landscape'], ['portrait', 'Portrait']]),
       seg('Interface size', 'uiScale', [[0.9, 'S'], [1, 'M'], [1.15, 'L'], [1.3, 'XL']], applyUi),
       slider('Music', 'music'), slider('Effects', 'sfx'), tog('Mute all sound', 'muted'), tog('Organ-art command icons', 'organIcons'), tog('Health bars on damaged creatures', 'showHp'), tog('Vibration (touch)', 'haptics'), E.isDesktop() ? tog('Fullscreen on launch (desktop)', 'fullscreen') : null));
+    const O = E.Online, ent = O.ent || {};
+    const playIn = h('input', { type: 'text', value: S.playServer || '', placeholder: O.base(), spellcheck: 'false', 'aria-label': 'Play server' });
+    playIn.onchange = () => { S.playServer = playIn.value.trim(); E.saveSettings(); O.refresh(); };
+    body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Account & online'),
+      O.me ? h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.subscriber ? 'Member' : 'Free')) : h('p', { class: 'hint-s' }, 'Not signed in. Online play needs a free account.'),
+      h('div', { class: 'row' }, O.me ? [h('button', { class: 'btn small', onclick: () => O.openExternal(O.accountUrl()) }, 'Manage account'), h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); renderSettings(); } }, 'Sign out')]
+        : h('button', { class: 'btn small primary', onclick: async () => { if (await O.signInDialog()) renderSettings(); } }, 'Sign in')),
+      tog('Hide my IP address from other players (relays the match; adds a little delay)', 'relayOnly'),
+      tog('Send automatic crash reports (nothing personal)', 'crashReports'),
+      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug')),
+      h('div', { class: 'field', style: 'margin-top:12px' }, h('label', null, 'Play server (advanced)'), playIn)));
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
       seg('Right-click / tap on ground', 'rightClick', [['amove', 'Attack-move'], ['move', 'Move']]),
@@ -345,13 +453,19 @@
     game.start({ mode: 'local', cfg, local: 0, tutorial: true });
   };
   $('m-skirmish').onclick = () => { E.Audio.init(); lobby = null; setup = defaultSetup(); E.Screens.show('scr-setup'); renderSetup(); };
-  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl(); $('mp-status').textContent = location.protocol === 'file:' ? 'Tip: open the game from the server URL for multiplayer.' : ''; E.Screens.show('scr-mp'); };
+  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl(); $('mp-status').textContent = location.protocol === 'file:' ? 'Tip: open the game from the local server URL to play on your network.' : ''; onlineStatus(''); E.Screens.show('scr-mp'); renderOnline(); renderLobbies([]); if (E.Online.signedIn()) E.Online.refresh().then(() => { renderOnline(); openBrowse(); }); };
+  E.Screens.onLeave['scr-mp'] = () => { if (browse && !lobby) { browse.close(); browse = null; } clearInterval(openBrowse.t); };
+  $('mp-host-online').onclick = () => hostGame(null, { src: 'online' });
+  $('mp-join-online').onclick = () => { const code = $('mp-code-online').value.trim().toUpperCase(); if (code.length !== 5) { onlineStatus('Online codes have 5 letters.'); return; } joinGame(code, { src: 'online' }); };
+  $('mp-refresh').onclick = () => openBrowse();
+  $('mp-quick-duel').onclick = () => quick('duel');
+  $('mp-quick-ffa').onclick = () => quick('ffa');
   $('m-load').onclick = () => { E.Screens.show('scr-load'); renderLoad(); };
   $('m-settings').onclick = () => E.Menus.openSettings(false);
   $('m-codex').onclick = () => E.Menus.openCodex(false);
   $('m-forge').onclick = () => { E.Screens.show('scr-forge'); if (!forgeLab) forgeLab = new E.Forge($('forge-lab'), { mode: 'lab' }); else forgeLab.renderAll(); };
-  $('mp-host').onclick = () => hostGame(null);
-  $('mp-join').onclick = () => joinGame();
+  $('mp-host').onclick = () => hostGame(null, { src: 'lan' });
+  $('mp-join').onclick = () => joinGame(null, { src: 'lan' });
   $('load-import').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try { const d = JSON.parse(await f.text()); if (!d.state) throw new Error('bad'); loadSave(null, d); } catch (err) { E.toast('That file is not an Ozymandosis save'); }
@@ -370,6 +484,8 @@
   requestAnimationFrame(bgFrame);
   E.Menus.home();
   $('loading').remove();
+  // news and account status; skipped for signed-out local development so offline play stays quiet
+  if (E.Online.signedIn() || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || /[?&]play=/.test(location.search)) E.Online.refresh().catch(() => {});
   // Let tests and power users start directly: ?quick=1
   const q = new URLSearchParams(location.search);
   if (q.get('quick')) { setup = defaultSetup(); if (q.get('size')) setup.map.size = q.get('size'); if (q.get('n')) { const n = +q.get('n'); while (setup.slots.length < n) setup.slots.push({ kind: 'bot', culture: freeCulture(), team: 0, diff: 'normal' }); } startFromSetup(); }

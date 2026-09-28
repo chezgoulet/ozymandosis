@@ -46,6 +46,7 @@
         case 'signal': this.onPeerSignal(m.from, m.data); break;
         case 'left': this.dropPeer(m.id, true); break;
         case 'closed': this.emit('closed', m); break;
+        case 'ticket': this.ticket = m; this.emit('ticket', m); break;
         default: this.emit(m.op, m);
       }
     }

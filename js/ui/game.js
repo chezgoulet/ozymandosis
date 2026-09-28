@@ -40,6 +40,8 @@
       if (this.tutorial) { E.Settings.guideStep = 0; E.Settings.tips = true; }
       this.netMode = o.mode || 'local';
       this.local = o.local || 0; this.relay = o.relay || null; this.peers = o.peers || new Map();
+      this.online = !!o.online; this.slotUid = o.slotUid || {}; this.ticket = null; this.limitNote = {}; this.reported = false;
+      $('h-limit').hidden = true; $('p-report').hidden = !this.online; $('end-online').hidden = true;
       if (this.netMode === 'guest') { this.world = E.NetPack.mirror(o.init); this.local = o.init.you; this.snapT = performance.now(); this.snapDt = 125; this.waiting = true; }
       else this.world = o.save ? new E.World({ state: o.save }) : new E.World({ cfg: o.cfg });
       const w = this.world;
@@ -135,17 +137,21 @@
     // ── networking ──────────────────────────────────────────────
     hostSetup() {
       const r = this.relay;
+      r.on('ticket', m => this.onTicket(m.ticket));
+      if (r.ticket) this.onTicket(r.ticket.ticket);
       r.on('msg', m => {
         const peer = this.peers.get(m.from); const d = m.data; if (!d) return;
         if (d.k === 'cmd' && peer) this.world.command(peer.slot, d.cmd);
-        else if (d.k === 'chat' && peer) this.chat(peer.name, d.text, true);
+        else if (d.k === 'chat' && peer) { if (!peer.muted) this.chat(peer.name, d.text, true); }
         else if (d.k === 'ready' && peer) this.sendInit(m.from);
       });
       r.on('peer', m => {
         // mid-game rejoin: reclaim a dropped human slot with the same name, else any bot slot marked open
         const p = this.world.s.players.find(p => p.dropped && p.name === m.name) || this.world.s.players.find(p => p.dropped);
         if (!p) { this.relay.kick(m.id); return; }
-        p.kind = 'remote'; p.dropped = false; this.peers.set(m.id, { slot: p.idx, name: m.name });
+        if (this.expired(this.uidOfSlot(p.idx))) { this.relay.send(m.id, { k: 'limit', who: 'you' }); this.relay.kick(m.id); return; }
+        p.kind = 'remote'; p.dropped = false; this.peers.set(m.id, { slot: p.idx, name: m.name, muted: m.muted });
+        if (m.uid) this.slotUid[p.idx] = m.uid;
         this.notify(`${m.name} rejoined`, 'good'); this.sendInit(m.id);
       });
       r.on('left', m => {
@@ -169,7 +175,10 @@
         } else if (d.k === 'init') { this.world = E.NetPack.mirror(d); this.local = d.you; this.renderer.reset(this.world, this.local); }
         else if (d.k === 'chat') this.chat(d.from, d.text);
         else if (d.k === 'pause') { this.remotePaused = d.on; $('ov-pause').hidden = !d.on; $('pause-note').textContent = d.on ? 'Paused by the host' : ''; }
+        else if (d.k === 'limit') this.limitReached(d.who === 'host' ? 'host' : 'you');
       });
+      r.on('ticket', m => this.onTicket(m.ticket));
+      if (r.ticket) this.onTicket(r.ticket.ticket);
       r.on('closed', () => { this.notify('The host closed the game.', 'info'); E.toast('The host closed the game.'); setTimeout(() => this.quit(true), 1500); });
       r.on('close', () => { if (this.running) this.notify('Lost the connection to the host.', 'info'); });
       r.on('error', m => E.toast(m.msg));
@@ -180,6 +189,7 @@
     }
     chat(from, text, relayOut) {
       text = String(text).slice(0, 140);
+      if (E.Online) E.Online.logChat(from, text);
       const log = $('chat-log');
       log.appendChild(h('div', { class: 'msg' }, h('b', null, from + ': '), text));
       while (log.children.length > 6) log.firstChild.remove();
@@ -187,6 +197,80 @@
       E.Audio.play('chat');
       if (relayOut && this.netMode === 'host') this.relay.send('all', { k: 'chat', from, text });
     }
+
+    // ── online: tickets and the free time limit ──────────────────
+    // Every player holds the same server-signed ticket saying until when each may
+    // play. Honest clients enforce it on each other: the host hands an expired
+    // guest's colony to a bot; guests leave when the host's free time ends.
+    async onTicket(t) {
+      const p = await E.Online.verifyTicket(t);
+      if (!p) { this.notify('Could not verify this match with the server. Online limits may not apply.', 'info'); return; }
+      this.ticket = p; this.ticketOffset = p.iat - Date.now();
+      for (const pl of p.players) { const slot = this.slotOfUid(pl.uid); if (slot >= 0) this.slotUid[slot] = pl.uid; }
+    }
+    serverNow() { return Date.now() + (this.ticketOffset || 0); }
+    uidOfSlot(i) { return this.slotUid[i] || null; }
+    slotOfUid(uid) { for (const k in this.slotUid) if (this.slotUid[k] === uid) return +k; const p = this.ticket && this.ticket.players.find(x => x.uid === uid); return p ? this.world.s.players.findIndex(q => q.name === p.name) : -1; }
+    untilOf(uid) { const p = this.ticket && uid && this.ticket.players.find(x => x.uid === uid); return p ? p.until : null; }
+    expired(uid) { const u = this.untilOf(uid); return !!u && this.serverNow() >= u; }
+    limitTick() {
+      if (!this.online || !this.ticket || this.ended || this.limitHit) return;
+      const meUid = E.Online.me && E.Online.me.id, mine = this.untilOf(meUid), now = this.serverNow();
+      const chip = $('h-limit');
+      if (mine) {
+        const left = Math.max(0, mine - now); chip.hidden = false;
+        $('h-limit-t').textContent = E.fmtTime(left / 1000); chip.classList.toggle('warn', left < 120e3);
+        for (const [k, ms, text] of [['5', 300e3, 'Five minutes of free online time left in this match.'], ['1', 60e3, 'One minute of free online time left.']])
+          if (left <= ms && !this.limitNote[k]) { this.limitNote[k] = true; this.notify(text + (E.Online.ent && !E.Online.ent.subscriber ? ' Membership removes the limit.' : ''), 'info'); }
+        if (left <= 0) { if (this.netMode === 'host') this.relay.send('all', { k: 'limit', who: 'host' }); this.limitReached(this.netMode === 'host' ? 'self-host' : 'you'); return; }
+      } else chip.hidden = true;
+      if (this.netMode === 'host') {
+        for (const [id, peer] of this.peers) {
+          if (!this.expired(this.uidOfSlot(peer.slot))) continue;
+          this.relay.send(id, { k: 'limit', who: 'you' });
+          const p = this.world.s.players[peer.slot]; p.kind = 'bot'; p.diff = p.diff || 'normal'; p.dropped = true;
+          this.peers.delete(id); setTimeout(() => this.relay && this.relay.kick(id), 500);
+          this.notify(`${peer.name}'s free match time ended. A bot takes over their colony.`, 'info');
+        }
+      } else if (this.netMode === 'guest') {
+        const hostUid = this.ticket.players.find(x => x.id === 0);
+        if (hostUid && hostUid.until && now >= hostUid.until) this.limitReached('host');
+      }
+    }
+    limitReached(who) {
+      if (this.limitHit) return; this.limitHit = true;
+      const why = who === 'host' ? "The host's free match time ran out, so the match has ended." : who === 'self-host' ? 'Your free match time ran out, so the match has ended for everyone.' : 'Your free match time ran out. A bot takes over your colony.';
+      this.notify(why, 'alert');
+      setTimeout(() => { this.quit(); E.Online.membershipDialog(why); }, 1800);
+    }
+    reportMatch() {
+      if (!this.online || this.netMode !== 'host' || !this.relay || this.reportedMatch) return;
+      this.reportedMatch = true;
+      const w = this.world, s = w.s, results = [];
+      const res = i => s.winner === null ? 'draw' : w.teamOf(i) === s.winner ? 'win' : 'loss';
+      results.push({ id: 0, result: res(this.local) });
+      for (const [id, peer] of this.peers) results.push({ id, result: res(peer.slot) });
+      this.relay.raw({ op: 'end', winnerTeam: s.winner, duration: Math.round(s.t), results });
+    }
+    // Players you shared this match with (for reports).
+    rivals() {
+      const out = [], meUid = E.Online.me && E.Online.me.id;
+      if (this.ticket) for (const p of this.ticket.players) { if (p.uid !== meUid) out.push({ uid: p.uid, name: p.name }); }
+      else for (const k in this.slotUid) { const uid = this.slotUid[k]; if (uid !== meUid) out.push({ uid, name: this.world.s.players[k] ? this.world.s.players[k].name : 'Player' }); }
+      return out;
+    }
+    async reportDialog(pre) {
+      const list = this.rivals();
+      if (!list.length) { E.toast('No other players to report in this match.'); return; }
+      const who = h('select', { 'aria-label': 'Player' }, list.map(p => h('option', { value: p.uid, selected: pre === p.uid }, p.name)));
+      const why = h('select', { 'aria-label': 'Reason' }, [['harassment', 'Harassment or hate'], ['cheating', 'Cheating'], ['name', 'Offensive name'], ['spam', 'Spam'], ['griefing', 'Griefing'], ['other', 'Something else']].map(([v, l]) => h('option', { value: v }, l)));
+      const det = h('textarea', { rows: 3, maxlength: 1000, placeholder: 'What happened? (optional)', 'aria-label': 'Details' });
+      const body = h('div', { class: 'si-form' }, who, why, det, h('small', { class: 'hint-s' }, 'Recent chat from this match is attached so moderators can see it.'));
+      if (!(await E.modal('Report a player', body, [{ label: 'Cancel', value: false }, { label: 'Send report', value: true, primary: true }]))) return;
+      try { await E.Online.reportPlayer(who.value, why.value, det.value, null, this.ticket && this.ticket.mid); E.toast('Thank you. Moderators will review it.'); } catch (e) { E.toast(e.message); }
+    }
+    // A JPEG of the next rendered frame (the WebGL buffer is only readable right after drawing).
+    capture() { return new Promise(res => { this.captureCb = res; setTimeout(() => { if (this.captureCb === res) { this.captureCb = null; res(null); } }, 1500); }); }
 
     // ── loop ────────────────────────────────────────────────────
     loop(now) {
@@ -199,7 +283,7 @@
         if (!this.paused) {
           this.acc += dt * this.speed;
           let n = 0; const s0 = performance.now();
-          while (this.acc >= DT && n < 8) { try { w.step(); } catch (err) { console.error(err); if (!this.simErr) { this.simErr = true; E.toast('A simulation error occurred. The game will try to continue.'); } } this.acc -= DT; n++; const ev = w.drainEvents(); this.handleEvents(ev); if (this.netMode === 'host') this.evBuf.push(...ev); }
+          while (this.acc >= DT && n < 8) { try { w.step(); } catch (err) { console.error(err); if (E.Crash) E.Crash.crash(err, 'sim'); if (!this.simErr) { this.simErr = true; E.toast('A simulation error occurred. The game will try to continue.'); } } this.acc -= DT; n++; const ev = w.drainEvents(); this.handleEvents(ev); if (this.netMode === 'host') this.evBuf.push(...ev); }
           if (n >= 8) this.acc = 0;
           this.stepMs = performance.now() - s0;
         }
@@ -213,6 +297,7 @@
       const f0 = performance.now();
       this.renderer.frame(w, alpha, this.netMode === 'guest' ? w.s.t + alpha * this.snapDt / 1000 : w.s.t + alpha * DT, dt, ui);
       this.governor.sample(dt * 1000, performance.now() - f0 + (this.stepMs || 0), dt);
+      if (this.captureCb) { const cb = this.captureCb; this.captureCb = null; try { const src = this.renderer.cv, k = Math.min(1, 1280 / src.width), t = document.createElement('canvas'); t.width = src.width * k; t.height = src.height * k; t.getContext('2d').drawImage(src, 0, 0, t.width, t.height); if (this.renderer.ov) t.getContext('2d').drawImage(this.renderer.ov, 0, 0, t.width, t.height); cb(t.toDataURL('image/jpeg', 0.6)); } catch (e) { cb(null); } }
       if (!$('mm-wrap').classList.contains('collapsed')) this.minimap.draw(w, dt, this.alerts);
       this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 0.1; this.updateHud(); }
       if (!$('ov-tech').hidden) { this.techT = (this.techT || 0) - dt; if (this.techT <= 0) { this.techT = 0.25; this.tech.update(); } }
@@ -651,6 +736,8 @@
       $('p-resume').onclick = () => this.resume();
       $('p-save').onclick = () => this.saveDialog();
       $('p-codex').onclick = () => { E.Menus.openCodex(true); };
+      $('p-bug').onclick = () => E.Crash.dialog();
+      $('p-report').onclick = () => this.reportDialog();
       $('p-settings').onclick = () => { E.Menus.openSettings(true); };
       $('p-surrender').onclick = async () => { if (await E.confirm('Surrender?', 'Your colony will wither and the match will continue without you.', 'Surrender')) { this.send({ c: 'surrender' }); this.resume(); } };
       $('p-quit').onclick = async () => { if (this.world.s.over || await E.confirm('Quit to menu?', this.netMode === 'guest' ? 'You will leave the match.' : 'Your progress is autosaved. You can Continue from the menu.', 'Quit')) this.quit(); };
@@ -738,7 +825,13 @@
         box.appendChild(h('div', { class: 'bar-l', style: 'margin:6px 0 4px' }, h('i', { style: `width:${Math.round(r.progress * 100)}%` })));
         for (const a of r.got) box.appendChild(h('div', { class: 'ach' }, h('span', { class: 'glyph', style: '--gc:#ffe066' }, '✦'), h('div', null, h('b', null, a.name), h('small', null, a.desc + ' A new design is waiting in your Spawnforge library.'))));
       }
-      $('end-rematch').hidden = this.netMode === 'guest'; $('end-reseed').hidden = this.netMode === 'guest';
+      $('end-rematch').hidden = this.netMode === 'guest' || this.online; $('end-reseed').hidden = this.netMode === 'guest' || this.online;
+      this.reportMatch();
+      if (this.online) {
+        const box = $('end-online'); box.innerHTML = '';
+        for (const r of this.rivals()) box.appendChild(h('button', { class: 'btn small ghost', onclick: () => this.reportDialog(r.uid) }, 'Report ' + r.name));
+        box.hidden = !box.children.length;
+      }
       setTimeout(() => { $('ov-end').hidden = false; }, 1800);
     }
     updateHud() {
@@ -762,7 +855,7 @@
       this.guideTick();
       this.updateThreats(); this.updateObjective();
       this.measT = (this.measT || 0) - 0.1; if (this.measT <= 0) { this.measT = 1; this.measureSheet(); }
-      this.musicTick();
+      this.musicTick(); this.limitTick();
       // the HUD membrane takes on the colony's live palette (fever, starvation, blight)
       if (me) { const pal = E.playerPalette(w, me), rs = document.documentElement.style; rs.setProperty('--pal-p', E.toHex(pal.primary)); rs.setProperty('--pal-a', E.toHex(pal.accent)); rs.setProperty('--fever', me.fever.toFixed(2)); rs.setProperty('--energy', me.energy.toFixed(2)); }
     }
