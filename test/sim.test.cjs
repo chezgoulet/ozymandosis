@@ -84,6 +84,33 @@ test('win conditions: heartfall, tide, luminance', () => {
     if (!w.s.over) throw new Error(mode + ' never ended');
   }
 });
+test('healing: slow knitting out of combat, fast paid mending at the nest, Mend order, structures regrow', () => {
+  const w = new E.World({ cfg: { map: { size: 's', seed: 7, powerups: 0, currents: false, fog: false }, players: [{ culture: 'verdant', kind: 'human', team: 0 }, { culture: 'bloom', kind: 'human', team: 0 }] } });
+  const s = w.s, u = s.units.find(x => x.o === 0), st = w.stats(u), nest = s.structs.find(b => b.o === 0 && b.kind === 'nucleus');
+  const away = () => { u.x = nest.x + 900 * Math.sign(s.map.w / 2 - nest.x || 1); u.y = nest.y; u.order = { t: 'hold', x: u.x, y: u.y }; };
+  const steps = sec => { for (let i = 0; i < Math.round(sec * 30); i++) { w.step(); if (u.order.t === 'hold') { u.x = u.order.x; u.y = u.order.y; } } };
+  away(); w.damage(u, st.hp * 0.6, 1, null); const hurt = u.hp;
+  steps(4); assert(Math.abs(u.hp - hurt) < 0.01, 'no knitting while the wound is fresh');
+  steps(6); const knit = (u.hp - hurt) / st.hp; assert(knit > 0.03 && knit < 0.08, 'about 1% a second once out of combat: ' + knit.toFixed(3));
+  // nest: fast and paid
+  u.hp = st.hp; u.x = nest.x + 60; u.y = nest.y; u.order = { t: 'hold', x: u.x, y: u.y }; w.damage(u, st.hp * 0.5, 1, null);
+  const h0 = u.hp, l0 = s.players[0].lumen; steps(4);
+  assert(u.hp - h0 > st.hp * 0.2, 'mends fast beside the nest'); void l0;
+  // without lumen the nest cannot pay: only natural knitting remains
+  u.hp = st.hp * 0.3; u.lastHit = { o: 1, t: s.t, src: 0 }; s.players[0].lumen = 0; s.players[0].income = 0; const h1 = u.hp; steps(4);
+  assert(u.hp - h1 < st.hp * 0.05, 'no lumen, no fast mending'); s.players[0].lumen = 500; s.players[0].income = 1;
+  assert(s.players[0].stats.mended > 0);
+  // Mend order brings it home and releases it when whole
+  u.hp = st.hp; away(); w.damage(u, st.hp * 0.7, 1, null); u.lastHit.t = s.t - 10;
+  w.command(0, { c: 'mend', ids: [u.id] }); w.step(); assert.strictEqual(u.order.t, 'mend');
+  for (let i = 0; i < 30 * 60 && u.order.t === 'mend'; i++) w.step();
+  assert.strictEqual(u.order.t, 'idle', 'released when whole'); assert(u.hp >= st.hp - 0.5, 'whole');
+  assert(Math.hypot(u.x - nest.x, u.y - nest.y) < 200, 'at home');
+  // structures regrow once left alone
+  const sd = E.STRUCTS.nucleus; w.damage(nest, 1000, 1, null); const b0 = nest.hp;
+  for (let i = 0; i < 30 * 5; i++) w.step(); assert(nest.hp - b0 < 1, 'not while freshly hit');
+  for (let i = 0; i < 30 * 10; i++) w.step(); assert(nest.hp - b0 > sd.hp * 0.004 * 5, 'regrows slowly');
+});
 test('culture counters and personas are deterministic', () => {
   const w = new E.World({ cfg: { map: { size: 's', seed: 2 }, players: [{ culture: 'bloom', kind: 'bot' }, { culture: 'verdant', kind: 'bot' }] } });
   if (w.counterMul(0, 1) !== 1.12 || w.counterMul(1, 0) !== 0.92) throw new Error('counter');

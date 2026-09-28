@@ -217,7 +217,7 @@
         const cult = E.CULTURES[cultures[i % cultures.length]], tier = {};
         for (const c of E.CLASS_IDS) tier[c] = Math.floor(n() * 4);
         const st = E.computeStats(design, { tier, culture: cult.id });
-        this.fish.push({ design, cult, tier, size: st.size, x: n(), y: n(), a: n() * TAU, sp: 0.6 + n() * 0.6, wph: n() * TAU, depth: 0.55 + n() * 0.45, vis: null });
+        this.fish.push({ design, cult, tier, size: st.size, role: E.roleClass(st), x: n(), y: n(), a: n() * TAU, sp: 0.6 + n() * 0.6, wph: n() * TAU, depth: 0.55 + n() * 0.45, vis: null });
       }
     }
     frame(dt) {
@@ -263,7 +263,7 @@
         E.advanceVis(fsh.vis, fsh.px, fsh.py, dt);
         const pts = E.buildPts(fsh.vis, fsh.px, fsh.py, t, fsh.size);
         const pal = E.palette(fsh.cult, 0.45 + 0.2 * Math.sin(t * 0.4 + fsh.wph), 0, 100, false);
-        E.drawCreature(ctx, fsh.vis, pts, { design: fsh.design, tier: fsh.tier, hc: E.creatureColor(fsh.cult, pal, fsh.vis.indiv, fsh.vis.phase, t), pal, t, alpha: 0.55 + 0.35 * fsh.depth, lod: 0, size: fsh.size });
+        E.drawCreature(ctx, fsh.vis, pts, { design: fsh.design, tier: fsh.tier, hc: E.creatureColor(fsh.cult, pal, fsh.vis.indiv, fsh.vis.phase, t), pal, t, alpha: 0.55 + 0.35 * fsh.depth, lod: 0, size: fsh.size, role: fsh.role });
       }
     }
   }

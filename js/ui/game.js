@@ -673,6 +673,7 @@
       else if (k === 'm' && us.length) this.setMode({ k: 'move' });
       else if (k === 'p' && us.length) this.setMode({ k: 'patrol' });
       else if (k === 'z' && us.length) this.send({ c: 'stop', ids: us.map(u => u.id) });
+      else if (k === 'n' && us.length) this.mendSelected();
       else if (k === 'h' && us.length) this.send({ c: 'hold', ids: us.map(u => u.id), x: us[0].x, y: us[0].y });
       else if (k === 'b') this.showBuild();
       else if (k === 't') this.openTech();
@@ -682,6 +683,14 @@
       else if (k === ' ') { e.preventDefault(); if (this.lastAlert && performance.now() / 1000 - (this.alerts[this.alerts.length - 1] || { t: 0 }).t < 8) this.jump(this.lastAlert.x, this.lastAlert.y); else this.goHome(); }
       else if (k === 'tab') { e.preventDefault(); this.cycleStruct(); }
       else if (ABILITY_KEYS.includes(k) && us.length) { const abs = this.selAbilities(); const ab = abs[ABILITY_KEYS.indexOf(k)]; if (ab) this.useAbility(ab); }
+    }
+    // Send the selection home to heal. Creatures mend fast beside a Nucleus or Bud, for lumen.
+    mendSelected() {
+      const us = this.selUnits(), w = this.world; if (!us.length) return;
+      const hurt = us.filter(u => u.hp < w.stats(u).hp - 0.5);
+      if (!hurt.length) { E.toast('They are already whole.'); return; }
+      this.order({ c: 'mend', ids: hurt.map(u => u.id) }, this.shiftHeld);
+      E.toast(hurt.length === 1 ? 'Returning to the nest to mend' : `${hurt.length} creatures returning to mend`); E.Audio.play('order');
     }
     goHome() { const n = this.world.s.structs.find(b => b.o === this.local && b.kind === 'nucleus') || this.world.s.structs.find(b => b.o === this.local); if (n) { this.jump(n.x, n.y); this.select([n.id]); } }
     cycleStruct() {
@@ -985,6 +994,7 @@
           cmd('■', 'Stop', 'Z', () => this.send({ c: 'stop', ids: this.selUnits().map(u => u.id) })),
           cmd('⛉', 'Hold', 'H', () => { const s = this.selUnits(); this.order({ c: 'hold', ids: s.map(u => u.id), x: s[0].x, y: s[0].y }); }),
           cmd('⟲', 'Patrol', 'P', () => this.setMode({ k: 'patrol' })),
+          cmd('✚', 'Mend', 'N', () => this.mendSelected(), { title: 'Return to the nearest Nucleus or Bud to heal quickly, for lumen' }),
           cmd('⋯', 'Queue', 'Shift', () => { this.queueMode = !this.queueMode; this.sheetSig = ''; this.renderSheet(); E.toast(this.queueMode ? 'Queue on: each order is added as a waypoint' : 'Queue off'); }, { class: 'cmd' + (this.queueMode ? ' active' : ''), title: 'Queue orders as waypoints (hold Shift on desktop)' }),
           canHarv ? cmd('◆', 'Harvest', null, () => { const f = this.selUnits().filter(u => w.stats(u).canHarvest); const r = w.nearestPool(f[0], 'lumen'); if (r) this.send({ c: 'harvest', ids: f.map(u => u.id), rid: r.id }); }) : null,
           canHarv ? cmd('✦', 'Spore', null, () => { const f = this.selUnits().filter(u => w.stats(u).canHarvest); const r = w.nearestPool(f[0], 'spore'); if (r) this.send({ c: 'harvest', ids: f.map(u => u.id), rid: r.id }); else E.toast('No spore beds nearby'); }) : null,

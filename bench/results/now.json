@@ -1,0 +1,27 @@
+{
+ "label": "now",
+ "date": "2026-09-28T04:17:50.301Z",
+ "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+ "cpuMode": false,
+ "mobile": false,
+ "viewport": "1440x900@1x",
+ "rows": [
+  {
+   "backend": "webgl2",
+   "units": 700,
+   "cpu": {
+    "avg": 4.32,
+    "p50": 4.2,
+    "p95": 6.3
+   },
+   "frame": {
+    "avg": 9.39,
+    "p50": 9.2,
+    "p95": 13.3
+   },
+   "fps": 106.5,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+   "tier": "high"
+  }
+ ]
+}

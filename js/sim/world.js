@@ -20,6 +20,9 @@
     brutal: { name: 'Leviathan', income: 1.6, think: 0.5, wave: [14, 36], first: 170 },
   };
   E.POP_MAX = 120;
+  // Healing. Creatures knit slowly once out of combat; beside their own Nucleus or
+  // Bud they mend fast, paid in lumen. Structures regrow slowly when left alone.
+  E.MEND = { delay: 5, natural: 0.01, nestReach: 70, nest: 0.12, lumenPerHp: 0.25, nestDelay: 1.5, structDelay: 8, struct: 0.004 };
   const RANK_XP = [60, 180, 420];
 
   class World {
@@ -60,7 +63,7 @@
             Object.assign({}, E.BUILTIN_DESIGNS._warden, { id: 'warden' }),
             Object.assign({}, E.SIGNATURES[cult.id]),
           ].concat((pc.designs || []).map((d, k) => Object.assign({}, d, { id: 'c' + k }))),
-          dseq: 1, stats: { hatched: 0, lost: 0, kills: 0, gathered: 0, spore: 0, dmg: 0, built: 0, peak: 0 },
+          dseq: 1, stats: { hatched: 0, lost: 0, kills: 0, gathered: 0, spore: 0, dmg: 0, built: 0, peak: 0, mended: 0 },
           persona: pc.persona && E.PERSONAS && E.PERSONAS[pc.persona] ? pc.persona : undefined,
           echoT: 0, coralT: 0, income: pc.kind === 'bot' ? E.DIFFS[pc.diff || 'normal'].income : 1, ai: {}, start: map.starts[i],
         };
@@ -288,6 +291,20 @@
       const A = E.CULTURES[pa.culture], B = E.CULTURES[pb.culture];
       return A.pressures.includes(B.id) ? 1.12 : B.pressures.includes(A.id) ? 0.92 : 1;
     }
+    // An own, finished hatchery (Nucleus or Bud) close enough to mend beside.
+    nestFor(u) {
+      for (const b of this.s.structs) {
+        if (b.o !== u.o || b.build < 1 || b.hp <= 0 || !E.STRUCTS[b.kind].hatch) continue;
+        const r = E.STRUCTS[b.kind].r + E.MEND.nestReach;
+        if (E.dist2(b.x, b.y, u.x, u.y) < r * r) return b;
+      }
+      return null;
+    }
+    nearestNest(o, x, y) {
+      let best = null, bd = Infinity;
+      for (const b of this.s.structs) if (b.o === o && b.build >= 1 && b.hp > 0 && E.STRUCTS[b.kind].hatch) { const d = E.dist2(b.x, b.y, x, y); if (d < bd) { bd = d; best = b; } }
+      return best;
+    }
     heal(u, amt) { if (u.hp <= 0) return; const s = u.kind === undefined ? this.stats(u) : E.STRUCTS[u.kind]; u.hp = Math.min(s.hp, u.hp + amt); }
     rankUp(u) {
       if (u.rank >= 3) return;
@@ -309,11 +326,12 @@
             this.giveOrder(u, ord, c.queue);
           });
           break;
+        case 'mend': mine.forEach(u => { const n = this.nearestNest(pi, u.x, u.y); if (n) this.giveOrder(u, { t: 'mend', id: n.id, x: n.x, y: n.y }, c.queue); }); break;
         case 'stop': mine.forEach(u => { u.order = { t: 'idle', x: u.x, y: u.y }; u.tgt = 0; u.q = []; }); break;
         case 'attack': { const t = this.byId.get(c.tid); if (t && t.hp > 0 && this.isEnemy(pi, t.o)) mine.forEach(u => this.giveOrder(u, { t: 'attack', id: t.id }, c.queue)); break; }
         case 'restore': {
           // undo: put back the orders a unit had before a mis-tap (only order shapes, only own units)
-          const OK = { idle: 1, move: 1, amove: 1, hold: 1, patrol: 1, attack: 1, harvest: 1 };
+          const OK = { idle: 1, move: 1, amove: 1, hold: 1, patrol: 1, attack: 1, harvest: 1, mend: 1 };
           for (const r of (c.orders || []).slice(0, 200)) {
             const u = this.byId.get(r.id);
             if (!u || u.o !== pi || u.kind !== undefined || !r.order || !OK[r.order.t]) continue;
@@ -420,7 +438,7 @@
     cleanOrder(o, u) {
       const m = this.s.map, n = { t: o.t };
       if (o.x !== undefined) { n.x = clamp(+o.x || 0, 10, m.w - 10); n.y = clamp(+o.y || 0, 10, m.h - 10); }
-      if (o.t === 'attack') n.id = o.id | 0;
+      if (o.t === 'attack' || o.t === 'mend') n.id = o.id | 0;
       if (o.t === 'harvest') n.rid = o.rid | 0;
       if (o.t === 'patrol') { n.ax = o.ax !== undefined ? clamp(+o.ax, 10, m.w - 10) : u.x; n.ay = o.ay !== undefined ? clamp(+o.ay, 10, m.h - 10) : u.y; }
       if (n.x === undefined && o.t !== 'attack' && o.t !== 'harvest') { n.x = u.x; n.y = u.y; }
@@ -548,6 +566,7 @@
         return;
       }
       if (p.specials.includes('roots')) b.hp = Math.min(sd.hp, b.hp + 4 * DT);
+      if (b.hp < sd.hp && (!b.lastHit || s.t - b.lastHit.t > E.MEND.structDelay)) b.hp = Math.min(sd.hp, b.hp + sd.hp * E.MEND.struct * DT);
       if (sd.silt) { const g = sd.silt * (p.specials.includes('roots') ? 2 : 1) * p.income * DT; p.lumen += g; }
       // hatching
       const q = b.queue[0];
@@ -608,6 +627,15 @@
         if (b.t <= 0) u.buffs.splice(i, 1);
       }
       if (st.regen) this.heal(u, st.regen * DT);
+      if (u.hp < st.hp) {
+        const since = u.lastHit ? s.t - u.lastHit.t : 1e9;
+        if (since > E.MEND.delay) this.heal(u, st.hp * E.MEND.natural * DT);
+        // the nest: fast mending, paid for in lumen, only out of the fight
+        if (since > E.MEND.nestDelay && this.nestFor(u)) {
+          const want = Math.min(st.hp - u.hp, st.hp * E.MEND.nest * DT), cost = want * E.MEND.lumenPerHp;
+          if (want > 0 && p.lumen >= cost) { p.lumen -= cost; u.hp += want; p.stats.mended = (p.stats.mended || 0) + want; }
+        }
+      }
       if (p.fever > 0.6 && !(p.coralT > 0)) u.hp -= (p.fever - 0.6) * 6 * DT;
       // periodic auras (every 0.5s)
       u.aT -= DT;
@@ -672,6 +700,19 @@
             }
           }
           // harvesters defend themselves only if attacked in melee range
+        } else if (o.t === 'mend') {
+          // swim home and stay beside the nest until whole; ignore fights on the way
+          let n = this.byId.get(o.id);
+          if (!n || n.hp <= 0 || n.o !== u.o) { n = this.nearestNest(u.o, u.x, u.y); if (n) { o.id = n.id; o.x = n.x; o.y = n.y; } }
+          if (!n) this.nextOrder(u);
+          else {
+            const r = E.STRUCTS[n.kind].r + E.MEND.nestReach * 0.6;
+            if (E.dist2(u.x, u.y, n.x, n.y) < r * r) {
+              if (u.hp >= st.hp - 0.01 || p.lumen < 0.5) this.nextOrder(u);
+              if (!u.wp || E.dist2(u.wp.x, u.wp.y, u.x, u.y) < 144) { const a = this.rand() * TAU, rr = E.STRUCTS[n.kind].r + 12 + this.rand() * 30; u.wp = { x: n.x + Math.cos(a) * rr, y: n.y + Math.sin(a) * rr }; }
+              tx = u.wp.x; ty = u.wp.y; spK = 0.35;
+            } else { tx = n.x; ty = n.y; }
+          }
         } else if (o.t === 'build') {
           tx = o.x; ty = o.y;
           if (E.dist2(u.x, u.y, o.x, o.y) < 36 * 36) {

@@ -192,6 +192,7 @@
       for (const b of s.structs) if (inView(b.x, b.y, 120) && (b.o === this.local || !this.fogActive || this.explore(b.x, b.y))) this.drawStruct(view, b, this.pals[b.o], t, ui);
       this.drawUnits(view, alpha, t, dt, inView, ui);
       this.drawShots(view);
+      this.gore.step(dt); { const D = this.structAdapter(); D.z = this.cam.z; this.gore.draw(D, t, inView); }
       this.drawFx(t);
       this.drawOverlays(view, t, ui);
       this.trackDamage(view, dt);
@@ -331,11 +332,19 @@
       const s = view.s, p = s.players[u.o], cpal = this.pals[u.o], cult = E.CULTURES[p.culture];
       const x = u._x, y = u._y, st = u._st, v = u._v, design = u._des, ch = E.CHASSIS[design.chassis] || E.CHASSIS.serpent, size = st.size;
       buildPts(v, x, y, t, size);
-      const hc = E.creatureColor(cult, cpal, v.indiv, v.phase, t);
+      let hc = E.creatureColor(cult, cpal, v.indiv, v.phase, t);
       const hpF = E.clamp(u.hp / st.hp, 0, 1);
       const flicker = cpal.panic > 0 ? 0.7 + 0.3 * Math.sin(t * 12 + v.phase * 3) : 1;
       const ba = u.fade * E.lerp(0.35, 0.95, hpF) * (1 - cpal.starve * 0.3) * (u._stealth ? 0.35 : 1) * flicker;
       const act = u.engaged ? 1.3 : 1;
+      // wounds: organs torn away, tail worn down, all regrowing with health
+      const organsAll = design.organs, nOrgAll = Math.min(organsAll.length, ch.slots), cols = v.cols || (v.cols = E.residueColors(cult));
+      const anchorOf = i => { const org = E.ORGANS[organsAll[i]], O = org && this.atlas.organs[org.id]; if (!O) return null; const ai = E.GL_ANCHOR_I[O.anchor]; return { x: PX[ai], y: PY[ai], rot: O.anchor === 'head' ? Math.atan2(PY[0] - PY[1], PX[0] - PX[1]) : O.anchor === 'tail' ? Math.atan2(PY[16] - PY[19], PX[16] - PX[19]) : Math.atan2(PY[1] - PY[9], PX[1] - PX[9]), side: E.organSides(organsAll)[i] }; };
+      const wound = this.gore.update(v, u.id, hpF, design, nOrgAll, p.tier[(E.ORGANS[organsAll[0]] || {}).cls] || 0, cols, t, { X: PX, Y: PY }, anchorOf, size);
+      E.contractSpine(PX, PY, wound.tail);
+      // gatherers soft and pale, fighters dark-plated and spiked
+      const role = E.roleClass(st);
+      if (role === 'gatherer') hc = E.mix(hc, WHITE, 0.22);
       const rb = this.ribbon, segs = detail ? this.tier.segs : 10, stepI = 20 / segs;
       const body = (from, to, sz, a, prof, wk) => {
         let pi = from;
@@ -343,7 +352,8 @@
       };
       const cid = ch.id;
       if (this.tier.wake && detail) for (let i = 1; i < v.n; i += Math.max(2, v.n >> 3)) { const j = (v.h + i) % v.n, f = i / v.n; this.glowU.add(v.tx[j], v.ty[j], size * (1 + f * 2) * 1.6, 0, hc, ba * 0.08); }
-      if (cid === 'serpent' || cid === 'leviathan') body(0, 19, size * act, ba, 0);
+      const bw = role === 'gatherer' ? 0.85 : 1.08;
+      if (cid === 'serpent' || cid === 'leviathan') body(0, 19, size * act * bw, ba, 0);
       else if (cid === 'carapace') body(0, 19, size * 0.8 * act, ba * 0.7, 0);
       else if (cid === 'ctenophore') body(6, 19, size * 0.5, ba * 0.3, 0);
       else if (cid === 'nautiloid') body(2, 13, size * 0.7 * act, ba * 0.6, 0);
@@ -368,25 +378,41 @@
         else if (cid === 'nautiloid') this.decor('shell', PX[1] - Math.cos(dirAt(1)) * 9 * size * act * 0.6, PY[1] - Math.sin(dirAt(1)) * 9 * size * act * 0.6, dirAt(1), size * act, fr + v.phase, hc, cpal.accent, ba);
         else if (cid === 'siphonophore') for (let i = 1; i < 20; i += 2) { const pulse = 0.5 + 0.5 * Math.sin(t * 3 - i * 0.6 + size), r = size * (i % 4 === 1 ? 3.2 : 2.2) * act * (0.85 + pulse * 0.3); this.glowU.add(PX[i], PY[i], r * 1.9, 0, hc, ba * 0.4); this.glowT.add(PX[i], PY[i], r * 0.8, 4, E.mix(hc, WHITE, 0.3), ba * (0.35 + pulse * 0.3)); if (i % 4 === 1) this.glowT.add(PX[i], PY[i], r * 1.3, 2, cpal.accent, ba * 0.5, 0.8); }
         else if (cid === 'leviathan') for (let i = 2; i < 18; i += 2) { const a = dirAt(i), l = size * (6 - i * 0.2); for (const sd of [-1, 1]) rb.add(PX[i], PY[i], PX[i] + Math.cos(a + sd * 2.2) * l, PY[i] + Math.sin(a + sd * 2.2) * l, 0.6, 2, 1, E.mix(hc, WHITE, 0.3), ba * 0.6); this.glowT.add(PX[i], PY[i], size * 1.6, 1, cpal.accent, ba * (0.4 + 0.4 * Math.sin(t * 3 - i))); }
+        // role silhouettes: gatherers carry a pale harvest sac; fighters wear dark plates, spikes and a crown
+        if (role === 'gatherer') {
+          const sx = (PX[4] + PX[6]) / 2, sy = (PY[4] + PY[6]) / 2, r = size * 5.6, cf = st.cargo ? E.clamp(u.cargo / st.cargo, 0, 1) : 0;
+          this.glowU.add(sx, sy, r * 2, 0, E.mix(hc, WHITE, 0.35), ba * 0.5);
+          this.glowT.add(sx, sy, r, 4, E.mix(hc, WHITE, 0.45), ba * (0.16 + 0.3 * cf));
+          this.glowT.add(sx, sy, r * 1.04, 2, E.mix(hc, WHITE, 0.6), ba * 0.75, 1.4);
+        } else {
+          const Dp = A.decor.plate, dark = E.mix(hc, { r: 0, g: 0, b: 0 }, 0.5), edge = E.mix(cpal.accent, WHITE, 0.35);
+          for (const k of [8, 6, 4, 2]) sp.add(PX[k], PY[k], dirAt(k), size * act * (1.35 - k * 0.05), Dp.ext, Dp.cells[0], Dp.cells[0], 0, dark, edge, Math.min(1, ba * 1.2), false);
+          // armour bands: forward-pointing chevrons across the back
+          for (const k of [2, 4, 6, 8]) { const d = dirAt(k), w = size * (5.4 - k * 0.3), tip = size * 2.2, hx = PX[k] + Math.cos(d) * tip, hy = PY[k] + Math.sin(d) * tip, sz = Math.max(0.35, size * 0.4);
+            for (const s of [-1, 1]) rb.add(PX[k] + Math.cos(d + s * Math.PI / 2) * w, PY[k] + Math.sin(d + s * Math.PI / 2) * w, hx, hy, sz, sz + 2, 1, edge, ba * 0.85); }
+          for (let k = 3, s = 1; k <= 11; k += 2, s = -s) { const a = dirAt(k) + s * (Math.PI / 2 + 0.6), l = size * (7 - k * 0.3), sz = size * 0.42; rb.add(PX[k], PY[k], PX[k] + Math.cos(a) * l, PY[k] + Math.sin(a) * l, sz, 5 * sz + 1, 0, edge, ba * 0.9); }
+          const a0 = dirAt(1); for (const s of [-0.4, 0.4]) { const sz = size * 0.48; rb.add(PX[0], PY[0], PX[0] + Math.cos(a0 + s) * size * 6.5, PY[0] + Math.sin(a0 + s) * size * 6.5, sz, 5 * sz + 1, 0, edge, ba); }
+        }
         // organs
         const sides = E.organSides(design.organs), oa = Math.min(1, ba * 1.15);
         const organs = design.organs, nOrg = Math.min(organs.length, ch.slots);
         for (let i = 0; i < nOrg; i++) {
           const org = E.ORGANS[organs[i]]; if (!org) continue;
+          if (wound.mask & (1 << i)) continue; // torn away; it regrows as the creature heals
           const O = A.organs[org.id]; if (!O) continue;
           const par = v.org[i & 7], ti = p.tier[org.cls] || 0;
           const ai = E.GL_ANCHOR_I[O.anchor];
           const rot = O.anchor === 'head' ? Math.atan2(PY[0] - PY[1], PX[0] - PX[1]) : O.anchor === 'tail' ? Math.atan2(PY[16] - PY[19], PX[16] - PX[19]) : Math.atan2(PY[1] - PY[9], PX[1] - PX[9]);
           const ff = ((fr * par.speed + par.phase * 1.27) % E.GL_FRAMES + E.GL_FRAMES) % E.GL_FRAMES, fa = Math.floor(ff), fb = (fa + 1) % E.GL_FRAMES;
           const cells = O.cells[ti];
-          sp.add(PX[ai], PY[ai], rot, 1, O.ext, cells[fa], cells[fb], ff - fa, hc, cpal.accent, oa, sides[i] < 0);
+          sp.add(PX[ai], PY[ai], rot, this.gore.growScale(v, i, t), O.ext, cells[fa], cells[fb], ff - fa, hc, cpal.accent, oa, sides[i] < 0);
         }
       }
       // head glow
       const hs = 3.5 * size * act * (cid === 'medusa' || cid === 'nautiloid' ? 0.7 : 1);
       this.glowT.add(PX[0], PY[0], hs * 4, 1, cpal.accent, ba * 0.9);
       if (u.elite) this.glowT.add(PX[0], PY[0], hs * 3.2, 2, GOLD, 0.35 + 0.3 * (0.5 + 0.5 * Math.sin(t * 3)), 1);
-      if (u.cargo > 0) this.glowT.add(PX[4], PY[4], 4 + 7 * u.cargo / Math.max(1, st.cargo), 1, u.ct === 's' ? GOLD : { r: 200, g: 255, b: 255 }, 0.9);
+      if (u.cargo > 0) this.glowT.add((PX[4] + PX[6]) / 2, (PY[4] + PY[6]) / 2, 4 + 7 * u.cargo / Math.max(1, st.cargo), 1, u.ct === 's' ? GOLD : { r: 200, g: 255, b: 255 }, 0.9);
       if (u.buffs && u.buffs.length) this.drawBuffs(u, x, y, t, size);
       // overlays
       const r = 10 + size * 4, z = this.cam.z;
@@ -445,12 +471,12 @@
       for (const ev of events) if (ev.e === 'die') {
         const v = this.vis.get(ev.id);
         if (v && v.last && (ev.x === undefined || this.seen(ev.x, ev.y))) {
-          const pts = new Float32Array(40); for (let i = 0; i < 20; i++) { pts[i * 2] = PX[i]; pts[i * 2 + 1] = PY[i]; }
-          // rebuild from its own trail rather than whatever was last in the scratch buffer
+          // rebuild from its own trail, then break the body apart and loose every remaining organ
           buildPts(v, v.tx[v.h], v.ty[v.h], this.t || 0, v.last.size);
-          for (let i = 0; i < 20; i++) { pts[i * 2] = PX[i]; pts[i * 2 + 1] = PY[i]; }
-          if (this.corpses.length >= 60) this.corpses.shift();
-          this.corpses.push({ pts, o: { hc: v.last.hc, size: v.last.size, alpha: v.last.a }, t0: this.t || 0 });
+          const d = v.last.design, org = d.organs.slice(0, (E.CHASSIS[d.chassis] || E.CHASSIS.serpent).slots), sides = E.organSides(org), all = [];
+          org.forEach((id, i) => { if (v.wmask & (1 << i)) return; const O = this.atlas.organs[id]; if (!O) return; const ai = E.GL_ANCHOR_I[O.anchor]; all.push({ id, x: PX[ai], y: PY[ai], rot: Math.atan2(PY[Math.max(0, ai - 1)] - PY[Math.min(19, ai + 1)], PX[Math.max(0, ai - 1)] - PX[Math.min(19, ai + 1)]), side: sides[i] }); });
+          if (!ev.withered) this.gore.dismember(PX, PY, d, 0, v.cols || E.residueColors(E.CULTURE_LIST[0]), v.last.size, all);
+          else { const pts = new Float32Array(40); for (let i = 0; i < 20; i++) { pts[i * 2] = PX[i]; pts[i * 2 + 1] = PY[i]; } if (this.corpses.length >= 60) this.corpses.shift(); this.corpses.push({ pts, o: { hc: v.last.hc, size: v.last.size, alpha: v.last.a }, t0: this.t || 0 }); }
           v.last = null;
         }
       }
@@ -463,10 +489,10 @@
         for (const id of ui.selection) {
           const u = view.byId.get(id); if (!u || u.kind !== undefined || u.o !== this.local) continue;
           const o = u.order; let tx, ty;
-          if (o.t === 'move' || o.t === 'amove' || o.t === 'build' || o.t === 'patrol') { tx = o.x; ty = o.y; }
+          if (o.t === 'move' || o.t === 'amove' || o.t === 'build' || o.t === 'patrol' || o.t === 'mend') { tx = o.x; ty = o.y; }
           else if (o.t === 'attack') { const tg = view.byId.get(o.id); if (tg) { tx = tg.x; ty = tg.y; } }
           if (tx === undefined) continue;
-          const c = o.t === 'attack' || o.t === 'amove' ? { r: 255, g: 120, b: 120 } : o.t === 'patrol' ? GOLD : { r: 160, g: 255, b: 240 };
+          const c = o.t === 'attack' || o.t === 'amove' ? { r: 255, g: 120, b: 120 } : o.t === 'patrol' ? GOLD : o.t === 'mend' ? { r: 170, g: 255, b: 190 } : { r: 160, g: 255, b: 240 };
           this.ribbonUI.add(u.x, u.y, tx, ty, 0.6 / z, 2 / z + 1, 2, c, 0.4);
           let px = tx, py = ty;
           for (const q of u.q || []) { if (q.x === undefined) continue; this.ribbonUI.add(px, py, q.x, q.y, 0.6 / z, 2 / z + 1, 2, c, 0.3); this.glowUI.add(q.x, q.y, 3 / z + 1, 4, c, 0.6); px = q.x; py = q.y; }

@@ -1,6 +1,6 @@
 {
  "label": "check",
- "date": "2026-09-27T20:37:26.922Z",
+ "date": "2026-09-28T04:19:11.791Z",
  "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
  "cpuMode": false,
  "mobile": false,
@@ -10,16 +10,16 @@
    "backend": "webgl2",
    "units": 100,
    "cpu": {
-    "avg": 1.16,
-    "p50": 1.1,
-    "p95": 2.1
+    "avg": 1.46,
+    "p50": 1.3,
+    "p95": 2.3
    },
    "frame": {
-    "avg": 2.59,
-    "p50": 2.4,
+    "avg": 2.85,
+    "p50": 2.6,
     "p95": 4.7
    },
-   "fps": 386.1,
+   "fps": 350.9,
    "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
    "tier": "high"
   },
@@ -27,16 +27,16 @@
    "backend": "webgl2",
    "units": 700,
    "cpu": {
-    "avg": 3.67,
-    "p50": 3.6,
-    "p95": 5.1
+    "avg": 4.42,
+    "p50": 4.2,
+    "p95": 6.5
    },
    "frame": {
-    "avg": 8.93,
-    "p50": 8.9,
-    "p95": 12.3
+    "avg": 9.34,
+    "p50": 9,
+    "p95": 12.8
    },
-   "fps": 112,
+   "fps": 107.1,
    "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
    "tier": "high"
   },
@@ -44,16 +44,16 @@
    "backend": "canvas2d",
    "units": 100,
    "cpu": {
-    "avg": 10.01,
-    "p50": 9.4,
-    "p95": 14.3
+    "avg": 12.72,
+    "p50": 11.8,
+    "p95": 16.9
    },
    "frame": {
-    "avg": 31.46,
-    "p50": 27.7,
-    "p95": 73
+    "avg": 43.31,
+    "p50": 39.6,
+    "p95": 88.9
    },
-   "fps": 31.8,
+   "fps": 23.1,
    "gpu": "",
    "tier": "high"
   },
@@ -61,16 +61,16 @@
    "backend": "canvas2d",
    "units": 700,
    "cpu": {
-    "avg": 102.31,
-    "p50": 88.8,
-    "p95": 239.5
+    "avg": 130.65,
+    "p50": 123.6,
+    "p95": 290.6
    },
    "frame": {
-    "avg": 150.27,
-    "p50": 159.1,
-    "p95": 266.7
+    "avg": 161.31,
+    "p50": 169.5,
+    "p95": 309.3
    },
-   "fps": 6.7,
+   "fps": 6.2,
    "gpu": "",
    "tier": "high"
   }

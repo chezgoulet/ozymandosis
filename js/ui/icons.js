@@ -33,13 +33,15 @@
     bud: '<path d="M12 21v-6"/><path d="M12 15c-4.4 0-7-3-7-7 3.6 0 6 1.4 7 4 1-2.6 3.4-4 7-4 0 4-2.6 7-7 7Z"/><path d="M12 12c-1.4-2.6-1.4-5.4 0-8.6 1.4 3.2 1.4 6 0 8.6Z"/>',
     flag: '<path d="M6 21V3.6"/><path d="M6 4.2c3.4-1.8 6.2 1.8 9.6 0 1.4-.7 2.6-.8 3.6-.4-.6 3.6-.2 6 .6 8-3.4 1.6-6.2-1.6-9.6.2-1.6.8-3 .9-4.2.4"/>',
     eye: '<path d="M2.6 12c2.6-4.4 5.8-6.6 9.4-6.6s6.8 2.2 9.4 6.6c-2.6 4.4-5.8 6.6-9.4 6.6S5.2 16.4 2.6 12Z"/><circle cx="12" cy="12" r="3.2" fill="currentColor" fill-opacity=".3"/><path d="M12 9.6v4.8" stroke-width="2"/>',
+    // a wound knitting shut: a cell split by a seam, stitched across
+    mend: '<path d="M12 3.4c4.8 0 8.6 3.9 8.6 8.6S16.8 20.6 12 20.6 3.4 16.8 3.4 12 7.2 3.4 12 3.4Z"/><path d="M5.4 12.6c2.2-1.6 4.4 1.2 6.6-.4s4.4 1.2 6.6-.4"/><path d="M8 9.8l1 4.6M12 9.4v5.2M16 9.8l-1 4.6" stroke-width="1.4"/>',
     cancel: '<path d="M6 6c3.6 3.2 8.4 8.8 12 12M18 6c-3.4 3.4-8.6 8.6-12 12"/>',
     back: '<path d="M14.6 5.2C11.4 7.8 8.8 10 7 12c1.8 2 4.4 4.2 7.6 6.8"/><path d="M7.6 12H20" opacity=".6"/>',
     queue: '<circle cx="5" cy="17" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="7" r="1.8"/><path d="M6.6 15.8 10.4 13.2M13.6 10.8l3.8-2.6" stroke-dasharray="1.6 1.8"/>',
   };
   // label (as used on command buttons) → icon
   E.ICON_FOR = { Army: 'claws', Idle: 'grub', Hatch: 'nucleus', Home: 'nucleus', Evolve: 'helix', Spawnforge: 'egg', Attack: 'lunge', Move: 'fin', Stop: 'closed', Hold: 'shell',
-    Patrol: 'orbit', Queue: 'queue', Harvest: 'droplet', Spore: 'spore', Build: 'bud', Rally: 'flag', Next: 'eye', Cancel: 'cancel' };
+    Patrol: 'orbit', Mend: 'mend', Queue: 'queue', Harvest: 'droplet', Spore: 'spore', Build: 'bud', Rally: 'flag', Next: 'eye', Cancel: 'cancel' };
   E.iconSvg = function (name, cls) {
     const body = P[name]; if (!body) return '';
     return `<svg class="svg-ico${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;

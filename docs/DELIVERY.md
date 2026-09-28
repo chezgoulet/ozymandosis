@@ -99,3 +99,13 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 | The living title wherever the name is shown publicly | game title and farewell screen; website hero and navigation on every page; account portal; concept document (`title.html` in an iframe); emails and native splash screens get a rendered still (`tools/render-title.cjs`). Pages outside the game load `living-logo.js`, bundled from the game's own code by `tools/living-logo.cjs` (26 KB gzipped); it pauses off-screen and shows one still frame for reduced-motion users |
 | "Begin the bloom" → "Begin" | setup screen (skirmish and lobbies) |
 | Beta | badge beside every living title; notice banner on the website and the portal; badge in the admin console; beta clause in the terms; "BETA" in emails |
+
+## Follow-up: healing, wounds and roles
+| Request | Where it lives |
+|---|---|
+| Creatures heal slowly after damage | `E.MEND` in `js/sim/world.js`: 1% of health per second once 5 s out of combat |
+| Return to the nucleus to heal fast, for lumen | beside an own Nucleus or Bud: 12% per second at 0.25 lumen per point; **Mend** order (button, N) sends the selection home and releases it when whole |
+| Buildings heal slowly | 0.4% per second once 8 s unhit |
+| Grisly fighting: pieces come off and regrow | `js/render/gore.js`: organs tear away at seeded damage thresholds and tumble off as real organ pieces; tails wear down and drift away; everything buds back as health returns; deaths break into chunks and loose organs |
+| Residue, not red blood | ichor, glowing motes and fading stains in each culture's own colours, from creatures and struck structures |
+| Tell gatherers from fighters | gatherers: pale, slimmer, a translucent harvest sac that fills with cargo; fighters: dark war plates, chevron armour bands, spikes and a spiked crown. Shown in play, on hatch cards, in the Spawnforge and on the title screen |

@@ -11,9 +11,10 @@
       this.vis = new Map(); this.corpses = []; this.fx = []; this.texts = [];
       this.quality = 'high'; this.W = 1; this.H = 1; this.dpr = 1; this.cell = CELL;
       this.hpSeen = new Map();
+      this.gore = new E.Gore();
     }
     reset(view, local) {
-      this.vis.clear(); this.corpses = []; this.fx = []; this.texts = []; this.hpSeen = new Map();
+      this.vis.clear(); this.corpses = []; this.fx = []; this.texts = []; this.hpSeen = new Map(); this.gore.clear(); this.structHp = new Map();
       const m = view.s.map;
       this.cols = Math.ceil(m.w / CELL); this.rows = Math.ceil(m.h / CELL);
       this.explored = new Uint8Array(this.cols * this.rows);
@@ -119,11 +120,25 @@
         if (!h) { seen.set(u.id, { hp: u.hp, acc: 0, heal: 0, gen: this.visVer }); continue; }
         const d = h.hp - u.hp; h.hp = u.hp; h.gen = this.visVer;
         if (d > 0) h.acc += d; else if (d < -0.5) h.heal -= d;
+        // residue on every visible wound, in the creature's own colours
+        if (d > 0.3 && this.seen(u.x, u.y) && (!this.inView || this.inView(u.x, u.y, 40))) {
+          const pl = view.s.players[u.o], cult = pl && E.CULTURES[pl.culture];
+          if (cult) this.gore.spray(u.x, u.y, E.residueColors(cult), Math.min(1, d / Math.max(1, view.stats(u).hp) * 3), null);
+        }
         if (emit && (h.acc >= 1 || h.heal >= 4) && this.seen(u.x, u.y) && (!this.inView || this.inView(u.x, u.y, 0))) {
           if (h.acc >= 1) this.texts.push({ x: u.x + (Math.random() - 0.5) * 10, y: u.y - 10, s: String(Math.round(h.acc)), color: u.o === this.local ? '#ff8a8a' : '#fff3c4', t0: this.t || 0, dmg: 1, size: Math.min(1.6, 0.8 + h.acc / 40) });
           if (h.heal >= 4) this.texts.push({ x: u.x, y: u.y - 16, s: '+' + Math.round(h.heal), color: '#9fffc0', t0: this.t || 0, dmg: 1, size: 0.9 });
           h.acc = 0; h.heal = 0;
         }
+      }
+      // structures weep residue from the rim when struck
+      const sh = this.structHp || (this.structHp = new Map());
+      for (const b of view.s.structs) {
+        const prev = sh.get(b.id); sh.set(b.id, b.hp);
+        if (prev === undefined || prev - b.hp < 2 || !this.seen(b.x, b.y) || b.build < 1) continue;
+        const pl = view.s.players[b.o], cult = pl && E.CULTURES[pl.culture]; if (!cult) continue;
+        const a = Math.random() * E.TAU, R = E.STRUCTS[b.kind].r;
+        this.gore.spray(b.x + Math.cos(a) * R, b.y + Math.sin(a) * R, E.residueColors(cult), Math.min(0.6, (prev - b.hp) / E.STRUCTS[b.kind].hp * 40), a);
       }
       if (emit && seen.size > view.s.units.length + 200) for (const [id, h] of seen) if (!view.byId.get(id)) seen.delete(id);
       if (this.texts.length > 80) this.texts.splice(0, this.texts.length - 80);

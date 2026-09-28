@@ -63,7 +63,7 @@
     const v = E.makeVis(0, 0, 0, ch.bodyLen * st.size, 7);
     const tr = v.trail; for (let i = 0; i < tr.length; i++) { tr[i].x = -i * v.spacing; tr[i].y = Math.sin(i * 0.12 + (t || 0)) * 3; }
     const pts = E.buildPts(v, 0, 0, t || 0.7, st.size);
-    E.drawCreature(ctx, v, pts, { design, tier: tier || {}, hc: E.mix(cult.colors[0], cult.colors[1], 0.3), pal, t: t || 0.7, alpha: 0.95, lod: 0, size: st.size, vOverride: opts.v });
+    E.drawCreature(ctx, v, pts, { design, tier: tier || {}, hc: E.mix(cult.colors[0], cult.colors[1], 0.3), pal, t: t || 0.7, alpha: 0.95, lod: 0, size: st.size, vOverride: opts.v, role: design.organs.length ? E.roleClass(st) : null });
     ctx.restore();
   };
   // Single organ on a bare spine (tech tree + codex)
@@ -119,7 +119,7 @@
       const st = E.computeStats(design, { culture: cultId }, v ? { v } : null);
       const ch = E.CHASSIS[design.chassis];
       const prev = this.items[0];
-      this.items = [{ x: prev ? prev.x : 0, y: prev ? prev.y : 0, a: prev ? prev.a : 0, vis: E.makeVis(0, 0, 0, ch.bodyLen * st.size, 3), size: st.size, tx: 0, ty: 0, tt: 0 }];
+      this.items = [{ x: prev ? prev.x : 0, y: prev ? prev.y : 0, a: prev ? prev.a : 0, vis: E.makeVis(0, 0, 0, ch.bodyLen * st.size, 3), size: st.size, role: E.roleClass(st), tx: 0, ty: 0, tt: 0 }];
     }
     frame(dt) {
       if (!this.design) return;
@@ -142,7 +142,7 @@
         c.x = E.clamp(c.x, 20, W - 20); c.y = E.clamp(c.y, 20, H - 20);
         E.advanceVis(c.vis, c.x, c.y, dt);
         const pts = E.buildPts(c.vis, c.x, c.y, t, c.size);
-        E.drawCreature(ctx, c.vis, pts, { design: this.design, hc: E.creatureColor(this.cult, pal, c.vis.indiv, c.vis.phase, t), pal, t, alpha: 0.95, lod: 0, size: c.size, vOverride: this.v });
+        E.drawCreature(ctx, c.vis, pts, { design: this.design, hc: E.creatureColor(this.cult, pal, c.vis.indiv, c.vis.phase, t), pal, t, alpha: 0.95, lod: 0, size: c.size, vOverride: this.v, role: c.role });
       }
     }
   }
