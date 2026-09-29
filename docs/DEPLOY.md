@@ -118,4 +118,4 @@ It backs up the database, builds, starts the new release, waits for it to be hea
 
 - There is no browser version (docs/MONETIZATION.md); the website links to the stores.
 - Android and iOS: `npm run android:aab` (docs/RELEASE-ANDROID.md), `npm run ios:open` (Capacitor 8; Android targets API 36). The apps sell memberships through their own stores (docs/STORES.md).
-- Desktop: `cd apps/desktop && npm install && npm run package` (Electron; launches fullscreen). Launched from Steam (or with `steam_appid.txt` beside it) it behaves as a Steam build. Signing and notarization: [LAUNCH.md](LAUNCH.md#code-signing).
+- Desktop: `cd apps/desktop && npm ci && npm run package` (Electron; launches fullscreen; on Linux the Steam depot is `dist/linux-unpacked/`, see [STORES.md](STORES.md#the-linux-build)). Launched from Steam (or with `steam_appid.txt` beside it) it behaves as a Steam build. Signing and notarization: [LAUNCH.md](LAUNCH.md#code-signing).

@@ -63,6 +63,25 @@ jobs:
         if: failure()
         with: { name: "screens-${{ matrix.browser }}", path: "test/shots\ntest/traces", retention-days: 7 }
 
+  # The Linux Steam build, packaged and played inside Steam Linux Runtime 3.0
+  # (sniper) as Steam runs it (docs/STORES.md). Host prerequisites, once: Xvfb, the
+  # runner user's PipeWire session (lingering), and the steam package's AppArmor
+  # profile. The runtime itself is fetched, pinned, to ~/.cache/steamrt.
+  steam-linux:
+    needs: test
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm ci && npm run package
+        working-directory: apps/desktop
+      - run: node test/steamrt.test.cjs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: screens-steam-linux, path: test/shots, retention-days: 7 }
+
   images:
     runs-on: [self-hosted, linux, x64]
     needs: test
