@@ -48,7 +48,14 @@ async function launch(name, port, display) {
   const env = { ...penv, DISPLAY: display, PULSE_SINK: SINK };
   delete env.WAYLAND_DISPLAY;
   const child = spawn(SNIPER, [`--remote-debugging-port=${port}`, `--user-data-dir=${path.join(TMP, name)}`], { env, detached: true, stdio: ['ignore', log, log] });
-  cleanup.push(() => { try { process.kill(-child.pid, 'SIGTERM'); } catch (e) { /* exited */ } });
+  const exited = new Promise(r => child.once('exit', r));
+  // stop the whole container and wait for it, so its files are closed before they are removed
+  cleanup.push(async () => {
+    try { process.kill(-child.pid, 'SIGTERM'); } catch (e) { return; }
+    if (await Promise.race([exited.then(() => true), new Promise(r => setTimeout(r, 10000, false))])) return;
+    try { process.kill(-child.pid, 'SIGKILL'); } catch (e) { /* exited */ }
+    await exited;
+  });
   for (let i = 0; i < 120 && !(await cdpUp(port)); i++) await new Promise(r => setTimeout(r, 500));
   assert(await cdpUp(port), `${name}: the game did not start in the container (log: ${TMP}/${name}.log)`);
   // the process that answered is the one in the container: its root is the runtime
@@ -162,8 +169,8 @@ async function lanMatch(display) {
   nullSink();
   await singlePlayer(display);
   await lanMatch(display);
-})().catch(e => { console.error(e); errs.push(e.message); }).finally(() => {
-  for (const f of cleanup.reverse()) f();
+})().catch(e => { console.error(e); errs.push(e.message); }).finally(async () => {
+  for (const f of cleanup.reverse()) await f();
   console.log(errs.length ? errs.join('\n') : 'no errors');
   if (!errs.length) fs.rmSync(TMP, { recursive: true, force: true }); else console.log('logs kept in', TMP);
   setTimeout(() => process.exit(errs.length ? 1 : 0), 500);
