@@ -38,6 +38,41 @@ openssl, unzip, zip, git, gh, docker, **adb**, **JDK 21** with `keytool` and
 not been a constraint yet and I would rather keep it that way than install a second
 Python.
 
+## The installers
+
+Two scripts, one per machine, both in `tools/`. Both are idempotent, both **detect
+rather than assume** — they look in known locations and not only at `PATH`, because
+`node`, `adb` and `keytool` are installed on the build host yet invisible to a
+non-interactive shell, which is the same asymmetry that broke `android-keygen.sh` —
+and both **end with a verification pass** that reports each tool as present or missing.
+An installer that does not verify is an installer that lies.
+
+```
+bash tools/install-build-host.sh [--dry-run] [--prefix DIR] [--no-profile]
+bash tools/install-agent-host.sh [--dry-run] [--prefix DIR]
+```
+
+**`install-build-host.sh`** — for sasquatch. Installs **bundletool** (the jar plus a
+wrapper into `~/bin`, no root), appends the PATH line that makes `adb`, `keytool` and
+`jarsigner` visible to non-interactive shells, and attempts **ImageMagick**,
+**shellcheck** and **gcloud** *only if passwordless sudo is available.* On this host it
+is not, so the script does everything it can without root and prints the exact
+`sudo apt-get` line for the rest. It exits 1 when a required tool is missing, so it
+doubles as a pre-flight check for the build host.
+
+**`install-agent-host.sh`** — for mikoa. Installs the **Bitwarden CLI** from its own
+release (a static binary, so no root), and prints the **1Password** apt instructions,
+since 1Password publishes no user-level binary.
+
+Neither script touches a credential and neither signs in to anything. The vault client
+is installed so credentials can be *pulled* at process start; signing in needs your
+master password and stays yours. No value should pass through a shell history or a chat.
+
+One implementation note worth keeping: both resolve download URLs **from the GitHub
+API** rather than building them from `/releases/latest/download/`. That shortcut is
+wrong whenever a repository publishes several products on one release stream —
+Bitwarden's "latest" release is the desktop app, so the CLI asset 404s.
+
 ## Credentials
 
 ### A. Into my environment — Hermes' store, or your vault via `hermes secrets`
