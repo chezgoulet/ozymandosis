@@ -171,7 +171,27 @@ async function lanMatch(display) {
   await lanMatch(display);
 })().catch(e => { console.error(e); errs.push(e.message); }).finally(async () => {
   for (const f of cleanup.reverse()) await f();
+  // The game outlives the shell that launched it: sniper.sh starts pressure-vessel,
+  // which gives its children their own process group, so the group signal above reaches
+  // the shell and not them. Reap by --user-data-dir, which is unique to this run, and
+  // wait for it to go quiet. Without this the remove walks the tree while a straggler is
+  // still writing to its profile and dies with ENOTEMPTY.
+  const held = () => { try { return execFileSync('pgrep', ['-f', `user-data-dir=${TMP}`], { encoding: 'utf8' }).trim(); } catch (e) { return ''; } };
+  if (held()) {
+    try { execFileSync('pkill', ['-f', `user-data-dir=${TMP}`], { stdio: 'ignore' }); } catch (e) { /* already gone */ }
+    const t0 = Date.now();
+    while (held() && Date.now() - t0 < 15000) await new Promise(r => setTimeout(r, 250));
+    if (held()) console.log('note: a container process is still holding', TMP);
+  }
   console.log(errs.length ? errs.join('\n') : 'no errors');
-  if (!errs.length) fs.rmSync(TMP, { recursive: true, force: true }); else console.log('logs kept in', TMP);
+  if (!errs.length) {
+    try {
+      fs.rmSync(TMP, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
+    } catch (e) {
+      // Failing to tidy /tmp is not a failure of the app. Report it and move on: a
+      // throw here would skip process.exit below and fail a run that passed.
+      console.log(`note: could not remove ${TMP} (${e.code}); left in place`);
+    }
+  } else console.log('logs kept in', TMP);
   setTimeout(() => process.exit(errs.length ? 1 : 0), 500);
 });
