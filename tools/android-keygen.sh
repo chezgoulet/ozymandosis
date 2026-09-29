@@ -9,7 +9,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KS="${1:-$HOME/.ozymandosis/upload-keystore.jks}"
 PROPS="$ROOT/android/keystore.properties"
+# Find a JDK the same way android-release.sh does: a bare `keytool` is not on
+# PATH for a non-interactive shell, and this is the FIRST tool anyone runs, so
+# without this the key generation is the one step that cannot find it.
+if [ -z "${JAVA_HOME:-}" ]; then
+  for j in "$HOME/jdk-21" "$HOME"/jdk-*; do
+    if [ -x "$j/bin/keytool" ]; then export JAVA_HOME="$j"; break; fi
+  done
+fi
 KEYTOOL="${JAVA_HOME:+$JAVA_HOME/bin/}keytool"
+command -v "$KEYTOOL" >/dev/null 2>&1 || {
+  echo "keytool not found: install a JDK or set JAVA_HOME (looked in \$HOME/jdk-*)" >&2; exit 1; }
 if [ -e "$KS" ]; then echo "Refusing to overwrite $KS (it may be the only copy of the upload key)." >&2; exit 1; fi
 mkdir -p "$(dirname "$KS")"; chmod 700 "$(dirname "$KS")"
 read -r -s -p "Keystore password (16+ characters, into your password manager): " PASS; echo
