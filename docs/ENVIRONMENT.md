@@ -75,6 +75,10 @@ Bitwarden's "latest" release is the desktop app, so the CLI asset 404s.
 
 ## Credentials
 
+**How to obtain each one, step by step, with the least privilege it can have, and the
+read-only call that proves it works: `docs/CREDENTIALS-HOWTO.md`.** This document says
+where each credential belongs; that one says how to get it.
+
 ### Where they go — one decision, then everything follows
 
 **Preferred: your vault.** `hermes secrets bitwarden setup` installs `bws`, stores the
