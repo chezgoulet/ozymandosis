@@ -186,6 +186,9 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   if (pub) {
     await app.register(fstatic, { root: pub, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (reply: any) => reply.header('cache-control', 'no-cache') });
     for (const p of ['/login', '/verify', '/reset', '/account']) app.get(p, (req, reply) => reply.sendFile('index.html'));
+    // The store-facing deletion URL, served at /delete-account rather than with the .html
+    // extension: Play shows this URL to users, and it is a static page, not a portal route.
+    app.get('/delete-account', (req, reply) => reply.sendFile('delete-account.html'));
     app.get('/admin', (req, reply) => reply.sendFile('admin/index.html'));
   }
   // The game's typefaces, shared with the portal (copied into the image in production).
