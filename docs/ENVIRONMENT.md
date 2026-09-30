@@ -24,8 +24,8 @@ openssl, unzip, zip, git, gh, docker, **adb**, **JDK 21** with `keytool` and
 
 | Tool | Where | Why | How |
 |---|---|---|---|
-| `op` (1Password CLI) | mine | required by the credential channel below | static binary into `~/.local/bin`, no sudo |
-| `bw` (Bitwarden CLI) | mine | the alternative to `op` | same |
+| vault client | mine | **not installed by hand.** The Hermes integration installs and verifies its own: `hermes secrets bitwarden install` (pins `bws` v2.0.0). The earlier note here named `bw` — wrong binary, and installing it by hand was never needed. | `hermes secrets bitwarden setup` |
+| `op` (1Password CLI) | mine | only if you choose 1Password rather than Bitwarden | 1Password publishes no user-level binary, so this one does need `sudo apt-get install 1password-cli` |
 | **bundletool** | build host | generate installable APKs **from the AAB**, so a device runs the exact artifact Play delivers; and validate the bundle | the `bundletool-all-<version>.jar` from google/bundletool releases into `~/bin`, no sudo |
 | **ImageMagick** | build host | the 1024×500 feature graphic, the 512×512 icon, and cropping screenshots to Play's required sizes | `sudo apt-get install -y imagemagick` — **needs sudo** |
 | `gcloud` | build host | only if I am to create the Cloud project, the service account and the Pub/Sub topic for billing notifications by API instead of you clicking | Google's apt repo — **needs sudo** |
@@ -74,6 +74,31 @@ wrong whenever a repository publishes several products on one release stream —
 Bitwarden's "latest" release is the desktop app, so the CLI asset 404s.
 
 ## Credentials
+
+### Where they go — one decision, then everything follows
+
+**Preferred: your vault.** `hermes secrets bitwarden setup` installs `bws`, stores the
+access token and picks the project; each credential then lives as an item in Bitwarden and
+Hermes pulls it at process start. Nothing is pasted to me, nothing sits in a file on this
+machine, and revoking is deleting the item. `hermes secrets sync` resolves the references
+now and reports what changed, so "is it wired up" is a report rather than a hope.
+
+1Password works the same way but needs `sudo apt-get install 1password-cli` first, since
+1Password publishes no user-level binary. Then `hermes secrets onepassword setup --account
+<shorthand>`, and per credential `hermes secrets onepassword set LINODE_API_KEY
+'op://Vault/Item/field'`.
+
+**Alternative — `~/.hermes/.env` on mikoa** (mode 0600, 39 entries today). Simpler, and the
+values then live in a file on a machine I can read. `hermes config set` is *not* the tool
+for this: it writes settings to `config.yaml`, and secrets never belong there.
+
+**Never: this chat.** A Telegram group message is not a secret channel, and this thread has
+history.
+
+**You supply each credential once.** I read it from the environment and write it where it
+belongs — the GitHub repository secrets, and `deploy/.env` on the boxes — without printing a
+value. The one credential the mechanism itself needs is a vault access token, and that goes
+in through the tool (`hermes secrets bitwarden setup`), not through me.
 
 ### A. Into my environment — Hermes' store, or your vault via `hermes secrets`
 
