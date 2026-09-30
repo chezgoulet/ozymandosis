@@ -7,7 +7,8 @@
 #
 # Idempotent, and it ends with a verification pass rather than assuming success.
 #
-# It installs a VAULT CLIENT (bw or op) so credentials can be pulled from your password
+# It does NOT install a vault client: the Hermes integration provides its own. 1Password
+# is the only one that needs help, because it publishes no user-level binary.
 # manager at process start rather than written into a file on this machine. It
 # deliberately does NOT sign in: that needs your master password and is a human step.
 # This script never sees a credential value.
@@ -39,7 +40,7 @@ bin_of() {
   local t="$1" p c
   p="$(command -v "$t" 2>/dev/null || true)"
   if [ -z "$p" ]; then
-    for c in "$HOME/.local/bin/$t" "$HOME/bin/$t" "$HOME/.hermes/node/bin/$t"; do
+    for c in "$HOME/.local/bin/$t" "$HOME/bin/$t" "$HOME/.hermes/node/bin/$t" "$HOME/.hermes/bin/$t"; do
       [ -x "$c" ] && { p="$c"; break; }
     done
   fi
@@ -64,31 +65,13 @@ for t in node npm python3 pip3 jq curl openssl unzip git gh age; do
   p="$(command -v "$t" 2>/dev/null || true)"; printf '  %-10s %s\n' "$t" "${p:-MISSING}"
 done
 
-# ------------------------------------------------------------- Bitwarden CLI (bw)
-head_ "Bitwarden CLI — a static binary, so no root needed"
-if have bw; then
-  say "already installed: $(bw --version 2>/dev/null | head -1)"
-elif [ -x "$PREFIX/bw" ]; then
-  say "already installed at $PREFIX/bw: $("$PREFIX/bw" --version 2>/dev/null | head -1)"
-else
-  ASSET="$(resolve_asset bitwarden/clients '^bw-linux.*[.]zip$' "$EXCLUDE_ARM" || true)"
-  if [ -z "$ASSET" ]; then
-    say "could not resolve a linux/$ARCHTAG asset — install bw by hand"
-  else
-    NAME="${ASSET%%$'\t'*}"; URL="${ASSET##*$'\t'}"
-    say "asset: $NAME"
-    if [ "$DRY" = 1 ]; then
-      say "would download $URL -> $PREFIX/bw"
-    else
-      TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-      curl -fsSL -o "$TMP/$NAME" "$URL"
-      unzip -q -o "$TMP/$NAME" -d "$TMP"
-      mkdir -p "$PREFIX"
-      install -m 755 "$TMP/bw" "$PREFIX/bw"
-      say "installed: $("$PREFIX/bw" --version 2>/dev/null | head -1)"
-    fi
-  fi
-fi
+# ------------------------------------------------- vault client: nothing to do here
+head_ "vault client"
+say "not installed by hand. The Hermes integration installs and verifies its own:"
+say "  hermes secrets bitwarden setup      # installs bws (pinned v2.0.0), stores the token, picks a project"
+say "This script used to download the Bitwarden *desktop* CLI (bw) here, which the"
+say "integration does not use. 1Password is the exception: it publishes no user-level"
+say "binary, so that one needs the apt install printed below."
 
 # --------------------------------------------------------------- 1Password CLI (op)
 head_ "1Password CLI — needs root on Debian/Ubuntu"
@@ -152,7 +135,9 @@ check unzip      unzip      "-v"              hard
 check git        git        "--version"       hard
 check gh         gh         "--version"       hard
 check age        age        "--version"       soft
-check bw         bw         "--version"       soft
+# Not `bw`: the integration uses bws, which it installs itself. Report it if present,
+# and let `hermes secrets bitwarden status` be the authority on whether it is wired up.
+check bws        bws        "--version"       soft
 check op         op         "--version"       soft
 check shellcheck shellcheck "--version"       soft
 

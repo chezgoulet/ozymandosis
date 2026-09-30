@@ -176,6 +176,9 @@ check git         git         "--version"                                      s
 check ffmpeg      ffmpeg      "-version"                                       soft
 check magick      magick      "-version"                                       soft
 check shellcheck  shellcheck  "--version"                                      soft
+# The tool this script installs must appear in the verification pass, or the script
+# can report "all required tools present" while the one thing it added is broken.
+check bundletool "$PREFIX/bundletool" "version"                                       soft
 
 printf '\n'
 if [ "$FAIL" = 1 ]; then
