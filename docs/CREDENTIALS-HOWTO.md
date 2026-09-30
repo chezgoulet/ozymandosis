@@ -64,8 +64,11 @@ the closed track → the fourteen continuous days. Nothing else is on that chain
 3. **The API key.** Purelymail's API authenticates with a key from your account settings
    (the Account Admin portal; the API reference is at `news.purelymail.com/api`). I could
    not confirm the exact menu label from the docs, so: it is the credential your account
-   uses to sign calls to `api.purelymail.com`, and its API is POST-with-JSON rather than
-   REST. That becomes `PURELYMAIL_API_KEY`, and section 9 proves it by listing your domains.
+   uses to sign calls to `purelymail.com/api/v0`, and its API is POST-with-JSON rather than
+   REST. **The header is `Purelymail-Api-Token`** — the API rejects any other spelling
+   with `invalidToken`. Note the host: `api.purelymail.com` does not exist; the base is
+   `purelymail.com/api/v0`. That becomes `PURELYMAIL_API_KEY`, and section 9 proves it by
+   listing your domains.
 4. **The mailboxes** — `privacy@` and `support@ozymandosis.com`. Create them as users, or as
    routing/aliases if you would rather they land in one inbox. `privacy@` matters beyond
    email: your privacy policy names a contact address and the stores check that it works.
@@ -83,7 +86,9 @@ the closed track → the fourteen continuous days. Nothing else is on that chain
    but can take up to 72 hours to propagate globally.
 2. **Create the API key** — full access or, better, **`sending_access` restricted to
    `ozymandosis.com`**. That is the least privilege this one can have. Becomes
-   `RESEND_API_KEY`.
+   `RESEND_API_KEY`. **Note:** the key currently supplied answers `GET /api-keys`,
+   so it is a full-access key rather than a sending-scoped one. It works; it is just
+   broader than the plan called for, so it is worth replacing when convenient.
 3. **`SMTP_URL`** — Resend's SMTP settings are fixed and public: host `smtp.resend.com`,
    port `465` (implicit TLS) or `587` (STARTTLS), **username `resend`**, password your API
    key. So the value is `smtps://resend:YOUR_KEY@smtp.resend.com:465`. If you pick
@@ -120,6 +125,10 @@ This is what turns the release path into something I do rather than you.
 3. **Create a service account:** IAM & Admin → Service Accounts → Create. Name it
    recognisably, e.g. `ozymandosis-play`. Copy its email
    (`…@….iam.gserviceaccount.com`).
+3b. **The consent screen is console-only.** The IAP OAuth Admin APIs were turned down in
+   2026, so `gcloud alpha iap oauth-brands` no longer works and new projects cannot use
+   them at all. Do not plan on scripting the OAuth client; it is a console task.
+
 4. **Create the JSON key:** the service account → Keys → Add key → **JSON**. It downloads
    once. Becomes `GOOGLE_PLAY_SERVICE_ACCOUNT` — **the whole file, on one line.**
 5. **Invite it in Play Console** → **Users and permissions** → Invite new users → paste the
@@ -218,7 +227,7 @@ back. Nothing here changes anything at the provider.
 | Credential | The call | What a pass looks like |
 |---|---|---|
 | `LINODE_API_KEY` | `GET /v4/profile` and `GET /v4/domains` | your username; the `ozymandosis.com` zone |
-| `PURELYMAIL_API_KEY` | `POST api.purelymail.com/api/v0/listDomains` | the domain list, including `ozymandosis.com` once added |
+| `PURELYMAIL_API_KEY` | `POST purelymail.com/api/v0/listDomains` with header `Purelymail-Api-Token` | the domain list, including `ozymandosis.com` once added |
 | `RESEND_API_KEY` | `GET api.resend.com/domains` | the domain and its verification status |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT` | token exchange, then `GET …/applications/com.ozymandosis.game/edits` | an edit id, or a permission error naming the missing grant |
 | `OBJECT_STORAGE_*` | S3 `ListBuckets` with the key pair | your bucket, and only your bucket |
