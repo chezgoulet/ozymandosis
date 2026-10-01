@@ -26,6 +26,9 @@ const assert = require('assert');
   await guest.click('#m-mp'); await guest.fill('#mp-name', 'Guesto'); await guest.fill('#mp-code', room); await guest.click('#mp-join');
   await guest.waitForSelector('#scr-setup:not([hidden])');
   await host.waitForTimeout(600);
+  // the room code is shown prominently and copyably, to everyone in the lobby
+  assert.strictEqual((await host.textContent('#lobby-code')).trim(), room, 'host shows the room code');
+  assert.strictEqual((await guest.textContent('#lobby-code')).trim(), room, 'guest sees the room code');
   // guest picks a culture
   await guest.selectOption('#slots .slot-row:nth-child(2) select:first-child', 'current');
   await host.waitForTimeout(600);

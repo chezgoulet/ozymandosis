@@ -68,6 +68,14 @@
     </div>
     <div class="card" id="lobby-chat-card" hidden>
       <h3>Lobby</h3>
+      <div id="lobby-code-row" hidden>
+        <span class="lbl" id="lobby-code-lbl">Join code</span>
+        <div class="lobby-code-box">
+          <code id="lobby-code" class="lobby-code"></code>
+          <button class="btn small" id="lobby-copy" type="button">Copy</button>
+          <button class="btn small primary" id="lobby-share" type="button" hidden>Share</button>
+        </div>
+      </div>
       <div id="lobby-log" style="max-height:160px;overflow:auto;font-size:.88em;display:grid;gap:4px;margin-bottom:8px"></div>
       <div class="quick-chat" id="lobby-quick"></div>
       <form class="row" id="lobby-chat" style="flex-wrap:nowrap"><input type="text" id="lobby-msg" placeholder="Say something" maxlength="140"><button class="btn small">Send</button></form>
