@@ -85,6 +85,7 @@ export const SDKS: { id: string; collects: string }[] = [
   { id: '@capacitor/browser', collects: 'Nothing (opens the system browser for sign-in and the account page).' },
   { id: '@capacitor/haptics', collects: 'Nothing.' },
   { id: '@capacitor/screen-orientation', collects: 'Nothing.' },
+  { id: '@capacitor/share', collects: 'Nothing (opens the system share sheet for the lobby join code).' },
   { id: '@capacitor/status-bar', collects: 'Nothing.' },
 ];
 

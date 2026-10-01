@@ -72,6 +72,7 @@ What Ozymandosis collects, where it goes and how long it is kept, produced from 
 | `@capacitor/browser` | Nothing (opens the system browser for sign-in and the account page). |
 | `@capacitor/haptics` | Nothing. |
 | `@capacitor/screen-orientation` | Nothing. |
+| `@capacitor/share` | Nothing (opens the system share sheet for the lobby join code). |
 | `@capacitor/status-bar` | Nothing. |
 
 ## Other services involved
