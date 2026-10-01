@@ -61,7 +61,8 @@
     const q = new URLSearchParams(location.search).get('play');
     if (q) return q.replace(/\/$/, '');
     if (E.Settings.playServer) return E.Settings.playServer.replace(/\/$/, '');
-    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return 'http://localhost:8787';
+    // a dev server on this machine; native builds also run from https://localhost (Capacitor), so not them
+    if (!(E.Native && E.Native.is) && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return 'http://localhost:8787';
     return 'https://play.ozymandosis.com';
   };
   O.wsUrl = () => O.base().replace(/^http/, 'ws') + '/ws';
