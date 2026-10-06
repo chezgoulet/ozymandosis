@@ -42,6 +42,20 @@
     } else if (E.Screens.stack.length > 1) E.Screens.back();
     else P.App.minimizeApp && P.App.minimizeApp();
   });
-  // pause and save when the app is backgrounded
-  if (P.App) P.App.addListener('appStateChange', s => { if (!s.isActive && E.game) { E.game.autosave(); if (E.game.running && E.game.netMode === 'local' && !E.game.paused) E.game.openPause(); } });
+  // pause and save when the app is backgrounded; Android suspends the WebView's
+  // AudioContext, so resume the score on return. An app-state event may not count
+  // as a user gesture, so if resume() leaves the context suspended, retry on the
+  // first touch or key press after returning.
+  const WAKE = ['pointerdown', 'keydown', 'touchend', 'mousedown'];
+  const resumeAudio = () => {
+    E.Audio.wake().then(ok => {
+      if (ok) return;
+      const once = () => { WAKE.forEach(ev => removeEventListener(ev, once, true)); E.Audio.wake(); };
+      WAKE.forEach(ev => addEventListener(ev, once, true));
+    });
+  };
+  if (P.App) P.App.addListener('appStateChange', s => {
+    if (!s.isActive && E.game) { E.game.autosave(); if (E.game.running && E.game.netMode === 'local' && !E.game.paused) E.game.openPause(); }
+    else if (s.isActive) resumeAudio();
+  });
 })(window.E);

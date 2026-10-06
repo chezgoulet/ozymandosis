@@ -69,6 +69,7 @@ async function stopHost(key) { const h = hosts.get(key); if (!h) return; hosts.d
     const shown = (await H.textContent('#setup-room')).trim();
     const code = shown.replace('JOIN CODE ', '');
     assert.match(code, /^[0-9A-Z]{5}-[0-9A-Z]{5}$/, 'a join code is shown: ' + shown); console.log('join code', code);
+    assert.strictEqual((await H.textContent('#lobby-code')).trim(), code, 'the join code is shown prominently');
     // guest: discovery lists the game…
     await G.click('#m-mp'); await G.fill('#mp-name', 'Wanderer');
     assert(await G.isVisible('#mp-find'), 'find nearby offered when the device can search');
@@ -77,6 +78,7 @@ async function stopHost(key) { const h = hosts.get(key); if (!h) return; hosts.d
     // …but joins with the code, the path that needs no discovery at all
     await G.fill('#mp-code', code.toLowerCase().replace('-', ' ')); await G.click('#mp-join');
     await G.waitForSelector('#scr-setup:not([hidden])'); await H.waitForTimeout(800);
+    assert.strictEqual((await G.textContent('#lobby-code')).trim(), code, 'the guest sees the join code too');
     const seats = await H.evaluate(() => [...document.querySelectorAll('#slots .slot-row select:nth-child(2)')].map(s => s.selectedOptions[0].textContent));
     assert(seats.some(t => /Wanderer/.test(t)), 'host seats the guest: ' + seats);
     await H.screenshot({ path: OUT + '/lan-01-lobby.png' });

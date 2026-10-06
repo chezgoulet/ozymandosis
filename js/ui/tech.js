@@ -26,7 +26,7 @@
           const tiers = h('div', { class: 'tiers' });
           for (let l = 0; l < 4; l++) {
             const key = l ? `tier:${cls}:${l}` : null;
-            const el = h('button', { class: 'tier', onclick: () => key && this.buy(key), title: key ? E.TECHS[key].desc : 'Innate' }, ['I', 'II', 'III', 'IV'][l], h('span', { class: 'mono', style: 'font-size:8.5px;color:var(--ink-dim)' }, 'v' + E.TIER_V[l]), h('i', { class: 'p' }));
+            const el = h('button', { class: 'tier', onclick: () => key && this.buy(key), title: key ? E.TECHS[key].desc : 'Innate' }, ['I', 'II', 'III', 'IV'][l], h('i', { class: 'p' }));
             tiers.appendChild(el); this.cards.push({ el, key, tierOf: cls, lvl: l });
           }
           col.appendChild(tiers);

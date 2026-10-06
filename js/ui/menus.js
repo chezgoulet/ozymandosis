@@ -37,11 +37,33 @@
     if (other) other.culture = slot.culture;
     slot.culture = cid;
   }
+  function lobbyCode() { return lobby ? (lobby.joinCode || lobby.room || '') : ''; }
+  function canShareCode() { return !!((window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Share) || navigator.share); }
+  async function copyLobbyCode() {
+    const el = $('lobby-code'), code = el.textContent.trim(); if (!code) return;
+    let ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(code); ok = true; } } catch (e) { /* fall through */ }
+    if (!ok) { try { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); ok = document.execCommand('copy'); } catch (e) { /* ignore */ } }
+    E.toast(ok ? 'Join code copied' : 'Select the code and copy it');
+  }
+  function shareLobbyCode() {
+    const code = lobbyCode(); if (!code) return;
+    const P = window.Capacitor && Capacitor.Plugins;
+    const text = `Join my Ozymandosis game — code ${code}`;
+    if (P && P.Share) { P.Share.share({ title: 'Ozymandosis', text, dialogTitle: 'Share join code' }).catch(() => {}); return; }
+    if (navigator.share) { navigator.share({ title: 'Ozymandosis', text }).catch(() => {}); return; }
+    copyLobbyCode();
+  }
 
   function renderSetup() {
     const isHost = lobby && lobby.role === 'host', isGuest = lobby && lobby.role === 'guest';
     $('setup-title').textContent = lobby ? (lobby.save ? 'Resume together' : 'Lobby') : 'Skirmish';
     $('setup-room').textContent = lobby ? (lobby.joinCode ? 'JOIN CODE ' + lobby.joinCode : 'ROOM ' + lobby.room) : '';
+    const code = lobbyCode();
+    $('lobby-code-row').hidden = !code;
+    $('lobby-code').textContent = code;
+    $('lobby-code-lbl').textContent = lobby && lobby.joinCode ? 'Join code' : 'Room code';
+    $('lobby-share').hidden = !(code && canShareCode());
     $('lobby-chat-card').hidden = !lobby;
     const host = $('slots'); host.innerHTML = '';
     setup.slots.forEach((s, i) => {
@@ -154,6 +176,8 @@
       e.preventDefault(); const v = $('lobby-msg').value.trim(); $('lobby-msg').value = ''; if (!v || !lobby) return;
       sayInLobby({ text: v });
     };
+    $('lobby-copy').onclick = copyLobbyCode;
+    $('lobby-share').onclick = shareLobbyCode;
   }
   // Online lobbies chat through the service (filtered, age-aware); LAN lobbies peer to peer.
   function sayInLobby(m) {
@@ -213,7 +237,7 @@
   }
 
   // ── multiplayer lobby ───────────────────────────────────────────
-  function lobbyView() { return { k: 'lobby', setup, room: lobby.room, save: !!lobby.save }; }
+  function lobbyView() { return { k: 'lobby', setup, room: lobby.room, save: !!lobby.save, code: lobby.joinCode || null }; }
   function broadcastLobby() { if (lobby && lobby.role === 'host') lobby.relay.send('all', lobbyView()); }
   let browse = null; // the online connection kept open while the multiplayer screen is showing
   function onlineStatus(t) { $('mp-online-status').textContent = t || ''; }
@@ -273,7 +297,7 @@
         }
       }
       $('lobby-log').innerHTML = '';
-      lobbyLog('Room', opts.quick ? 'Matched. Waiting for your rivals to connect…' : online ? `Lobby ${m.room} is ${$('mp-private').checked ? 'private: share the code' : 'listed for everyone, and joinable with its code'}.` : own ? (own.code ? `Others on this network find this game under Games nearby, or join with code ${own.code}.` : 'Others on this network find this game under Games nearby. (This device has no local address to make a code from: is it on Wi-Fi?)') : `Share code ${m.room}. Friends open this page, choose Multiplayer, and enter the code.`);
+      lobbyLog('Room', opts.quick ? 'Matched. Waiting for your rivals to connect…' : online ? `This lobby is ${$('mp-private').checked ? 'private: share the code' : 'listed for everyone, and joinable with its code'}.` : own ? (own.code ? 'Others on this network find this game under Games nearby, or join with the code above.' : 'Others on this network find this game under Games nearby. (This device has no local address to make a code from: is it on Wi-Fi?)') : 'Friends open this page, choose Multiplayer, and enter the code above.');
       E.Screens.show('scr-setup'); renderSetup();
     });
     r.on('peer', m => {
@@ -318,7 +342,7 @@
     r.on('error', m => { $('mp-status').textContent = m.msg; onlineStatus(m.msg); if (!(online && onlineRefusal(m))) E.toast(m.msg); if (!lobby && online) E.Screens.show('scr-mp'); });
     r.on('msg', m => {
       const d = m.data;
-      if (d.k === 'lobby' && lobby) { setup = d.setup; lobby.save = d.save; renderSetup(); }
+      if (d.k === 'lobby' && lobby) { setup = d.setup; lobby.save = d.save; lobby.joinCode = d.code || lobby.joinCode; renderSetup(); }
       else if (d.k === 'chat' && !online) lobbyLog(d.from, E.filterChat(d.text));
       else if (d.k === 'init') {
         const rl = lobby ? lobby.relay : r, slotUid = {};
@@ -618,7 +642,7 @@
   E.Audio.init();
   const WAKE = ['pointerdown', 'keydown', 'touchend', 'mousedown'];
   const woke = () => { WAKE.forEach(ev => removeEventListener(ev, wake, true)); $('sound-hint').hidden = true; };
-  const wake = () => { E.Audio.init(); const ac = E.Audio.ctx; if (!ac) return; if (ac.state === 'running') woke(); else ac.resume().then(() => { if (ac.state === 'running') woke(); }).catch(() => {}); };
+  const wake = () => { E.Audio.wake().then(ok => { if (ok) woke(); }); };
   WAKE.forEach(ev => addEventListener(ev, wake, true));
   setTimeout(() => { const c = E.Audio.ctx; if (c && c.state !== 'running' && !E.Settings.muted) $('sound-hint').hidden = false; else wake(); }, 700);
   if (E.Settings.backend === 'webgpu' || /[?&]bench/.test(location.search)) E.loadWebGPU();

@@ -83,7 +83,7 @@
     M.setTheme(M.theme, true);
     out.gain.setTargetAtTime(1, c.currentTime, 1.5);
     M.nextT = c.currentTime + 0.1; M.step = 0; M.bar = 0;
-    M.timer = setInterval(tick, 25);
+    M.timer = setInterval(tick, 100);
     drone.start();
   };
   M.stop = function () { if (!M.on) return; clearInterval(M.timer); out.gain.setTargetAtTime(0, c.currentTime, 0.4); drone.stop(); M.on = false; };
@@ -137,7 +137,7 @@
     if (!M.on || c.state !== 'running') return;
     const now = c.currentTime;
     if (M.nextT < now - 0.25) M.nextT = now + 0.05; // woke from a suspended context
-    while (M.nextT < now + 0.16) { schedule(M.step, M.nextT); M.nextT += stepDur(); M.step = (M.step + 1) % 16; if (M.step === 0) M.bar++; }
+    while (M.nextT < now + 1.0) { schedule(M.step, M.nextT); M.nextT += stepDur(); M.step = (M.step + 1) % 16; if (M.step === 0) M.bar++; }
   }
   const stepDur = () => 60 / (M.bpm * (1 + M.fever * 0.08)) / 4;
 

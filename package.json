@@ -1,11 +1,11 @@
 {
   "name": "ozymandosis",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "A real-time strategy game of bioluminescent evolution.",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node tools/version.cjs check && node test/sim.test.cjs && node test/content.test.cjs && node test/audit.test.cjs",
+    "test": "node tools/version.cjs check && node test/sim.test.cjs && node test/content.test.cjs && node test/audit.test.cjs && node test/base.test.cjs",
     "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/features.test.cjs && node test/mp.test.cjs && node test/online.test.cjs && node test/lan.test.cjs && node test/frames.test.cjs",
     "build": "node tools/build-web.cjs",
     "icons": "node tools/make-icons.cjs",
@@ -40,6 +40,7 @@
     "@capacitor/core": "^8.5.2",
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/screen-orientation": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
     "@capacitor/status-bar": "^8.0.0",
     "@capacitor/browser": "^8.0.0"
   },

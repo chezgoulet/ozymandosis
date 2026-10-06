@@ -6,7 +6,7 @@
   A.init = function () {
     if (A.ctx) { if (A.ctx.state === 'suspended') A.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    const c = A.ctx = new AC();
+    const c = A.ctx = new AC({ latencyHint: 'playback' });
     A.master = c.createGain(); A.master.connect(c.destination);
     A.music = c.createGain(); A.music.connect(A.master);
     A.fx = c.createGain(); A.fx.connect(A.master);
@@ -15,6 +15,14 @@
     A.on = true;
     const lite = E.Settings.quality === 'low' || (E.Perf && E.Perf.defaultTier && E.Perf.defaultTier() === 'low');
     if (E.Music) E.Music.start(c, A.music, { lite });
+  };
+  // Resume a suspended score and report whether audio is running. Used when the
+  // app returns from the background and by the title-screen gesture handlers.
+  A.wake = function () {
+    A.init();
+    const c = A.ctx; if (!c) return Promise.resolve(false);
+    if (c.state === 'running') return Promise.resolve(true);
+    return c.resume().then(() => c.state === 'running').catch(() => false);
   };
   function impulse(c, sec) {
     const len = c.sampleRate * sec, b = c.createBuffer(2, len, c.sampleRate);
