@@ -65,6 +65,9 @@ jobs:
       - name: The tagged commit must have passed CI
         env: { GITHUB_TOKEN: "${{ github.token }}" }
         run: node tools/ci-status.cjs "${{ github.repository }}" "${{ github.sha }}"
+      - name: The tag must name the version in the tree
+        env: { TAG: "${{ github.ref_name }}" }
+        run: node tools/version-check.cjs
 
   deploy:
     needs: [scope, verified]

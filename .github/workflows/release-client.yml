@@ -56,8 +56,10 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
 
-      # Every place the version is written down, agreeing — before anything ships.
-      - name: Version markers agree
+      # Every place the version is written down, and the tag itself, agreeing — before
+      # anything ships. Without the tag check, v9.9.9 would happily release a 0.5.1 tree.
+      - name: Version markers and the tag agree
+        env: { TAG: "${{ github.ref_name }}" }
         run: node tools/version-check.cjs
 
       - name: Build the web bundle and the site
