@@ -39,7 +39,19 @@ jobs:
         with: { node-version: 22 }
       - id: scope
         env: { TAG: "${{ github.ref_name }}", EVENT: "${{ github.event_name }}" }
-        run: node tools/release-scope.cjs >> "$GITHUB_OUTPUT"
+        # A manual dispatch checks out the DEFAULT branch, which need not carry this
+        # tool. Fall back to "deploy the server as asked" rather than failing the
+        # break-glass path on a missing file.
+        run: |
+          if [ -f tools/release-scope.cjs ]; then
+            node tools/release-scope.cjs >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "server=true"
+              echo "client=true"
+              echo "why=no scope tool on this ref; a manual dispatch deploys the server as asked"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
   # A tag can point at any commit, including one that never passed CI.
   verified:
