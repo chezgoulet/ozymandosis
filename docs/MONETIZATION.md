@@ -118,18 +118,22 @@ This is also the honest answer to "what does $1 buy": the whole game, including
 multiplayer with the people in your house, forever, with no internet required.
 The subscription buys reach, not features.
 
-## Revision — the FOSS rail buys on the website (2026-10-06, owner)
+## Revision — the website is the purchase rail (2026-10-06, owner)
 
-The scheme above assumes every player has a store to buy in. The FOSS rail does not: its binary carries no
-billing client, so there is nothing to buy in-app, and Play policy does not apply to it either.
+The scheme above assumes every player has a store to buy in. **No rail does any more.** The app is free on every
+platform — Android included, which no longer carries a billing client at all — so there is nothing to buy in-app,
+and no store policy applies to a free app that sells nothing. *(An earlier revision the same day scoped this to
+the FOSS rail alone, when the plan was still two binaries. That plan was dropped: the store rail's cost was a
+second build flavour, a third Google dependency and a purchase gate an open client cannot be held to, all to buy
+discovery rather than control. See `docs/open-sourcing/README.md`, revision 2.)*
 
-**For that rail, membership is bought on the website.** Stripe Checkout runs from the account page
+**Membership is bought on the website.** Stripe Checkout runs from the account page
 (`play.ozymandosis.com/account`), the billing portal there cancels and changes it, and the entitlement arrives as
 an ordinary server-side subscription — the same one the service already reconciles from Stripe webhooks. What
 this requires is `WEB_BILLING` on, with `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` set beside it
 (`docs/DEPLOY.md` §7); production refuses to boot with the flag on and the keys missing.
 
 **A web membership counts on every platform**, because the subscription row carries no platform. That is
-deliberate — it is what "bought on the web" means — and it is the opposite of a store purchase, which is bound
-to the platform that sold it. Everything else in this document stands: per-platform entitlements for store
-purchases, server-side verification, and the free daily allowance for everyone.
+deliberate — it is what "bought on the web" means — and it is the opposite of a store purchase, which stays bound
+to the platform that sold it (the Steam season is the remaining example of one). Everything else in this document
+stands: server-side verification of whatever a store does sell, and the free daily allowance for everyone.

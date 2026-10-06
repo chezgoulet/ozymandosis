@@ -18,8 +18,8 @@
 <li><strong>Age range</strong>: we ask the month and year you were born, work out whether you are 13–15, 16–17 or an adult, and keep only that range. We do not make accounts for children under 13; if we learn an account belongs to one, we delete it.</li>
 <li><strong>Game progress</strong> (when signed in): your lineage, your Spawnforge designs and your save slots are backed up to your account so they follow you between devices.</li>
 <li><strong>Signed-in devices</strong>: a coarse label such as “Chrome on Android” and when each was last used, so you can sign them out.</li>
-<li><strong>Membership</strong>: its status, plan and renewal date. Memberships are bought in the store of the platform you play on (Google Play, the App Store or Steam), which handles the payment; we never see or store card details. We keep the store’s purchase reference, encrypted, so we can confirm it with the store; it is erased when you delete your account. A membership is cancelled in that store.</li>
-<li><strong>Proof of purchase</strong>: which stores have confirmed your account bought the game, and when. To check, the app asks the store (on Android, Google Play Integrity checks that the app came from Play and your Google account holds a licence); we keep only a fingerprint of the answer.</li>
+<li><strong>Membership</strong>: its status, plan and renewal date. Memberships are bought here on the website, through Stripe, which handles the payment — card details never reach us. We keep the subscription reference so the membership can be honoured and renewals reconciled, and it is erased when you delete your account. You cancel it yourself from your account page. A season bought on Steam is handled by Steam.</li>
+<li><strong>Proof of purchase</strong>: for the Steam build, that Steam has confirmed the account owns the game, and when; we keep only a fingerprint of the answer. Nothing else is checked: the app is free on every platform and no purchase is required to play online.</li>
 <li><strong>Reports</strong>: player reports you send (with the recent chat lines attached from your own game) and moderation decisions.</li>
 </ul>
 <h2>What we do not keep</h2>
@@ -44,7 +44,7 @@
 <h2>Your controls</h2>
 <p>From your account you can download all of your data, sign out devices, turn off crash reports, and delete your account. Deletion erases your email, sign-ins, name and two-factor data and cancels your membership; anonymised match records remain.</p>
 <h2>Processors</h2>
-<p>Google Play, the Apple App Store and Steam (purchases and purchase checks), our email delivery provider (account emails), Cloudflare Turnstile (a check against automated sign-ups, when enabled), and our hosting provider. Sign-in providers only when you choose them.</p>
+<p>Stripe (payments for memberships), Steam (purchases and ownership checks for the Steam build), our email delivery provider (account emails), Cloudflare Turnstile (a check against automated sign-ups, when enabled), and our hosting provider. Sign-in providers only when you choose them.</p>
 <h2>Contact</h2>
 <p>privacy@ozymandosis.com</p>
 </main>

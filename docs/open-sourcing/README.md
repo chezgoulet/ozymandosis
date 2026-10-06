@@ -98,3 +98,39 @@ released from the same tag as the FOSS one rather than parked while the FOSS rai
   `foss` flavour against the APK we publish, and sameness between the rails is what keeps a rail-switch honest.
 - **Play policy is unchanged and still open.** The question of a website-purchased subscription for an in-app
   experience applies to the store rails, not to the `foss` one, where there is no store policy to satisfy.
+
+## Revision 2 — one free binary; Play for distribution only (2026-10-06, owner)
+
+The revision above amended decisions 1 and 5 to keep Play as a parallel **rail** with its own binary, in lockstep
+with the FOSS one. **That is superseded.** The store rail is not worth a second binary, and the numbers were
+measured before deciding: 158 lines of Java, 185 lines of service code, 311 lines of tests, a permanent build
+flavour, a third Google dependency (Play Integrity), store policy to stay inside, and a closed test gated on
+twelve testers holding an opt-in for fourteen continuous days — spent to buy **discovery**, not control. The
+purchase gate it rested on was already unenforceable: Play Integrity attests that a binary came from Play, and an
+AGPL client can be patched by anyone.
+
+**What is true now:**
+
+- **One free binary.** The Android app carries no Google dependency of any kind: `com.android.billingclient`,
+  `com.google.android.play:integrity` and the `google-services` plugin are gone, `PlayBillingPlugin.java` is
+  deleted, and `MainActivity` no longer registers it. **R1 is a removal again, not a split** — the flavour
+  question never has to be answered.
+- **Membership is bought on the website, on every rail**, through Stripe. The client offers it when its build
+  cannot buy in a store and the server reports that it sells on the web; the account page owns checkout,
+  cancellation and the billing portal.
+- **Play is kept for distribution.** The listing, the closed test and the store's update channel stay. What is
+  gone is in-app purchase, Play Integrity, and the gate that asked for them.
+- **The service no longer requires a store purchase to play.** The handshake gate demanded a client claim
+  `android`/`ios`/`steam` and hold a store-verified purchase; a free client cannot produce that and a patched one
+  could always lie about it. `REQUIRE_STORE_CLIENT` is removed with it. What gates a player is the free daily
+  allowance and the membership — both the server's own, which is what decision 3 said the product should rest on.
+- **The Play policy question narrows to steering.** A free app may not direct users to buy outside Play; it does
+  not have to. Inside the app, the membership is simply present or absent.
+- **Two tests were inverted rather than deleted**, because they were the policy written down: the inventory test
+  asserted the Play Billing dependency was present and now asserts no Google artifact is; the store-rules test
+  asserted a browser was refused and a store client needed a verified purchase, and now asserts that every client
+  connects — including one that claims no platform at all.
+
+**Still open, and now a deletion rather than a design question:** the service's Play integration — 
+`apps/play/src/billing/play.ts`, its tests, the Android ownership proof and the `GOOGLE_PLAY_*` configuration — is
+unreferenced by any shipping client. Nothing calls it; it should come out.
