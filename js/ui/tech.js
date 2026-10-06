@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Evolve overlay: the tech tree (organ tiers, 30 forms, 6 chassis, 12 powers).
 (function (E) {
   'use strict';

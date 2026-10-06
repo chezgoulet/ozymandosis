@@ -45,9 +45,51 @@ jobs:
         env: { GITHUB_TOKEN: "${{ github.token }}" }
         run: node tools/ci-status.cjs "${{ github.repository }}" "${{ github.sha }}"
 
-  release:
+  # R6 in the open-sourcing record: build twice, diff, fail the release on any difference.
+  # Two *different* directories on purpose — an APK that embeds its own build path would
+  # pass a same-directory test and fail F-Droid's, which is the comparison that matters.
+  # Unsigned: F-Droid compares the content it rebuilds, not our signature.
+  reproducible:
     needs: [scope, verified]
-    if: always() && needs.scope.outputs.client == 'true' && needs.verified.result == 'success'
+    if: needs.scope.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+      - run: npm ci && node tools/build-web.cjs && npx cap sync android
+      - name: The SDK pieces the build pins
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SM="$(command -v sdkmanager || echo "$SDK/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SM" --licenses >/dev/null 2>&1 || true
+          "$SM" --install "platforms;android-37.0" "build-tools;34.0.0" >/dev/null
+      - name: Build an unsigned release APK at two paths and compare
+        run: |
+          set -euo pipefail
+          build() {
+            local dir="$1"
+            rm -rf "$dir" && mkdir -p "$dir"
+            git archive HEAD | tar -x -C "$dir"
+            cp -a android/capacitor-cordova-android-plugins "$dir/android/" 2>/dev/null || true
+            ln -sfn "$PWD/node_modules" "$dir/node_modules"
+            ( cd "$dir/android" && ./gradlew --no-daemon assembleRelease )
+          }
+          build /tmp/repro-a
+          build /tmp/repro-b
+          A=$(find /tmp/repro-a -name "*-release-unsigned.apk" | head -1)
+          B=$(find /tmp/repro-b -name "*-release-unsigned.apk" | head -1)
+          [ -n "$A" ] && [ -n "$B" ] || { echo "::error::no unsigned release APK was produced"; exit 1; }
+          sha256sum "$A" "$B"
+          cmp "$A" "$B" || { echo "::error::the APK is not reproducible: the two builds differ"; exit 1; }
+          echo "reproducible: $(sha256sum "$A" | cut -d' ' -f1)"
+
+  release:
+    needs: [scope, verified, reproducible]
+    if: always() && needs.scope.outputs.client == 'true' && needs.verified.result == 'success' && needs.reproducible.result == 'success'
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4

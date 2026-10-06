@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Local-network play (docs/MONETIZATION.md, "The LAN boundary"; D19). Two devices
 // on one network find each other and play directly: no relay, no account, and no
 // call to the service. This is a base-game feature, outside the purchase and the

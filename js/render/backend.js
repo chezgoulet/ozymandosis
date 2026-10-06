@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Renderer selection. Backends share one interface:
 //   resize(), reset(view, local), frame(view, alpha, t, dt, ui), consume(view, events),
 //   s2w/w2s, cam {x,y,z}, clampCam(view), seen(x,y), explore(x,y), quality, kind

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Cloud sync: lineage, the Spawnforge library and save slots follow a signed-in
 // player across devices, and survive browsers that clear site data (Safari
 // evicts storage for sites not visited in a week). Local storage stays the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Minimal-PII logging. Logs carry what debugging needs (route, status,
 // latency, a pseudonymous user tag, coarse client) and nothing that
 // identifies a person: no emails, no IP addresses, no tokens, no names.

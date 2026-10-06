@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Distribution build (the game itself needs no build step):
 //  1. regenerates sw.js with the exact precache list and a content-hash version,
 //  2. stages the web app in www/ (the PWA artifact, and Capacitor's webDir).

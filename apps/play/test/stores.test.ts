@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Store validation (docs/MONETIZATION.md, "Entitlements"): the iOS subscription, and
 // proof that an account bought the game on each platform, checked with the store.
 import { test, after } from 'node:test';

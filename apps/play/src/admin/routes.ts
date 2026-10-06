@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Staff API behind the admin console: dashboard, players, crash issues,
 // announcements, live configuration, matches and the audit log.
 import type { FastifyInstance } from 'fastify';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Admin console for play.ozymandosis.com. Plain script, same-origin session.
 (function () {
   'use strict';

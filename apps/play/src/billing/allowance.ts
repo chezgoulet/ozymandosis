@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The free online allowance (docs/MONETIZATION.md, "The allowance"):
 //  • a rolling 24-hour window, not local midnight;
 //  • one match, however long it runs: there is no time limit inside a match;

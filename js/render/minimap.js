@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Minimap with cached layers:
 //   terrain — currents + pool positions, redrawn every 2 s (pools drift slowly)
 //   fog     — one ImageData pixel per fog cell, rebuilt only when vision changes

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The Linux Steam build, end to end inside Steam Linux Runtime 3.0 (sniper): the
 // packaged app (apps/desktop, `npm run package`) is started by apps/desktop/sniper.sh
 // in the same pressure-vessel container Steam uses, and driven over the DevTools

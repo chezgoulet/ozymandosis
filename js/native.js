@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Native shell integration (Capacitor on iOS/Android). No-op on the web.
 // Same codebase: the web build and the app load identical files; this module
 // only adds status-bar/notch handling, orientation lock, haptics and the

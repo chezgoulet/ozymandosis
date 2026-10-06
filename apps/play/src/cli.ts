@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Operator commands:  npm run admin -- <command>
 //   promote <email|name> <role>     grant a staff role (owner, admin, moderator, support, player)
 //   create-owner <email> <password> create the first owner account (email pre-verified)

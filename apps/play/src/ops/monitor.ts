@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Operations monitor: watches the service and the machine around it and tells
 // the operators before players do. Checks run every minute (one instance at a
 // time); each alert is sent once, then again every six hours while it lasts,

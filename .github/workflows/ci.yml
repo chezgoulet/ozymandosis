@@ -29,6 +29,10 @@ concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 #                              stale: a probe ran on the `GitHub Actions` runner group,
 #                              ubuntu24 image, on 2026-10-06.)
 #
+#   android                    GitHub-hosted. The image carries an Android SDK; the two
+#                              components this build pins are installed explicitly because
+#                              a runner image is not a promise about SDK versions.
+#
 #   steam-linux                self-hosted. It needs a lingering PipeWire session, Xvfb
 #                              and the steam package's AppArmor profile — host state a
 #                              hosted runner has no equivalent of.
@@ -104,6 +108,42 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: screens-steam-linux, path: test/shots, retention-days: 7 }
+
+  # The Android app, which nothing else compiles. It is the only binary we ship, and it is
+  # what F-Droid rebuilds and compares — so a break here is a break in the thing players
+  # install. The toolchain is pinned in android/app/build.gradle (JDK 21, build-tools 34).
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+      - run: npm ci
+      - run: node tools/build-web.cjs
+      - run: npx cap sync android
+      - name: The SDK pieces the build pins
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SM="$(command -v sdkmanager || echo "$SDK/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SM" --licenses >/dev/null 2>&1 || true
+          "$SM" --install "platforms;android-37.0" "build-tools;34.0.0" >/dev/null
+      - name: Build the APK
+        run: cd android && ./gradlew --no-daemon assembleDebug
+      - name: The APK must contain no Google artifact
+        # The app is free on every rail and membership is bought on the website. A stray
+        # billing or integrity dependency would be both a false declaration and an F-Droid
+        # rejection, so the artifact itself is checked rather than the build file alone.
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          n=$(unzip -l "$APK" | grep -icE 'billing|integrity|play-services|gms' || true)
+          echo "Google entries in the APK: $n"
+          [ "$n" = "0" ] || { echo "::error::a Google dependency is packaged in the APK"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: android-failure, path: "android/app/build/reports", retention-days: 7 }
 
   images:
     runs-on: ubuntu-latest

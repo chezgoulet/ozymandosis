@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The frame-rate instrument (work order §5; docs/PERFORMANCE.md "Measuring on a device").
 // Every match is measured: the real interval between frames (rAF gaps, which
 // include GPU time), bucketed into a histogram so a long match costs a fixed

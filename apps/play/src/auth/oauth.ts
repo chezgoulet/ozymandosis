@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Sign in with Google and Apple (OpenID Connect; PKCE for Google) and Steam
 // (OpenID 2.0 in the browser, session tickets for native Steam builds), alongside
 // email accounts. Google and Apple switch on when their credentials are configured.

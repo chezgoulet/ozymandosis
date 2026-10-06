@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Persistence: settings, save slots (with autosave), and the design library.
 (function (E) {
   'use strict';

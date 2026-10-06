@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Atlas baker: renders the seed-style Canvas2D organ/chassis/effect drawings
 // once into a texture atlas for the GPU pipeline.
 //

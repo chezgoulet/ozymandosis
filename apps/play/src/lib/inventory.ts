@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The data-safety inventory (work order §7): what Ozymandosis collects, where it
 // goes and how long it is kept, stated once, next to the code that does it.
 // The Play Data Safety form, Apple's App Privacy answers and the privacy notice

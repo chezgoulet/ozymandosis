@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Game controller: owns the world (or a network mirror), the loop, input,
 // camera, HUD and the command sheet.
 (function (E) {

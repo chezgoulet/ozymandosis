@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Organic line icons (24×24, currentColor). Every glyph is a body part or a
 // living process, never a manufactured object: claws, not swords.
 (function (E) {

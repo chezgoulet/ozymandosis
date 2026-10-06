@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Ownership: the $1 purchase, bound to the account, per platform (docs/MONETIZATION.md,
 // "Entitlements"). There is no browser version and no free build, so the purchase is
 // what gates online play; and "bound to the account" means nothing unless the store

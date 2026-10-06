@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Procedural Dreamscape maps. Deterministic from cfg.seed.
 (function (E) {
   'use strict';

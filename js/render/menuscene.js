@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The title screen: a living word and the abyss behind it.
 //
 // LivingLogo: "OZYMANDOSIS" drawn as creatures. Every letter stroke is a spine

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // TURN health check. Since D19 every online match is relayed, so a TURN server
 // that is down or rejecting our credentials means no online play at all. This
 // probe does what a player's browser does: a STUN Allocate over UDP, answered

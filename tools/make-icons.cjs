@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Every native/PWA icon and splash, from the living title (Chromium via playwright-core):
 //   the app icon is the title's O, a creature curled into a ring (cilia turned outward);
 //   splash screens carry the whole living title.

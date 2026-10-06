@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Chassis: six body plans (plus the Leviathan apex). Each has base stats, a
 // slot count, a trait, and a body renderer. Organs attach to the same 20-point
 // spine on every chassis, so all 30 organs fit all 6 bodies.

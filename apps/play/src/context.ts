@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from 'fastify';
 import type Stripe from 'stripe';
 import type { Config } from './config.js';

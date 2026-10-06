@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The score. Generative, adaptive and synthesized in real time: no samples.
 //
 // Two lineages meet here. From dark synthwave: supersaw pads that pump against

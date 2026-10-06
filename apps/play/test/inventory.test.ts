@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The data inventory must match what the code does (work order §7).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

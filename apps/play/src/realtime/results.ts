@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Match results. Every player's client reports what it saw (a claim); the
 // service settles the match from all of them, and only results everyone agrees
 // on count. Ranked ratings move only for confirmed, full, long-enough results

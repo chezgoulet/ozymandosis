@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // In-memory sliding-window limiter for sensitive endpoints (sign-in, reports).
 // Keys are pseudonyms (never raw IPs or emails); entries expire on their own.
 export class Limiter {

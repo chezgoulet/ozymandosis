@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Touch gestures + reload/continue on a phone viewport.
 const pw = require('../tools/pw.cjs');
 const path = require('path'); const assert = require('assert');

@@ -10,11 +10,24 @@ if (signingFile.exists()) signingFile.withInputStream { signingProps.load(it) }
 def signing = { String key, String env -> System.getenv(env) ?: signingProps.getProperty(key) }
 def uploadStore = signing('storeFile', 'OZY_UPLOAD_KEYSTORE')
 
+// Pinned JDK. The release toolchain is fixed on purpose: F-Droid rebuilds this tree and
+// compares the result with the APK we publish, so every tool that touches the bytes has to
+// be the same one (docs/open-sourcing/reproducible-builds-and-signatures.md). A different
+// JDK is a different build; fail loudly here rather than produce an APK nobody can reproduce.
+if (JavaVersion.current() != JavaVersion.VERSION_21) {
+    throw new GradleException("This project pins JDK 21 (found ${JavaVersion.current()}). " +
+        "Set JAVA_HOME to a 21 JDK, or ~/jdk-21 as docs/RELEASE-ANDROID.md describes.")
+}
+
 android {
     namespace = "com.ozymandosis.game"
     // Compiled against API 37 for the local-network APIs (ACCESS_LOCAL_NETWORK, the NSD
     // picker); it still targets 36, and the 37-only calls are guarded by SDK_INT.
     compileSdkVersion "android-37.0"
+    // Pinned rather than inherited from the AGP template. Build-tools carries apksigner, and
+    // the signature check assumes what a specific apksigner produces — the reproducible-build
+    // document says to hold this at 34 rather than let the template choose.
+    buildToolsVersion "34.0.0"
     defaultConfig {
         applicationId = "com.ozymandosis.game"
         minSdkVersion = rootProject.ext.minSdkVersion

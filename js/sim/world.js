@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The World: a deterministic, fully serializable simulation.
 // All game rules live here. Rendering, UI, audio and networking only read
 // world state and submit commands through world.command().

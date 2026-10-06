@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // RFC 6238 TOTP (SHA-1, 6 digits, 30 s), compatible with every authenticator app.
 import { createHmac, randomBytes } from 'node:crypto';
 

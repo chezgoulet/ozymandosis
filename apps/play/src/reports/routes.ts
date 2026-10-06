@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Crash and bug reports from game clients. Reports are scrubbed of anything
 // personal, grouped into issues by a fingerprint of the error, and shown to
 // staff in the admin console. Signed-in players can opt out in their account.
