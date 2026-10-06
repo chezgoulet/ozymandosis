@@ -117,3 +117,19 @@ Two consequences worth stating:
 This is also the honest answer to "what does $1 buy": the whole game, including
 multiplayer with the people in your house, forever, with no internet required.
 The subscription buys reach, not features.
+
+## Revision — the FOSS rail buys on the website (2026-10-06, owner)
+
+The scheme above assumes every player has a store to buy in. The FOSS rail does not: its binary carries no
+billing client, so there is nothing to buy in-app, and Play policy does not apply to it either.
+
+**For that rail, membership is bought on the website.** Stripe Checkout runs from the account page
+(`play.ozymandosis.com/account`), the billing portal there cancels and changes it, and the entitlement arrives as
+an ordinary server-side subscription — the same one the service already reconciles from Stripe webhooks. What
+this requires is `WEB_BILLING` on, with `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` set beside it
+(`docs/DEPLOY.md` §7); production refuses to boot with the flag on and the keys missing.
+
+**A web membership counts on every platform**, because the subscription row carries no platform. That is
+deliberate — it is what "bought on the web" means — and it is the opposite of a store purchase, which is bound
+to the platform that sold it. Everything else in this document stands: per-platform entitlements for store
+purchases, server-side verification, and the free daily allowance for everyone.

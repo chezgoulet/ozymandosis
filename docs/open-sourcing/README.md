@@ -32,6 +32,8 @@ reasoning survives.
 **R1 — Remove the Google dependencies.** `billing`, `play:integrity` and the `google-services` plugin come out
 of the Android build. The plan already implies it: Stripe replaces Play Billing, and Play Integrity exists only
 to attest Play-delivered binaries.
+*Status 2026-10-06: **amended — this is a build split, not a removal.** Play is kept as a parallel rail with its
+own binary. See the revision at the end of this document.*
 **R2 — Licence and attribution.** AGPL-3.0 `LICENSE`, SPDX headers, and a `NOTICE` covering three.js (MIT) and
 every Capacitor/Fastify/Electron dependency. Confirm the launcher art and `icon.svg` are ours.
 *Status 2026-10-06: `LICENSE` and `NOTICE` landed, and the fonts' OFL text is vendored beside them. **SPDX headers
@@ -74,3 +76,25 @@ release notes.
   and the recipe fields to use.
 - [`open-source-plan.md`](open-source-plan.md) — the original process and implications analysis: what F-Droid
   requires, what the change is worth, and what it costs to become the store.
+
+## Revision — two rails, built in lockstep (2026-10-06, owner)
+
+**Decisions 1 and 5 are amended, not reversed.** The game still goes open source, and F-Droid's main repository
+is still the primary rail. What changes is that **Google Play is kept as a parallel rail with its own binary**,
+released from the same tag as the FOSS one rather than parked while the FOSS rails are built.
+
+- **R1 is a split, not a removal.** The Android build grows two flavours from one source tree: `play` keeps
+  `com.android.billingclient`, `com.google.android.play:integrity` and the `google-services` plugin; `foss`
+  carries none of them. Same `applicationId`, same signing key, same `versionCode` — that is what makes the two
+  binaries one app to Android, so a player can move between rails without losing anything. F-Droid points at the
+  `foss` binary.
+- **The `foss` flavour buys on the website.** Decision 3 said Stripe, enforced server-side; the consequence is
+  that this build offers Stripe Checkout from the account page instead of an in-app purchase, and `WEB_BILLING`
+  is on for it. A web membership is deliberately platform-agnostic — the subscription row carries no platform —
+  so it counts everywhere, which is the point of buying it on the web.
+- **The lockstep is enforced, not promised.** `tools/version-check.cjs` ties `versionCode` to the version across
+  every marker the tree carries, so a tree whose two flavours disagree cannot be tagged.
+- **Reproducible builds (decision 6) become more load-bearing, not less.** F-Droid verifies *its* build of the
+  `foss` flavour against the APK we publish, and sameness between the rails is what keeps a rail-switch honest.
+- **Play policy is unchanged and still open.** The question of a website-purchased subscription for an in-app
+  experience applies to the store rails, not to the `foss` one, where there is no store policy to satisfy.

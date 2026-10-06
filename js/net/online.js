@@ -30,6 +30,10 @@
   O.plans = () => O.play() || O.appstore() ? ['month', 'year'] : O.store === 'steam' ? ['year'] : [];
   O.canPurchase = () => O.plans().length > 0;
   O.canRedeem = () => O.store === 'web';                    // codes are redeemed on the account page, never in a store build
+  // The FOSS rail has no store to buy in, so membership is bought on the website: the
+  // account page owns Stripe Checkout and the billing portal, and the entitlement lands
+  // on the account like any other. `billing` in /api/config says the server sells on the web.
+  O.webBilling = () => !O.canPurchase() && !!(O.config && O.config.billing);
   const STORE_PLAN = { month: 'monthly', year: 'annual' };
   O.prices = null; // { month: '$2.00', year: '$12.00' } in the player's currency, from the store
   O.loadPrices = async function () {
@@ -176,7 +180,13 @@
   };
   O.accountUrl = (path) => O.base() + (path || '/account');
   O.subscribe = async function (plan) {
-    if (!O.canPurchase()) throw new Error('Membership is bought in the Ozymandosis app, through its store.');
+    if (!O.canPurchase()) {
+      if (!O.webBilling()) throw new Error('Membership is bought in the Ozymandosis app, through its store.');
+      // hand it to the browser: the account page signs in, checks out, and reports back
+      O.openExternal(O.accountUrl('/account?subscribe=' + encodeURIComponent(plan || 'month')));
+      E.toast('Finish in your browser. Your membership starts the moment it goes through.', 5000);
+      return;
+    }
     if (!O.signedIn()) throw new Error('Sign in first.');
     const welcome = async () => { await O.refresh(); E.toast('Welcome, member. Thank you.', 4000); };
     if (O.play()) {
@@ -412,6 +422,14 @@
   O.membershipDialog = async function (why) {
     if (O.canPurchase() && !O.prices && O.store !== 'steam') await O.loadPrices();
     const base = `${why ? why + ' ' : ''}${O.freeText()} Games on your local network are always free.`;
+    if (O.webBilling()) {
+      // no store in this build: membership is bought, and cancelled, on the website
+      const v = await E.modal('Keep the bloom going', `${base} This build has no app store, so membership is bought on the Ozymandosis website — unlimited online play, cancelled there too.`, [
+        { label: 'Not now', value: false }, { label: 'Open the account page', value: 'month', primary: true },
+      ]);
+      if (v) { try { await O.subscribe(v); } catch (e) { E.toast(e.message); } }
+      return;
+    }
     if (!O.canPurchase()) { await E.modal('Online play', base); return; }
     if (O.store !== 'steam' && !O.price('month')) { await E.modal('Membership', `${O.storeName()} is not answering right now. Try again in a moment.`); return; }
     const offer = O.store === 'steam'
