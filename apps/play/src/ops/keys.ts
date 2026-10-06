@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Key rotation (operator commands, see src/cli.ts and docs/OPERATIONS.md).
 import type { Db } from '../db/index.js';
 import type { Secrets } from '../lib/crypto.js';

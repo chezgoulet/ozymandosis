@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // One version for the whole product. The root package.json is the source; this
 // writes it everywhere else a version is shown or keyed on, and checks that
 // nothing has drifted.

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Rebuild the vendored three.js bundles (IIFE globals) so the game keeps running
 // from file:// with no bundler. Run after bumping the three devDependency:
 //   node tools/vendor-three.cjs

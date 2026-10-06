@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Multiplayer transport (peer-to-peer over WebRTC) and snapshot packing.
 // Model: host-authoritative. The host runs the World; guests send commands
 // and render interpolated snapshots.

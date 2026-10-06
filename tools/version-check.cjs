@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // The product version is written down in eight places. Two of them are load-bearing:
 //   E.VERSION          what a client announces in the peer handshake (js/net/online.js)
 //   MIN_CLIENT_VERSION what the service will let online (apps/play/src/config.ts)

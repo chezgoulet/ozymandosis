@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Desktop LAN host: the signaling endpoint from server/signal.cjs on an ephemeral
 // port, advertised over mDNS as _ozymandosis._tcp, plus discovery of other hosts.
 // Desktop operating systems have no local-network permission; the OS firewall may

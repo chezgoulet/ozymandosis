@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Bundles the living title (the word OZYMANDOSIS built from creatures) for pages
 // outside the game: the website and the account portal. It is the game's own
 // organ, culture and logo code, minified, plus a tiny mount script:

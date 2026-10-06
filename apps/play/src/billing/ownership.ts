@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Store evidence, bound to the account, per platform. Nothing here gates play any more:
 // the app is free on every platform and the gates are the free daily allowance and the
 // membership (docs/MONETIZATION.md, revision of 2026-10-06). What is left is the two

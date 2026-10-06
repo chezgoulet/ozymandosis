@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // play.ozymandosis.com
 import { loadConfig } from './config.js';
 import { buildApp } from './app.js';

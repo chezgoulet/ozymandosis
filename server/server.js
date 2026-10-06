@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Ozymandosis LAN server: serves the game files and introduces players on a
 // local network. It only brokers WebRTC signaling (offers, answers, ICE); the
 // match itself runs peer to peer, encrypted, and never passes through here.

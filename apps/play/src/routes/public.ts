@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Unauthenticated endpoints: health, client configuration, announcements.
 import type { FastifyInstance } from 'fastify';
 import type { Ctx } from '../context.js';

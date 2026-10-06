@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Account portal for play.ozymandosis.com. Plain script, no build step.
 (function () {
   'use strict';

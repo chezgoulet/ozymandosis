@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Store validation (docs/MONETIZATION.md, "Entitlements"): the iOS subscription, and the
 // store evidence that is left — Apple's signed AppTransaction and Steam's ownership check.
 // Android's Play Integrity path went with the billing client (2026-10-06): the app is free

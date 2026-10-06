@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Codex: how to play, controls, and an encyclopedia of every organ, chassis,
 // ability, power, powerup, structure and culture.
 (function (E) {

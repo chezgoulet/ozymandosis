@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Menus: main menu, skirmish & multiplayer lobby setup, load, settings,
 // codex, forge lab, and the living backdrop.
 (function (E) {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // New systems end to end: backends + fallback, governor, undo, touch build confirm,
 // tutorial release, rematch, objective HUD, kill feed.
 const pw = require('../tools/pw.cjs');

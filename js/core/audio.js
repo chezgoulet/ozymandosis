@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Procedural audio: the generative score (js/core/music.js) plus synthesized
 // effects. No assets.
 (function (E) {

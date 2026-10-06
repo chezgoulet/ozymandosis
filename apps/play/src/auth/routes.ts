@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Email accounts: sign up, sign in (with TOTP when enabled), verify, reset,
 // sign out, and the browser hand-off that signs game clients in.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';

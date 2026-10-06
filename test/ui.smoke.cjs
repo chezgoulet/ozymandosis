@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Browser smoke test: boots the server, drives menus and a match, screenshots.
 const pw = require('../tools/pw.cjs');
 const path = require('path');

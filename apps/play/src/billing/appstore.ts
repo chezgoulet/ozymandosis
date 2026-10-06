@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The App Store: the iOS subscription (an in-app purchase, as Apple requires for a
 // mobile subscription, docs/MONETIZATION.md) and proof that an account bought the
 // game on iOS. Everything Apple signs is a JWS whose x5c chain must end at Apple

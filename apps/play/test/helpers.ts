@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { WebSocket } from 'ws';
 import Stripe from 'stripe';
 import { loadConfig } from '../src/config.js';

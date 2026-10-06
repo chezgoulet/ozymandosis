@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The realtime hub: presence, lobbies, quick match, and WebRTC signaling.
 // It introduces players and vouches for them (signed match tickets); the
 // match itself runs peer to peer between the players, encrypted, and never

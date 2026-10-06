@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The verifiable-host audit (js/net/audit.js): an honest host passes; a host that
 // edits its world, drops a guest's orders or forges a checkpoint is caught.
 const E = require('./load.cjs')(['js/net/audit.js', 'js/net/net.js']);

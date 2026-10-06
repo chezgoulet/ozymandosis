@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Builds the Fastify application: plugins, auth resolution, error shape,
 // privacy-respecting request logs, CORS for game clients, and every route module.
 import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from 'fastify';

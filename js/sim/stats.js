@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Anatomy → numbers. Used by the sim, the Forge and the hatch menus.
 (function (E) {
   'use strict';

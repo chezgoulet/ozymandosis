@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The frame-rate instrument (work order §5): a match produces p50/p95/p99 frame
 // times, a tier-change count and the device class, kept on the device and shown in
 // Settings; and two runs of the same match agree closely enough to mean something.

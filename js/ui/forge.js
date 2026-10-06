@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The Spawnforge: design editor used both as a lab (everything unlocked,
 // variants adjustable) and in-game (your unlocks, your research tiers).
 (function (E) {

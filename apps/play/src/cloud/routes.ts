@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Cloud sync: a player's lineage, design library and save slots follow their
 // account across devices (and survive browsers that evict local storage).
 // Each item carries a version; a write names the version it was based on and

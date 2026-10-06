@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Gate a release on the commit having actually passed CI.
 //
 //   GITHUB_TOKEN=... node tools/ci-status.cjs <owner/repo> <sha>

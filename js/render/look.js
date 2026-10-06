@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Visual language shared by the renderer and UI previews: palettes (the
 // seed's _palette generalized), creature colors, cached glow sprites, and the
 // creature drawer used everywhere a creature appears.

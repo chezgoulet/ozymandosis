@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Subscriptions through Stripe (the web portal): $2 a month or $12 a year
 // (docs/MONETIZATION.md) unlocks online play beyond the free allowance. Checkout and the Customer Portal are
 // hosted by Stripe (no card data touches this server); webhooks keep our

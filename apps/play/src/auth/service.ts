@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Accounts and sessions.
 import { hash as argonHash, verify as argonVerify } from '@node-rs/argon2';
 import { randomInt } from 'node:crypto';

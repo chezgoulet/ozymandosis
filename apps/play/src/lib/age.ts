@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Age: a neutral month-and-year question at sign-up (or before first online play
 // for accounts made through a sign-in provider). Only a band is stored.
 //   under 13   no account (COPPA; we do not collect parental consent)

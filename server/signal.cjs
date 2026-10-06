@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // LAN signaling: introduces players on one network so their browsers can open a
 // WebRTC connection straight to each other. It brokers offers, answers and ICE
 // candidates only; the match runs peer to peer and never passes through here.

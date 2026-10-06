@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Repeatable render benchmark. Builds a deterministic scene with N creatures
 // (every chassis, mixed organs, max tiers) moving inside the viewport, then
 // measures frames. Driven by bench/bench.cjs; also usable by hand:

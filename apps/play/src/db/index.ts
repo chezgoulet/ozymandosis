@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // One tiny query interface over two engines: node-postgres against a real
 // server in production, and PGlite (Postgres compiled to WASM, in process) for
 // local development and tests. Same SQL, same migrations.

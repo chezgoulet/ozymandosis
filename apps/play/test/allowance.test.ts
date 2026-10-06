@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The free online allowance (docs/MONETIZATION.md, "The allowance").
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

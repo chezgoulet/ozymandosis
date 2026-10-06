@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Bot minds. Bots play through the same command interface as humans.
 (function (E) {
   'use strict';

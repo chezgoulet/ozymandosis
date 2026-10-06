@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Specials: 12 unit abilities, 12 colony powers (tech tree), 12 powerups.
 // Effects operate on a World (js/sim/world.js) through its small helper API:
 //   w.damage, w.heal, w.buff, w.enemiesNear, w.alliesNear, w.cloud, w.shot,

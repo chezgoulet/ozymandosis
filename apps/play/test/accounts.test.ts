@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { boot, signup, Client, type T } from './helpers.js';
