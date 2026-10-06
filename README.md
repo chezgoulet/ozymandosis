@@ -112,7 +112,7 @@ The browser tests use Playwright-core with a local Chromium (`PW=/path/to/playwr
 
 ## Credits
 
-The visual language, color sets, organ renderers and palette logic come from the *Bioluminescent Dreamscape* pack of the Phonon visualizer bench. That bench is kept in this repository at `phonon-viz-bench_2_.html` as the provenance for that work — it is a source artefact, not a build input, and nothing loads it. The original concept document is in `docs/concept.html`.
+The visual language, color sets, organ renderers and palette logic come from the *Bioluminescent Dreamscape* pack of the Phonon visualizer bench — the same author's own work, MIT-licensed, vendored verbatim at `js/core/seed.js` and listed in [NOTICE](NOTICE). That bench is kept in this repository at `phonon-viz-bench_2_.html` as the provenance for it, a source artefact rather than a build input; nothing loads it. The original concept document is in `docs/concept.html`.
 
 ## Licence
 

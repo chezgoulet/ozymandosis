@@ -1,0 +1,6 @@
+A release with no gameplay changes.
+
+- This build has no store billing client in it: membership is bought on our website, and
+  the app carries no Google code at all.
+- The Android build is now the same free app on every store.
+- Fixed: nothing new; the fixes prepared for the next build are still being tested.

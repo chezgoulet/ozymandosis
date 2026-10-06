@@ -57,8 +57,17 @@ the submission rather than the first.
 
 ## Two things to fix first, found while preparing this
 
-- The **Spawnforge button label truncates to "Spawnfo…"** at phone width (visible in
-  `images/phoneScreenshots/2.png`). A store listing is a poor place to advertise it.
+- The **Spawnforge button label truncates to "Spawnfo…"** at phone width, visible in
+  `images/phoneScreenshots/2.png`. Measured rather than guessed: the colony row is a grid of
+  six equal columns on a 390px screen, so each button gets ~64px and the word needs ~70 at
+  the 11px floor the design sets for coarse pointers. Three ways out, and they trade
+  different things — **shorten the label** (the game already says "Spawn" in the bottom bar;
+  the Spawnforge is a deliberate piece of vocabulary, so it is a naming decision), **widen
+  the row floor to ~84px** so it wraps to two lines (measured: the sheet grows tall enough
+  that `test/touch.test.cjs`'s map-pan assertion at (200,400) lands on the panel instead of
+  the map, so it costs usable map area on a phone), or **leave it** and accept it in the
+  listing. I tried the middle one, saw the test fail, and reverted rather than spend the map
+  area without asking.
 - **`js/core/seed.js`** is verbatim code from the Bioluminescent Dreamscape pack, carrying no
   licence header and absent from `NOTICE`. If the pack is ours it belongs in `NOTICE` as
   ours; if it is not, its licence has to be named. F-Droid's scanner reads this.
