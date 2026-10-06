@@ -48,11 +48,11 @@ now.
 - [ ] **[me]** Then I write **SPF, DKIM, DMARC and MX** into the Linode zone and
       we create the two mailboxes. This is what makes the contact address in your
       privacy policy real — and the stores check that it works.
-- [ ] **[you]** Create the two **GitHub environments**, `staging` and
-      `production`, and in each add `DEPLOY_HOST`, `DEPLOY_USER`,
-      `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. **This is the single gate on all
-      deploy automation** — everything else about deploying is already written
-      and waiting.
+- [ ] **[you]** Create the **GitHub environment** `production` and add
+      `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
+      **This is the single gate on all deploy automation** — everything else
+      about deploying is already written and waiting. One environment only:
+      staging boxes are spun up on demand and are not part of the pipeline.
 - [ ] **[both]** **Rebuild and bootstrap the server.** I'll write it as one
       scripted command so it's a single line for you, or run it on your word.
       Fresh `linode/ubuntu26.04`, then Docker, a clone at `~/ozymandosis`,
