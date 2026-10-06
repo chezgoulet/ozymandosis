@@ -4,7 +4,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Ctx, UserRow } from '../context.js';
 import { bad, HttpError, tooMany, unauthorized } from '../context.js';
-import { SESSION_COOKIE, requireUser } from '../app.js';
+import { SESSION_COOKIE, requireUser, audit } from '../app.js';
+import { randomInt, timingSafeEqual } from 'node:crypto';
 import { randomToken, sha256 } from '../lib/crypto.js';
 import { Limiter } from '../lib/limiter.js';
 import { coarseClient } from '../lib/privacy.js';
@@ -14,16 +15,19 @@ import { verifyTotp } from '../lib/totp.js';
 import { checkPassword, createSession, createUser, hashPassword, mfaChallenge, normEmail, readChallenge, revokeAll, revokeSession, validEmail, verifyPassword, assertCanPlay, bump } from './service.js';
 
 const loginIp = new Limiter(30, 15 * 60e3), loginAcct = new Limiter(10, 15 * 60e3), signupIp = new Limiter(10, 60 * 60e3), mailAcct = new Limiter(3, 60 * 60e3), mfaAcct = new Limiter(8, 15 * 60e3);
+const handoffIp = new Limiter(20, 15 * 60e3), handoffAcct = new Limiter(10, 15 * 60e3);
+// Letters and digits only, 0/O and 1/I removed: this is read off a screen and typed.
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export function handoffCode(): string { let s = ''; for (let i = 0; i < 8; i++) s += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]; return s; }
 const Client = z.enum(['web', 'game']).default('web');
 // A real hash to verify against when an account does not exist, so response time does not reveal it.
 let dummyHash: Promise<string> | null = null;
 const dummy = () => (dummyHash ||= hashPassword('no-account-has-this-password-' + Math.random()));
 
-export async function issueSession(ctx: Ctx, req: FastifyRequest, reply: FastifyReply, user: UserRow, client: 'web' | 'game', mfa: boolean, handoff?: string | null) {
+export async function issueSession(ctx: Ctx, req: FastifyRequest, reply: FastifyReply, user: UserRow, client: 'web' | 'game', mfa: boolean) {
   assertCanPlay(user);
   const kind = client === 'game' ? 'game' : 'web';
   const s = await createSession(ctx, user.id, kind, coarseClient(req.headers['user-agent']), mfa);
-  if (handoff) await approveHandoff(ctx, handoff, user.id);
   await bump(ctx, 'signins');
   if (kind === 'web') {
     reply.setCookie(SESSION_COOKIE, s.token, { httpOnly: true, secure: ctx.cfg.prod, sameSite: 'lax', path: '/', maxAge: 30 * 86400 });
@@ -31,8 +35,16 @@ export async function issueSession(ctx: Ctx, req: FastifyRequest, reply: Fastify
   }
   return { ok: true, token: s.token };
 }
-export async function approveHandoff(ctx: Ctx, handoff: string, userId: string) {
+// Approving a hand-off is an explicit act, not a side effect of opening a link: the
+// signed-in browser must type the code the requesting client was shown. A wrong or
+// missing code changes nothing.
+export async function approveHandoff(ctx: Ctx, handoff: string, userId: string, code: string): Promise<boolean> {
+  const row = await ctx.db.one<any>(`select user_code from login_handoffs where id = $1 and expires_at > now() and claimed_at is null`, [handoff]);
+  if (!row || !row.user_code) return false;
+  const want = Buffer.from(String(row.user_code)), got = Buffer.from(String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  if (want.length !== got.length || !timingSafeEqual(want, got)) return false;
   await ctx.db.query(`update login_handoffs set user_id = $2 where id = $1 and expires_at > now() and claimed_at is null`, [handoff, userId]);
+  return true;
 }
 
 async function captchaOk(ctx: Ctx, token: string | undefined): Promise<boolean> {
@@ -56,7 +68,7 @@ export default async function authRoutes(app: FastifyInstance, ctx: Ctx) {
   const ipKey = (req: FastifyRequest) => ctx.cfg.test ? 'test:' + Math.random() : ctx.secrets.pseudonym('ip:' + (req.ip || ''), 16);
 
   app.post('/api/auth/signup', async (req, reply) => {
-    const b = z.object({ email: z.string(), password: z.string(), name: z.string().optional(), client: Client, captcha: z.string().optional(), handoff: z.string().optional(),
+    const b = z.object({ email: z.string(), password: z.string(), name: z.string().optional(), client: Client, captcha: z.string().optional(),
       birthYear: z.number().int().optional(), birthMonth: z.number().int().optional() }).parse(req.body);
     if (!signupIp.take(ipKey(req))) throw tooMany();
     const age = ageFrom(b.birthYear ?? NaN, b.birthMonth ?? NaN);
@@ -71,14 +83,16 @@ export default async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     const exists = await ctx.db.one('select 1 from users where email = $1', [email]);
     // Same answer either way would be kinder to privacy, but players need to know; rate limits cover enumeration.
     if (exists) throw new HttpError(409, 'An account with that email already exists. Try signing in.', 'exists');
-    const user = await createUser(ctx, { email, password: b.password, name: b.name, ageBand: band });
+    let user;
+    try { user = await createUser(ctx, { email, password: b.password, name: b.name, ageBand: band }); }
+    catch (e: any) { if (e?.code === '23505') throw new HttpError(409, 'An account with that email already exists. Try signing in.', 'exists'); throw e; }
     await sendVerify(ctx, user);
-    const out = await issueSession(ctx, req, reply, user, b.client, false, b.handoff);
+    const out = await issueSession(ctx, req, reply, user, b.client, false);
     return { ...out, name: user.display_name, verifyEmail: true };
   });
 
   app.post('/api/auth/login', async (req, reply) => {
-    const b = z.object({ email: z.string(), password: z.string(), client: Client, handoff: z.string().optional() }).parse(req.body);
+    const b = z.object({ email: z.string(), password: z.string(), client: Client }).parse(req.body);
     const email = normEmail(b.email), ak = ctx.secrets.pseudonym('acct:' + email, 16);
     if (!loginIp.take(ipKey(req)) || !loginAcct.take(ak)) throw tooMany();
     const user = await ctx.db.one<UserRow>('select * from users where email = $1', [email]);
@@ -88,12 +102,12 @@ export default async function authRoutes(app: FastifyInstance, ctx: Ctx) {
     if (user.status === 'banned') throw new HttpError(403, 'This account has been banned.', 'banned');
     if (user.status === 'deleted') throw unauthorized('That email and password do not match.');
     loginAcct.reset(ak);
-    if (user.totp_enabled) return { mfa: 'required', challenge: mfaChallenge(ctx, user.id, b.client), handoff: b.handoff || null };
-    return issueSession(ctx, req, reply, user, b.client, false, b.handoff);
+    if (user.totp_enabled) return { mfa: 'required', challenge: mfaChallenge(ctx, user.id, b.client) };
+    return issueSession(ctx, req, reply, user, b.client, false);
   });
 
   app.post('/api/auth/mfa', async (req, reply) => {
-    const b = z.object({ challenge: z.string(), code: z.string().optional(), recovery: z.string().optional(), handoff: z.string().optional() }).parse(req.body);
+    const b = z.object({ challenge: z.string(), code: z.string().optional(), recovery: z.string().optional() }).parse(req.body);
     const ch = readChallenge(ctx, b.challenge);
     if (!ch) throw unauthorized('That sign-in took too long. Please start again.');
     if (!mfaAcct.take(ch.u)) throw tooMany();
@@ -109,7 +123,7 @@ export default async function authRoutes(app: FastifyInstance, ctx: Ctx) {
       await ctx.db.query('update users set totp_last_step = $2 where id = $1', [user.id, step]);
     }
     mfaAcct.reset(ch.u);
-    return issueSession(ctx, req, reply, user, ch.k, true, b.handoff);
+    return issueSession(ctx, req, reply, user, ch.k, true);
   });
 
   app.post('/api/auth/logout', async (req, reply) => {
@@ -158,19 +172,36 @@ export default async function authRoutes(app: FastifyInstance, ctx: Ctx) {
 
   // ── game client hand-off ──────────────────────────────────────
   // 1. the client makes a secret verifier and registers sha256(verifier)
-  // 2. it opens PUBLIC_URL/login?handoff=<hash> in the system browser
-  // 3. the player signs in there (any method); the portal approves the hand-off
+  // 2. it is given a short code and opens PUBLIC_URL/login?handoff=<hash> in the browser
+  // 3. the player signs in there, sees which client is asking, and types that code
   // 4. the client claims with the verifier and receives its own game session
   app.post('/api/auth/handoff', async req => {
     const b = z.object({ challenge: z.string().min(20).max(100) }).parse(req.body);
-    await ctx.db.query(`insert into login_handoffs (id, expires_at) values ($1, now() + interval '10 minutes') on conflict (id) do nothing`, [b.challenge]);
-    return { url: `${ctx.cfg.PUBLIC_URL}/login?handoff=${encodeURIComponent(b.challenge)}` };
+    if (!handoffIp.take(ipKey(req))) throw tooMany();
+    const hint = coarseClient(req.headers['user-agent']);
+    await ctx.db.query(`insert into login_handoffs (id, user_code, client_hint, expires_at) values ($1, $2, $3, now() + interval '10 minutes') on conflict (id) do nothing`, [b.challenge, handoffCode(), hint]);
+    // a repeated challenge keeps its original code: an attacker cannot rotate a
+    // code the player is part-way through approving, nor read it back on demand
+    const row = await ctx.db.one<any>(`select user_code, client_hint from login_handoffs where id = $1 and claimed_at is null and expires_at > now()`, [b.challenge]);
+    if (!row) throw bad('That sign-in could not be started. Please try again.', 'handoff');
+    return { url: `${ctx.cfg.PUBLIC_URL}/login?handoff=${encodeURIComponent(b.challenge)}`, code: row.user_code, hint: row.client_hint, expiresInSec: 600 };
+  });
+  // Who is asking: shown to the signed-in player before they approve anything.
+  app.get('/api/auth/handoff/:id', async req => {
+    requireUser(req);
+    const { id } = req.params as { id: string };
+    const row = await ctx.db.one<any>(`select client_hint, created_at, expires_at from login_handoffs where id = $1 and claimed_at is null and expires_at > now()`, [id]);
+    if (!row) throw bad('That sign-in has expired. Ask the game to start again.', 'expired');
+    return { hint: row.client_hint, startedAt: row.created_at, expiresAt: row.expires_at };
   });
   app.post('/api/auth/handoff/approve', async req => {
     const a = requireUser(req);
-    const b = z.object({ handoff: z.string() }).parse(req.body);
+    const b = z.object({ handoff: z.string(), code: z.string().min(4).max(16) }).parse(req.body);
     assertCanPlay(a.user);
-    await approveHandoff(ctx, b.handoff, a.user.id);
+    if (!handoffAcct.take('h:' + a.user.id)) throw tooMany();
+    if (!(await approveHandoff(ctx, b.handoff, a.user.id, b.code))) throw bad('That code does not match the one the game is showing.', 'code');
+    await audit(ctx, a.user.id, 'auth.handoff_approve', null, { client: coarseClient(req.headers['user-agent']) });
+    if (a.user.email) await ctx.mail.send({ to: a.user.email, ...templates.handoffApproved(coarseClient(req.headers['user-agent'])) });
     return { ok: true };
   });
   app.post('/api/auth/handoff/claim', async req => {

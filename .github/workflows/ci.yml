@@ -1,27 +1,49 @@
 name: ci
-on: [push, pull_request]
+# Branches only, deliberately: a release tag fires the release workflows (deploy.yml,
+# release-client.yml) and re-runs nothing here.
+#
+# And only `testing` and `main` on push — every other branch is covered by the
+# pull_request event. Running on both events meant every PR commit ran this whole
+# matrix twice (measured 2026-10-06: bd561cb, 110149c, d5f1049 each had a push run and
+# a pull_request run), which doubled the bill and doubled the queue for nothing.
+on:
+  push:
+    branches: [testing, main]
+  pull_request:
 permissions: { contents: read }
 concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 
-# Runs on the House's self-hosted runner, which is registered at the ORGANISATION
-# level (gitHubUrl = https://github.com/chezgoulet), so it already serves this
-# repo. GitHub-hosted runners are blocked account-wide by a billing failure.
+# Where each job runs, and why it is not uniform:
 #
-# Runner host prerequisites, installed once, not per job:
-#   - Node 22 (actions/setup-node provides it), Docker, and the Playwright
-#     browser binaries under ~/.cache/ms-playwright
-#   - WebKit also needs the system package `libavif16`. Until that is installed
-#     the webkit leg fails to launch, and that is an environment fault rather
-#     than a code fault. One command on the host fixes it:
-#         sudo apt-get install -y libavif16
+#   test / browsers / images   GitHub-hosted (ubuntu-latest). The org's Free plan
+#                              includes 2,000 Linux minutes a month for private repos
+#                              and usage is already past that in a busy month
+#                              (Sep 2026: 4,609 minutes), so overage costs about
+#                              $0.008/min — one full run of this matrix is roughly
+#                              40-60 billed minutes. The point of paying it is that
+#                              the alternative is running the whole matrix on the
+#                              workstation its owner is sitting at, where a red check
+#                              is a function of whatever else the machine is doing.
+#                              (The comment here used to say hosted runners were
+#                              blocked account-wide by a billing failure. That was
+#                              stale: a probe ran on the `GitHub Actions` runner group,
+#                              ubuntu24 image, on 2026-10-06.)
+#
+#   steam-linux                self-hosted. It needs a lingering PipeWire session, Xvfb
+#                              and the steam package's AppArmor profile — host state a
+#                              hosted runner has no equivalent of.
+#
+# Keeping any job self-hosted needs the runner online; `deploy` (a separate workflow)
+# stays there too, because the Linode firewall only allows port 22 from known addresses.
 jobs:
   test:
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: node tools/version-check.cjs   # the version is written down in nine places; they must agree
       - run: npm test                      # simulation, content, host audit
       - run: npm run typecheck -w apps/play
       - run: npm run play:test             # play service (in-memory Postgres)
@@ -32,7 +54,7 @@ jobs:
   # the desktop app), Firefox, and WebKit (Safari, every iOS browser).
   browsers:
     needs: test
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -43,10 +65,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      # No --with-deps: that shells out to apt and needs sudo, which the runner
-      # does not have. System libraries are a one-time host prerequisite (see the
-      # note at the top); the browsers themselves live in the runner user's cache.
-      - run: npx playwright install ${{ matrix.browser }}
+      # --with-deps installs the system libraries each engine needs (WebKit wants
+      # libavif16 among others) and needs sudo, which hosted runners have. The
+      # fallback keeps this working on a runner that does not, where those libraries
+      # are a one-time host prerequisite instead: sudo apt-get install -y libavif16
+      - run: npx playwright install --with-deps ${{ matrix.browser }} || npx playwright install ${{ matrix.browser }}
       - run: node test/ui.smoke.cjs
       - run: node test/features.test.cjs
         env: { NOGPU: "1" }
@@ -63,8 +86,27 @@ jobs:
         if: failure()
         with: { name: "screens-${{ matrix.browser }}", path: "test/shots\ntest/traces", retention-days: 7 }
 
-  images:
+  # The Linux Steam build, packaged and played inside Steam Linux Runtime 3.0
+  # (sniper) as Steam runs it (docs/STORES.md). Self-hosted on purpose: it needs Xvfb,
+  # the runner user's lingering PipeWire session, and the steam package's AppArmor
+  # profile. The runtime itself is fetched, pinned, to ~/.cache/steamrt.
+  steam-linux:
+    needs: test
     runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm ci && npm run package
+        working-directory: apps/desktop
+      - run: node test/steamrt.test.cjs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: screens-steam-linux, path: test/shots, retention-days: 7 }
+
+  images:
+    runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4

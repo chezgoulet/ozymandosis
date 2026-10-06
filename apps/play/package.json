@@ -9,7 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
-    "test": "tsx --test test/*.test.ts",
+    "test": "tsx --test --test-concurrency=2 test/*.test.ts",
     "migrate": "tsx src/db/migrate.ts",
     "admin": "tsx src/cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

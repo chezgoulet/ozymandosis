@@ -22,6 +22,6 @@
     "files": ["main.cjs", "preload.cjs", "lan.cjs", "lan/**", "web/**"],
     "win": { "target": "nsis" },
     "mac": { "target": "dmg", "category": "public.app-category.strategy-games" },
-    "linux": { "target": "AppImage", "category": "Game" }
+    "linux": { "target": "dir", "executableName": "ozymandosis", "category": "Game" }
   }
 }

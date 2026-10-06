@@ -68,17 +68,41 @@ test('password reset revokes every session', async () => {
   assert.equal((await t.api('POST', '/api/auth/forgot', { email: 'nobody@example.com' })).status, 200, 'no account enumeration');
 });
 
-test('game client hand-off: browser approves, client claims once', async () => {
+test('game client hand-off: the browser must type the code the game shows', async () => {
   const u = await signup(t);
   const verifier = randomBytes(32).toString('base64url'), challenge = createHash('sha256').update(verifier).digest('base64url');
   const h = await t.api('POST', '/api/auth/handoff', { challenge });
   assert.match(h.json.url, /\/login\?handoff=/);
+  assert.match(h.json.code, /^[A-Z0-9]{8}$/, 'the client is given a code to display');
   assert.equal((await t.api('POST', '/api/auth/handoff/claim', { verifier })).json.pending, true);
-  assert.equal((await t.api('POST', '/api/auth/handoff/approve', { handoff: challenge }, u.token)).status, 200);
+  // opening the link, or approving without the code, approves nothing
+  assert.equal((await t.api('POST', '/api/auth/handoff/approve', { handoff: challenge }, u.token)).status, 400);
+  assert.equal((await t.api('POST', '/api/auth/handoff/approve', { handoff: challenge, code: 'ZZZZZZZZ' }, u.token)).status, 400, 'a wrong code approves nothing');
+  assert.equal((await t.api('POST', '/api/auth/handoff/claim', { verifier })).json.pending, true, 'still unapproved');
+  const info = await t.api('GET', '/api/auth/handoff/' + challenge, undefined, u.token);
+  assert.equal(info.status, 200); assert.ok(info.json.hint, 'the asking client is described to the player');
+  assert.equal((await t.api('GET', '/api/auth/handoff/' + challenge)).status, 401, 'only a signed-in player sees it');
+  assert.equal((await t.api('POST', '/api/auth/handoff/approve', { handoff: challenge, code: h.json.code }, u.token)).status, 200);
   const c = await t.api('POST', '/api/auth/handoff/claim', { verifier });
   assert.equal(c.status, 200); assert.ok(c.json.token);
   assert.equal((await t.api('GET', '/api/me', undefined, c.json.token)).json.user.id, u.id);
   assert.equal((await t.api('POST', '/api/auth/handoff/claim', { verifier })).status, 400, 'claimed only once');
+  assert.ok(t.mailer.outbox.some(m => m.to === u.email && /game client signed in/i.test(m.subject)), 'the account is told');
+});
+
+test('a sensitive change on a password-less account needs a fresh sign-in', async () => {
+  const u = await signup(t);
+  const s = await t.api('POST', '/api/auth/login', { email: u.email, password: u.password, client: 'web' });
+  const cookie = String(s.headers['set-cookie']).split(';')[0];
+  const hdr = { cookie, 'x-ozy': '1' };
+  // make it look like a provider-created account: nothing on file to check
+  await t.ctx.db.query('update users set password_hash = null where id = $1', [u.id]);
+  await t.ctx.db.query(`update sessions set created_at = now() - interval '2 hours' where user_id = $1`, [u.id]);
+  assert.equal((await t.api('POST', '/api/me/email', { email: 'moved@example.com' }, undefined, hdr)).status, 403, 'an old session cannot change the email');
+  assert.equal((await t.api('POST', '/api/me/password', { next: 'a brand new password' }, undefined, hdr)).status, 403);
+  await t.ctx.db.query(`update sessions set created_at = now() where user_id = $1`, [u.id]);
+  assert.equal((await t.api('POST', '/api/me/email', { email: 'moved@example.com' }, undefined, hdr)).status, 200, 'a just-established session may proceed');
+  assert.ok(t.mailer.outbox.some(m => m.to === u.email && /email was changed/i.test(m.subject)), 'the old address is told');
 });
 
 test('profile: rename rules, sessions, export, delete', async () => {

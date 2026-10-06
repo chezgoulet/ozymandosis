@@ -92,7 +92,11 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
     const origin = req.headers.origin;
-    reply.header('access-control-allow-origin', origin && origin !== 'null' ? origin : '*');
+    // Only our own origins are echoed back. Everyone else (file://, capacitor://, the
+    // store shells) gets '*'. Neither form carries credentials — this API never sends
+    // access-control-allow-credentials — and a reflected origin would only invite the
+    // browser to attach a session cookie it should not.
+    reply.header('access-control-allow-origin', origin && origin !== 'null' && ctx.cfg.corsOrigins.includes(origin) ? origin : '*');
     reply.header('vary', 'origin');
     reply.header('access-control-allow-headers', 'authorization, content-type, x-ozy');
     reply.header('access-control-allow-methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
@@ -186,6 +190,9 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   if (pub) {
     await app.register(fstatic, { root: pub, prefix: '/', index: ['index.html'], cacheControl: false, setHeaders: (reply: any) => reply.header('cache-control', 'no-cache') });
     for (const p of ['/login', '/verify', '/reset', '/account']) app.get(p, (req, reply) => reply.sendFile('index.html'));
+    // The store-facing deletion URL, served at /delete-account rather than with the .html
+    // extension: Play shows this URL to users, and it is a static page, not a portal route.
+    app.get('/delete-account', (req, reply) => reply.sendFile('delete-account.html'));
     app.get('/admin', (req, reply) => reply.sendFile('admin/index.html'));
   }
   // The game's typefaces, shared with the portal (copied into the image in production).

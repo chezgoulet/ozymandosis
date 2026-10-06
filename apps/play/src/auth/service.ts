@@ -62,7 +62,9 @@ export async function sessionUser(ctx: Ctx, token: string | undefined): Promise<
   if (row.status === 'deleted' || row.status === 'banned') return null;
   // slide the expiry at most hourly to keep writes low
   if (Date.now() - new Date(row.last_used_at).getTime() > 3600e3) {
-    await ctx.db.query(`update sessions set last_used_at = now(), expires_at = now() + ($2 || ' days')::interval where id = $1`, [id, String(TTL[row.kind as 'web' | 'game'])]);
+    const ttl = TTL[row.kind as 'web' | 'game'];
+    // slide the expiry, but never past an absolute cap: a session cannot be renewed forever
+    await ctx.db.query(`update sessions set last_used_at = now(), expires_at = least(now() + ($2 || ' days')::interval, created_at + ($3 || ' days')::interval) where id = $1`, [id, String(ttl), String(ttl * 4)]);
     await ctx.db.query('update users set last_seen_at = now() where id = $1', [row.id]);
   }
   const { sid, kind, mfa, last_used_at, expires_at, ...user } = row;

@@ -100,10 +100,12 @@ be completed** until it does, and the release cannot publish. Steps 1–3 below 
       is meant to exercise the game, and without the service there is no sign-in
       and no online play — the 14 days are calendar you cannot get back, so do not
       spend them on a crippled build. The chain is:
-  - [ ] **[you]** Create the **two GitHub environments**, `staging` and
-        `production`, each with `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`,
-        `DEPLOY_KNOWN_HOSTS`. **This is the single gate on all deploy automation** —
-        the pipeline is written and no-ops by design until the secrets exist.
+  - [ ] **[you]** Create the **GitHub environment** `production` and add
+        `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
+        **This is the single gate on all deploy automation** — the pipeline is
+        written and does nothing until the secrets exist. One environment only:
+        staging boxes are spun up on demand and destroyed (DEPLOY.md), and no
+        tag, push or dispatch deploys to one.
   - [ ] **[you]** **Rebuild the Linode box** from a fresh `linode/ubuntu26.04`
         image, and decide the size — it is idle today and nothing is attached.
   - [ ] **[me]** Bootstrap it as **one scripted command**: Docker, a clone at
