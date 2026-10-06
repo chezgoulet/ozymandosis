@@ -11,7 +11,7 @@ everywhere else it appears and `npm test` fails if any of them drift:
 | Place | What |
 |---|---|
 | `package.json` | the source |
-| `apps/play/package.json`, `apps/site/package.json` | service and website |
+| `apps/play/package.json` | the service |
 | `apps/desktop/package.json` | desktop shell (Steam) |
 | `android/app/build.gradle` | `versionName`, and `versionCode` derived as major·10000 + minor·100 + patch |
 | `ios/App/App.xcodeproj/project.pbxproj` | `MARKETING_VERSION`, and `CURRENT_PROJECT_VERSION` (the same derived number) |

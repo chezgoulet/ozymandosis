@@ -63,13 +63,13 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 | Forge → Spawnforge | everywhere |
 | Text fit and centring | dock layout (sheet, organ buttons, guide and alerts stack), wrapping command grid, overlay flex fix, phone setup rows, overflow sweep |
 | Procedural, moody soundtrack | `js/core/music.js`: Markov harmony, leitmotifs, adaptive sections, synthwave + generative-ambient palette |
-| Server in the monorepo | `apps/play` (Fastify, Postgres), `apps/site`, `deploy/` (Caddy, coturn, Postgres, backups) |
+| Server in the monorepo | `apps/play` (Fastify, Postgres), `deploy/` (Caddy, coturn, Postgres, backups) |
 | Discovery and matching only; P2P encrypted games | WebRTC DataChannels (D11); LAN and online signaling |
 | Accounts: email + TOTP 2FA; Google, Apple, Steam | `apps/play/src/auth` |
 | The scheme of record (`MONETIZATION.md`): $1 per platform, one free online match a day, $2/month · $12/year per platform | `apps/play/src/billing` (allowance, Play, App Store, Steam, ownership), D12, D20 |
 | Minimal PII in logs | D16, `docs/PLAY-SERVICE.md` → Privacy |
 | Crash and bug reports as reports | `js/core/crash.js`, `/api/reports`, admin → Crashes & bugs |
-| ozymandosis.com + www; play.ozymandosis.com | `apps/site`, `deploy/Caddyfile` |
+| ozymandosis.com + www; play.ozymandosis.com | `chezgoulet/ozymandosis-site` (GitHub Pages), `deploy/Caddyfile` |
 | Moderation, announcements, admin tooling | admin console, sanctions, player reports, live config, audit log, operator CLI, backups, dashboards |
 
 ## Known limits

@@ -16,7 +16,7 @@ The scheme is `docs/MONETIZATION.md` (implemented: D20). Set in each store, sinc
 ## Legal
 
 - [ ] **Trademark search** for "Ozymandosis" (USPTO Trademark Search; EUIPO; UKIPO) in classes 9 and 41; consider filing once clear.
-- [ ] **Counsel review** of `apps/site/public/privacy.html` and `terms.html` (both marked as drafts). They describe exactly what the software does, including retention periods, the age gate, chat handling and cloud saves.
+- [ ] **Counsel review** of the privacy and terms pages in `chezgoulet/ozymandosis-site` (both marked as drafts). They describe exactly what the software does, including retention periods, the age gate, chat handling and cloud saves.
 - [ ] **Children**: accounts are 13+, under-16s get quick chat only, only an age range is stored. Confirm this posture with counsel for your markets (COPPA, GDPR Article 8, the UK Children's Code).
 - [ ] **EU/UK representatives** (GDPR Art. 27) if you have no establishment there and serve players there; counsel will say.
 - [ ] **Processor agreements** (DPAs): Stripe, your email provider, Linode/Akamai. All offer standard ones.

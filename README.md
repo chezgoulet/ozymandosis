@@ -23,7 +23,6 @@ server/server.js                 LAN server: static files + WebRTC signaling
 server/signal.cjs                LAN signaling, shared with the desktop shell (Android/iOS: LanPlugin)
 apps/play/                       play.ozymandosis.com: accounts, 2FA, OAuth, Stripe, matchmaking,
                                  signaling, tickets, crash reports, moderation, admin console
-apps/site/                       ozymandosis.com: the website (there is no browser version of the game)
 apps/desktop/                    Electron shell (installed separately)
 deploy/                          Compose stack: Caddy (TLS), play, Postgres, coturn (TURN), backups
 android/, ios/                   Capacitor projects

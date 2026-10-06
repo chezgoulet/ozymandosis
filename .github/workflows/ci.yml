@@ -47,7 +47,7 @@ jobs:
       - run: npm test                      # simulation, content, host audit
       - run: npm run typecheck -w apps/play
       - run: npm run play:test             # play service (in-memory Postgres)
-      - run: node tools/build-web.cjs && node apps/site/build.cjs
+      - run: node tools/build-web.cjs
       - run: npm audit --omit=dev --audit-level=high
 
   # The game in every engine players use: Chromium (Chrome, Edge, Android WebView,

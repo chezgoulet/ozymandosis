@@ -45,8 +45,7 @@
     "@capacitor/browser": "^8.0.0"
   },
   "workspaces": [
-    "apps/play",
-    "apps/site"
+    "apps/play"
   ],
   "license": "AGPL-3.0-only"
 }

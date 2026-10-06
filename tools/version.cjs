@@ -34,7 +34,6 @@ const regex = (file, label, re, fmt) => ({
 const PLACES = [
   json('package.json', 'root package (the source)'),
   json('apps/play/package.json', 'play service'),
-  json('apps/site/package.json', 'website'),
   json('apps/desktop/package.json', 'desktop shell (Steam)'),
   regex('android/app/build.gradle', 'Android versionName', /(versionName = ")([^"]+)(")/, v => v),
   regex('android/app/build.gradle', 'Android versionCode', /(versionCode = )(\d+)()/, v => String(code(v))),
@@ -47,7 +46,7 @@ const PLACES = [
 function lock(v) {
   const f = 'package-lock.json', j = JSON.parse(rd(f));
   j.version = v;
-  for (const k of ['', 'apps/play', 'apps/site']) if (j.packages && j.packages[k]) j.packages[k].version = v;
+  for (const k of ['', 'apps/play']) if (j.packages && j.packages[k]) j.packages[k].version = v;
   wr(f, JSON.stringify(j, null, 2) + '\n');
 }
 const expected = (p, v) => p.fmt ? p.fmt(v) : v;
