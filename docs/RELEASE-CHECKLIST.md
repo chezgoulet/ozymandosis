@@ -16,7 +16,9 @@ ordered by what blocks what**, so it can be worked top to bottom.
   off-machine and checked to open. Play App Signing is confirmed.
 - A **signed bundle** exists: `app-release.aab`, 7.2 MB, signed
   `CN=Ozymandosis upload key`, SHA-256 `C5:43:05:…:80:86`, versionCode 500.
-- **CI is green on the House runner** and `testing` holds the current tip.
+- **CI is green** and `testing` holds the current tip. (The suite runs on GitHub-hosted
+  runners; only the Steam Linux leg needs the House runner, because it needs that
+  machine's PipeWire session.)
 - The **site is live** over HTTPS: `ozymandosis.com`, with `/privacy` and
   `/terms` reachable.
 - The **data answers are drafted** — `docs/PLAY-DECLARATIONS.md`.
@@ -202,7 +204,7 @@ Neither blocks Android. Both have lead times worth starting early.
 - The rebuild-and-bootstrap as a single scripted command.
 - The Codemagic wiring for iOS.
 - Anything else you ask for in the code, on the same gate as everything else:
-  green CI on the House runner, then merged.
+  green CI, then merged.
 
 ## What I cannot do, and will not pretend to
 
