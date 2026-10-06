@@ -1,0 +1,52 @@
+Categories:
+  - Strategy Game
+License: AGPL-3.0-only
+AuthorName: Christopher Goulet
+SourceCode: https://github.com/chezgoulet/efflorescent
+IssueTracker: https://github.com/chezgoulet/efflorescent/issues
+Changelog: https://github.com/chezgoulet/efflorescent/releases
+
+AutoName: Ozymandosis
+
+RepoType: git
+Repo: https://github.com/chezgoulet/efflorescent.git
+
+Builds:
+  - versionName: 0.5.1
+    versionCode: 501
+    commit: v0.5.1
+    subdir: android
+    gradle:
+      - yes
+    prebuild:
+      - npm ci
+      - node tools/build-web.cjs
+      - npx cap sync android
+    output: app/build/outputs/apk/release/app-release-unsigned.apk
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.5.1
+CurrentVersionCode: 501
+
+MaintainerNotes: |
+  The Android app is free on every platform: membership is bought on our website, and the
+  build carries no billing client, no Play Integrity and no google-services (a CI job
+  asserts the packaged APK contains none of them). The Play rail is distribution only.
+
+  The build is a Capacitor/Node project, so the recipe needs npm during prebuild: `npm ci`
+  and `tools/build-web.cjs` produce `www/`, which `cap sync` copies into the Android
+  project. Whether F-Droid's build environment may fetch npm packages during prebuild is
+  the open question with them (docs/open-sourcing/README.md, R7).
+
+  Toolchain pinned in the tree: JDK 21, Android build-tools 34.0.0, Gradle 8.14.3, AGP
+  8.13.0, compileSdk android-37.0, targetSdk 36, minSdk 24. Two builds of one commit
+  produce an identical APK (verified 2026-10-06: e29a9054...), which is what the
+  reproducible-builds check in CI re-tests on every release tag.
+
+  Fastlane metadata is in the tree (fastlane/metadata/android/en-US): title, short and
+  full description, the 0.5.1 changelog, the icon, and two phone screenshots captured from
+  the touch harness at 390x844, padded to 1:2 which is the aspect F-Droid accepts. The
+  second screenshot still shows the harness's "Resumed" toast, and both show a real UI
+  defect worth fixing first: the Spawnforge button label truncates to "Spawnfo..." at phone
+  width.
