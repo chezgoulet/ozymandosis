@@ -95,9 +95,24 @@ docker compose -f deploy/docker-compose.yml exec play node apps/play/dist/cli.js
 
 Sign in at https://play.ozymandosis.com, turn on two-factor sign-in (required for staff tools in production), sign out and back in, then open https://play.ozymandosis.com/admin. Promote moderators with `cli.js promote <email|name> moderator` or from their player page.
 
-## 7. Stripe (off by default)
+## 7. Stripe (on, for the FOSS rail)
 
-Memberships are sold in each platform's store (docs/MONETIZATION.md, D20), so web checkout is off (`WEB_BILLING=false`) and none of this is needed. Only if an operator decides to sell on the web:
+The store builds sell in their store. The FOSS build has no store, so its membership is bought here, on the
+website — see the revision in docs/MONETIZATION.md. That makes this section part of the product rather than an
+option.
+
+**Set both secrets and the flag together, or the service will not boot.** With `WEB_BILLING=1`, production
+config validation requires `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (`apps/play/src/config.ts`); without
+them the new container fails its health window and the deploy rolls back to the previous revision.
+
+```
+# in deploy/.env, on the server
+WEB_BILLING=1
+STRIPE_SECRET_KEY=sk_live_…        # Stripe dashboard → Developers → API keys
+STRIPE_WEBHOOK_SECRET=whsec_…      # created with the endpoint in step 3 below
+```
+
+Then:
 
 
 1. Create the product and prices: `… exec play node apps/play/dist/cli.js stripe:setup` creates $2/month (tax included); `stripe:setup 1200` also creates a $12/year plan. Or create your own and set `STRIPE_PRICE_ID` / `STRIPE_PRICE_ID_YEARLY`.

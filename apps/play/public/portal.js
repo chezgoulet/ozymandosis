@@ -190,7 +190,18 @@
       const until = ent.lifetime ? 'Lifetime membership' : !ent.until ? null : (ent.cancelAtPeriodEnd ? 'Ends ' : ent.platform ? 'Renews ' : 'Until ') + new Date(ent.until).toLocaleDateString();
       add(mem, h('p', null, h('span', { class: 'pill good' }, ent.lifetime ? 'Lifetime member' : 'Member'), ent.platform ? ` Unlimited online play on ${STORE[ent.platform] || ent.platform}. Manage or cancel it there.` : ' Unlimited online play.'), until ? h('p', { class: 'soft' }, until) : null);
       if (cfg.billing && ent.billing) { const b = h('button', { class: 'btn' }, 'Manage billing'); b.onclick = () => busy(b, async () => { location.href = (await api('POST', '/api/billing/portal')).url; }); mem.append(b); }
-    } else mem.append(h('p', { class: 'soft' }, 'For unlimited online play, become a member in the game, through the store of the platform you play on: $2 a month or $12 a year on iOS and Android, a $12 season on Steam. A membership applies on the platform where it was bought.'));
+    } else {
+      const monthly = ((cfg && cfg.plans) || []).find(x => x.plan === 'month'), yearly = ((cfg && cfg.plans) || []).find(x => x.plan === 'year');
+      const webOffer = monthly ? `${price('month')} a month${yearly ? ` or ${price('year')} a year` : ''}, tax included` : 'a monthly or yearly subscription, tax included';
+      mem.append(h('p', { class: 'soft' }, cfg.billing
+        ? `For unlimited online play, subscribe here: ${webOffer}. It covers every platform you play on, and you can cancel any time from this page.`
+        : 'For unlimited online play, become a member in the game, through the store of the platform you play on: $2 a month or $12 a year on iOS and Android, a $12 season on Steam. A membership applies on the platform where it was bought.'));
+      if (cfg.billing) {
+        const sub = h('button', { class: 'btn primary' }, 'Subscribe');
+        sub.onclick = () => busy(sub, async () => { location.href = (await api('POST', '/api/billing/checkout', { plan: 'month' })).url; });
+        mem.append(h('div', { class: 'row', style: 'margin-top:10px' }, sub));
+      }
+    }
     // promo codes: a month, a year or life
     const code = h('input', { placeholder: 'OZY-XXXX-XXXX-XXXX', maxlength: 40, autocapitalize: 'characters', spellcheck: 'false', 'aria-label': 'Promo code', style: 'text-transform:uppercase;letter-spacing:.08em' });
     const use = h('button', { class: 'btn small' }, 'Redeem');
