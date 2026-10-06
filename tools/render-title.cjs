@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Renders a still of the living title (transparent PNG) for places that cannot
 // animate: emails and native splash screens.
 //   node tools/render-title.cjs [out.png] [width] [moment-in-seconds] [word] [pad] [height]

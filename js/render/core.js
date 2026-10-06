@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Backend-independent renderer core: camera, vision grid, fog memory, event
 // effects, damage numbers. Canvas2D and three.js backends both extend this.
 (function (E) {

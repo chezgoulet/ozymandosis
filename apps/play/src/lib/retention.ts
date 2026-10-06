@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Data retention: expired credentials and old records are deleted on a schedule,
 // so the database holds only what the service still needs (and the disk does not
 // fill). The policy is published in the privacy notice; change both together.

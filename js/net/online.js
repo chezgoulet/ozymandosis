@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Online services (play.ozymandosis.com): account, membership, announcements,
 // quick match, lobby connections, match tickets and reports. Matches still run
 // peer to peer (js/net/net.js); this module only talks to the matchmaking service.

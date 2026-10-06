@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // GPU batches for the three.js backend. Everything the world draws goes
 // through four instanced pipelines plus two full-screen passes:
 //   GlowBatch   — SDF discs/glows/rings/arcs/bars (pools, heads, fx, UI rings)

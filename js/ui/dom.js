@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // DOM helpers, toasts/modals, and canvas previews of creatures and organs.
 (function (E) {
   'use strict';

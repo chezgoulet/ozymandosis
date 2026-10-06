@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Which play service the client talks to (O.base). Native builds run from https://localhost
 // (Capacitor), so "localhost" alone must not mean a development machine.
 const fs = require('fs'), path = require('path'), vm = require('vm'), assert = require('assert');

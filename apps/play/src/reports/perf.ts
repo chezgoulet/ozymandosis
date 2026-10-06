@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Frame-rate runs from game clients (js/ui/framestats.js): anonymous numbers about
 // how a match ran on a class of device, kept for RETENTION.perfRunsDays and listed
 // for staff in the admin console (Performance). No account, no address is stored:

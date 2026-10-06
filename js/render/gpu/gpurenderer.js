@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // WebGPU backend: the same batched pipeline as the WebGL2 backend, driven by
 // three's WebGPURenderer with node materials written in TSL. Selected when
 // navigator.gpu exists and the player picks WebGPU (or 'auto' prefers it via

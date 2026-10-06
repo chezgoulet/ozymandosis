@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Tech tree and the six cultures.
 (function (E) {
   'use strict';

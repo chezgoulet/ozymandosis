@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Ozymandosis desktop shell: the same web build, full screen from launch.
 // F11 or Alt+Enter toggle fullscreen (handled by the game); links to accounts,
 // checkout and sign-in providers open in the system browser.

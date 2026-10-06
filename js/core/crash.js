@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Automatic crash reports and the "Report a bug" dialog. Reports carry the
 // error, the build, the renderer and a small game summary, never personal
 // data; players can turn automatic reports off in Settings.

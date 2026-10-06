@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // LAN play end to end (work order §1): two clients on one network play a full match
 // with the service unreachable, no account, no match ticket, and a direct (not
 // relayed) WebRTC link. The in-app host is the real shared signaling code

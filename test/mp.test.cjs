@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Multiplayer end-to-end: host + guest browsers, introduced by the LAN signaling server, playing over WebRTC.
 const pw = require('../tools/pw.cjs');
 const path = require('path');

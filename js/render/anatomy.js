@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Living structures. Every Nucleus, Bud and Spire is an organism: an
 // asymmetric membrane of fused lobes that breathes, a heart that beats with
 // the colony's energy and fever, veins that carry the pulse to organs grown

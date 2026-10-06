@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Tokens, hashing, encryption at rest, and signatures for match tickets.
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv, generateKeyPairSync, sign, verify, createPrivateKey, createPublicKey, timingSafeEqual, KeyObject } from 'node:crypto';
 

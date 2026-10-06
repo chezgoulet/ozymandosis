@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Promo codes: staff create them (singly or in batches) in the admin console;
 // players redeem them in their account or in the game. Each code grants a month,
 // a year or a lifetime of membership and works a fixed number of times, once per player.

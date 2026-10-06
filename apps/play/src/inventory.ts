@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Writes docs/DATA-INVENTORY.md from src/lib/inventory.ts (npm run inventory -w apps/play).
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // World renderer: camera, layers, fog of war, effects, overlays.
 (function (E) {
   'use strict';

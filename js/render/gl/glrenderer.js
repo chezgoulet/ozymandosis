@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // three.js backend: batched, instanced 2D pipeline. One render() per frame,
 // ~6 draw calls regardless of creature count. See docs/RENDERING.md.
 (function (E) {

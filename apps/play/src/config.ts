@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Configuration from the environment. Everything optional has a safe default
 // for local development; production refuses to boot without its secrets.
 import { z } from 'zod';

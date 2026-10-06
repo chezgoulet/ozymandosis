@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Display names and chat: normalisation, a light profanity/slur filter, and
 // reserved words. Deliberately conservative; moderators handle the rest.
 

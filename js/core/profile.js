@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Meta-progression: a persistent Lineage (XP, level, titles), achievements that
 // unlock preset Spawnforge designs, and per-culture records. Stored locally; it never
 // changes match balance (unlocks are cosmetic titles and designs anyone could build).

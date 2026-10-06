@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Players report players; staff act on reports. Sanctions are recorded,
 // audited, and take effect immediately on connected clients.
 import type { FastifyInstance } from 'fastify';

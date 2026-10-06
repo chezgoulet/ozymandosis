@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Online end to end: the play service (in-memory Postgres) introduces two browsers,
 // who play over WebRTC with a signed ticket; the free daily match is counted when
 // the match starts, and a second match the same day is refused (docs/MONETIZATION.md).

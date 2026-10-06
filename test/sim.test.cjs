@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 const E = require('./load.cjs')();
 const assert = require('assert');
 let fails = 0;

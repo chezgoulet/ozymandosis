@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Transactional mail. In development (no SMTP_URL) messages are kept in memory
 // and printed with the link redacted to the path, so nothing personal lands in logs.
 import nodemailer from 'nodemailer';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Frame-budget governor: the 60 fps contract (see docs/PERFORMANCE.md).
 //
 // Budget: 16.7 ms per frame. Quality tiers (ultra → high → medium → low) trade

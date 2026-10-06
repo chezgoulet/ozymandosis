@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Desktop UI flow: every major panel driven through clicks.
 const pw = require('../tools/pw.cjs');
 const path = require('path'); const assert = require('assert');

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Verifiable host. In an online match the host runs the only simulation, so a
 // modified host could hand itself lumen, drop a rival's orders or change the
 // result. The sim is deterministic, so guests can check it:

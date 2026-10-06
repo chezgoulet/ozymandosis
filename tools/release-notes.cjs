@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // The body of a client release: what changed, and the steps that cannot be signed
 // from here. Run by .github/workflows/release-client.yml.
 //

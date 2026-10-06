@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Wounds, debris and residue. Renderer-only: the simulation knows health, and
 // everything here is derived from it, so wounds heal exactly as health returns.
 //

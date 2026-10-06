@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Google Play Billing: the Android subscription ($2/month, $12/year; prices come
 // from Play). A new entitlement source, not a new model: a validated purchase
 // becomes a row in `subscriptions` with platform 'android', which only counts for

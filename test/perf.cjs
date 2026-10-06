@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 const pw = require('../tools/pw.cjs');
 process.env.PORT = '8096'; process.env.QUIET = '1';
 const server = require('../server/server.js');

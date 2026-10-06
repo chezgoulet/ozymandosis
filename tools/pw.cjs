@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Playwright for tests and tools, wherever it lives: PW (a path), a playwright or
 // playwright-core install in this repo, or this machine's shared copy.
 //   BROWSER=chromium (default) | firefox | webkit     CHROME=/path/to/chromium
