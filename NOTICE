@@ -9,6 +9,11 @@ Ozymandosis includes the third-party components below. Each remains under its ow
 licence; the licence text travels with the component where one is vendored here.
 
 VENDORED IN THIS REPOSITORY
+  Bioluminescent Dreamscape pack - MIT
+    js/core/seed.js, and the bench it came from at phonon-viz-bench_2_.html
+    From Phonon (github.com/chezgoulet/phonon), the same author's visualiser, vendored
+    verbatim. It is the source of the game's visual language, colour sets and organ
+    renderers, and it keeps its own MIT licence inside this AGPL-3.0 work.
   three.js 0.186.1 - MIT
     vendor/three.min.js, vendor/three.webgpu.min.js   (licence: vendor/THREE-LICENSE)
   Atkinson Hyperlegible Next, Atkinson Hyperlegible Mono - SIL Open Font License 1.1

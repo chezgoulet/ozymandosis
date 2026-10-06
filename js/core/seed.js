@@ -1,5 +1,8 @@
 // Verbatim seed: the Bioluminescent Dreamscape pack (helpers + pack object).
 // Do not edit — the game layer builds on top of this.
+// SPDX-License-Identifier: MIT
+// From Phonon (github.com/chezgoulet/phonon, MIT), the author's own visualizer; vendored
+// here verbatim and used under its original licence. See NOTICE.
 // ── shared helpers ──────────────────────────────────────────────
 function hexToRgb(hex) {
   const s = hex.replace("#", "");
