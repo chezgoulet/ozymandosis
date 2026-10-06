@@ -4,7 +4,6 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/play/package.json apps/play/
-COPY apps/site/package.json apps/site/
 RUN npm ci --workspace apps/play --include-workspace-root=false --ignore-scripts=false
 COPY apps/play apps/play
 # the living title for the portal, bundled from the game's own code

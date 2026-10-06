@@ -105,7 +105,7 @@ jobs:
         run: node tools/version-check.cjs
 
       - name: Build the web bundle and the site
-        run: node tools/build-web.cjs && node apps/site/build.cjs
+        run: node tools/build-web.cjs
 
       - name: Package the web build
         env: { TAG: "${{ github.ref_name }}" }

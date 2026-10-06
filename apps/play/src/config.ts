@@ -31,16 +31,6 @@ const Env = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_PRICE_ID_YEARLY: z.string().optional(),
-  // Google Play Billing (Android subscription): a service account with the
-  // "View financial data / Manage orders and subscriptions" permission in Play Console
-  // (its JSON key, raw or base64), and the secret in the Pub/Sub push URL for
-  // Real-time Developer Notifications (…/api/billing/play/rtdn?token=…).
-  GOOGLE_PLAY_SERVICE_ACCOUNT: z.string().optional(),
-  GOOGLE_PLAY_PACKAGE: z.string().default('com.ozymandosis.game'),
-  GOOGLE_PLAY_PRODUCT: z.string().default('ozymandosis_membership'),
-  GOOGLE_PLAY_RTDN_TOKEN: z.string().min(24).optional(),
-  // the Google Cloud project linked to Play Integrity (Play Console → App integrity), if the app is not linked automatically
-  GOOGLE_CLOUD_PROJECT_NUMBER: z.string().optional(),
   // The App Store (iOS subscription and proof of purchase; docs/STORES.md)
   APPLE_BUNDLE_ID: z.string().default('com.ozymandosis.game'),
   APPSTORE_PRODUCT_MONTHLY: z.string().default('ozymandosis.membership.monthly'),

@@ -22,7 +22,7 @@ service is not deployed. So the field has nothing truthful to point at.
 
 1. Sign up the mail provider (Purelymail) so `privacy@ozymandosis.com` exists —
    a deletion *request* needs somewhere to arrive.
-2. Add `/delete-account` to the live site (`apps/site/public/`), stating the
+2. Add `/delete-account` to the live site (`chezgoulet/ozymandosis-site` (the live site)), stating the
    in-app steps and the email route for people who no longer have the app.
 3. That page is the URL. Later, when the service is deployed, the site page can
    link to the account page and the account page becomes the primary route.

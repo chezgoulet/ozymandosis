@@ -7,7 +7,7 @@
 const path = require('path');
 const pw = require('./pw.cjs');
 const ROOT = path.join(__dirname, '..');
-const out = process.argv[2] || path.join(ROOT, 'apps/site/public/img/ozymandosis-title.png'), W = +(process.argv[3] || 1416), moment = process.argv[4] || '6.2';
+const out = process.argv[2] || path.join(ROOT, 'icons/ozymandosis-title.png'), W = +(process.argv[3] || 1416), moment = process.argv[4] || '6.2';
 const word = process.argv[5] || '', pad = process.argv[6] || '', Hh = +(process.argv[7] || 0);
 (async () => {
   const b = await pw.launch();

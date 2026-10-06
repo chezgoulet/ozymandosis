@@ -13,6 +13,7 @@ If two of these ever disagree, the order of authority is: **owner rulings**
 | Document | What it is |
 |---|---|
 | [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) | **Live.** The way to the first release, ordered by what blocks what. Work from this one. |
+| [fdroiddata/README.md](fdroiddata/README.md) | **Live.** The F-Droid submission: the question to send them, the recipe (linted), and what is left. |
 | [LAUNCH.md](LAUNCH.md) | **Live.** What only a person can do — an account, a signature, a decision — grouped by kind. |
 
 `RELEASE-CHECKLIST.md` says which of these is canonical for what; this file is the wider map.

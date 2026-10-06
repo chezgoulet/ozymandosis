@@ -26,7 +26,7 @@ const say = (label, value) => { found[label] = value === undefined ? '(not found
 
 // ── package.json files: the source of truth is the root one ──────────────
 const rootVersion = say('package.json', readJson('package.json').version);
-for (const f of ['apps/play/package.json', 'apps/desktop/package.json', 'apps/site/package.json']) {
+for (const f of ['apps/play/package.json', 'apps/desktop/package.json']) {
   say(f, (() => { try { return readJson(f).version; } catch { return undefined; } })());
 }
 

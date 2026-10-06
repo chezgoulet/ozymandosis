@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Store validation (docs/MONETIZATION.md, "Entitlements"): the iOS subscription, and
-// proof that an account bought the game on each platform, checked with the store.
+// Store validation (docs/MONETIZATION.md, "Entitlements"): the iOS subscription, and the
+// store evidence that is left — Apple's signed AppTransaction and Steam's ownership check.
+// Android's Play Integrity path went with the billing client (2026-10-06): the app is free
+// everywhere, so there is no purchase to attest.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -11,7 +13,6 @@ import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
 import { boot, signup, type T } from './helpers.js';
 import { setTrustedRootsForTests, appleAccountToken, verifyAppleJws } from '../src/billing/appstore.js';
 import { setSteamOwnsForTests } from '../src/billing/ownership.js';
-import type { PlayApi, PlayIntegrity } from '../src/billing/play.js';
 
 // An Apple-shaped chain: root → intermediate (WWDR marker) → leaf (receipt-signing marker).
 const dir = mkdtempSync(join(tmpdir(), 'ozy-apple-'));
@@ -39,15 +40,12 @@ const jws = (payload: object, c = apple) => {
 const day = 864e5;
 const tx = (userId: string, over: object = {}) => ({ transactionId: 't' + Math.random(), originalTransactionId: 'o-' + userId.slice(0, 8), bundleId: 'com.ozymandosis.game', productId: 'ozymandosis.membership.monthly', type: 'Auto-Renewable Subscription', expiresDate: Date.now() + 30 * day, appAccountToken: appleAccountToken(userId), environment: 'Sandbox', ...over });
 
-// Play Integrity double
-const verdicts = new Map<string, PlayIntegrity>();
-const play: PlayApi = { getSubscription: async () => null, acknowledge: async () => {}, decodeIntegrity: async t => verdicts.get(t) ?? null };
 // Steam double: which Steam ids own which app ids
 const steamOwned = new Set<string>();
 setSteamOwnsForTests(async (_ctx, sid, app) => steamOwned.has(`${sid}:${app}`));
 
 let t: T;
-test('boot', async () => { t = await boot({ STEAM_API_KEY: 'k', STEAM_APP_ID: '1000', STEAM_SEASONS: JSON.stringify([{ appid: 2027, until: new Date(Date.now() + 200 * day).toISOString() }, { appid: 2026, until: new Date(Date.now() - day).toISOString() }]) }, { play }); });
+test('boot', async () => { t = await boot({ STEAM_API_KEY: 'k', STEAM_APP_ID: '1000', STEAM_SEASONS: JSON.stringify([{ appid: 2027, until: new Date(Date.now() + 200 * day).toISOString() }, { appid: 2026, until: new Date(Date.now() - day).toISOString() }]) }); });
 after(async () => { await t.app.close(); });
 const me = (tok: string, platform: string) => t.api('GET', `/api/me?platform=${platform}`, undefined, tok).then(r => r.json.entitlements);
 
@@ -91,18 +89,6 @@ test('ownership on iOS: AppTransaction signed by Apple', async () => {
   assert.equal((await t.api('POST', '/api/ownership/ios', { appTransaction: jws({ bundleId: 'com.other.app', environment: 'Sandbox' }) }, u.token)).status, 400);
   assert.equal((await t.api('POST', '/api/ownership/ios', { appTransaction: jws({ bundleId: 'com.ozymandosis.game', environment: 'Sandbox', appTransactionId: 'x' }) }, u.token)).status, 200);
   assert.deepEqual((await t.api('GET', '/api/ownership', undefined, u.token)).json.platforms.map((p: any) => p.platform), ['ios']);
-});
-
-test('ownership on Android: Play Integrity, licensed and Play-recognised, with our nonce', async () => {
-  const u = await signup(t), v = await signup(t);
-  const { nonce } = (await t.api('GET', '/api/ownership/nonce', undefined, u.token)).json;
-  const verdict = (n: string, lic = 'LICENSED', rec = 'PLAY_RECOGNIZED'): PlayIntegrity => ({ requestDetails: { requestPackageName: 'com.ozymandosis.game', nonce: n }, appIntegrity: { appRecognitionVerdict: rec }, accountDetails: { appLicensingVerdict: lic } });
-  verdicts.set('unlicensed', verdict(nonce, 'UNLICENSED')); verdicts.set('sideloaded', verdict(nonce, 'LICENSED', 'UNRECOGNIZED_VERSION')); verdicts.set('good', verdict(nonce));
-  assert.equal((await t.api('POST', '/api/ownership/android', { nonce, integrityToken: 'forged' }, u.token)).status, 400, 'Google does not know it');
-  assert.equal((await t.api('POST', '/api/ownership/android', { nonce, integrityToken: 'unlicensed' }, u.token)).status, 403, 'not bought');
-  assert.equal((await t.api('POST', '/api/ownership/android', { nonce, integrityToken: 'sideloaded' }, u.token)).status, 403, 'not from Play');
-  assert.equal((await t.api('POST', '/api/ownership/android', { nonce, integrityToken: 'good' }, v.token)).status, 400, "another account's nonce");
-  assert.equal((await t.api('POST', '/api/ownership/android', { nonce, integrityToken: 'good' }, u.token)).status, 200);
 });
 
 test('ownership on Steam, and the season: the Steam subscription, on Steam only', async () => {
