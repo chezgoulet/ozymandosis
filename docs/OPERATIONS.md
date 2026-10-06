@@ -17,7 +17,11 @@ alias cli='dc exec play node apps/play/dist/cli.js'
 4. waits up to 90 s for the play service to report healthy;
 5. if it does not, prints its logs and restarts the previous release.
 
-Staging follows `main` automatically once the workflow's staging environment has its secrets; production is a manual run of the workflow (with required reviewers on the `production` environment) or `deploy.sh` on the server.
+Production is a **manual, deliberate act** — `gh workflow run deploy.yml -f ref=<tag>`, or `deploy.sh` on the server. Nothing deploys on a push.
+
+There is no staging environment in the pipeline. When a change has to be proved against a real server, a test box is spun up on demand and destroyed afterwards ([DEPLOY.md](DEPLOY.md#a-staging-box-when-you-need-one)); CI neither creates it nor knows it exists.
+
+The gate on the workflow is a two-name actor allowlist rather than GitHub's required-reviewer rule: that rule is not available for a private repository on this plan (the API refuses it), so the accounts that may deploy are named in the workflow file itself.
 
 **Migrations only move forward**, and a rollback runs the previous code against the new schema. So every migration must keep the previous release working: add columns and tables freely; rename or drop only in a later release, after nothing reads the old shape.
 
