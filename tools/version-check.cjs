@@ -4,13 +4,18 @@
 //   MIN_CLIENT_VERSION what the service will let online (apps/play/src/config.ts)
 // so a bump done in six of eight places is a support incident, not a cosmetic slip.
 //
-//   node tools/version-check.cjs          # 0 when they agree, 1 with a table when they don't
+//   node tools/version-check.cjs                      # the nine markers against each other
+//   TAG=v0.5.1 node tools/version-check.cjs           # ...and the tag against the version
 //
-// CI runs this on every push; the release workflows run it before they ship anything.
+// CI runs this on every push; the release workflows run it with TAG set before they
+// ship anything, so a tag can no longer name a release the tree does not claim.
+//
+// It does NOT require MIN_CLIENT_VERSION to equal the version — see below.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
+const TAG = (process.env.TAG || '').trim();
 const root = path.resolve(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 const readJson = (f) => JSON.parse(read(f));
@@ -70,10 +75,20 @@ if (base) {
   else if (cmp(min, base) > 0) problems.push(`MIN_CLIENT_VERSION (${minClient}) is newer than the release (${rootVersion}) — it would lock every current build out`);
 }
 
+// ── the tag, when there is one ──────────────────────────────────────────
+// Nothing else ties the tag to the tree: a tag can point at any commit, and the
+// workflow that runs for it is the one in that commit. So the name is checked here,
+// in the same pass as the markers, for every release form.
+if (TAG) {
+  const m = /^(?:v|server-v|app-v)(.+)$/.exec(TAG);
+  if (!m) problems.push(`tag "${TAG}" is not a release tag (expected v<version>, server-v<version> or app-v<version>)`);
+  else if (m[1] !== rootVersion) problems.push(`tag ${TAG} says ${m[1]}, but the tree says ${rootVersion} — the release would be named for a version that does not exist`);
+}
+
 if (problems.length) {
   console.error(`version check failed — ${problems.length} disagreement${problems.length === 1 ? '' : 's'} at ${rootVersion}:`);
   for (const p of problems) console.error('  ' + p);
   console.error('\nBump every place together, or the client and the service will disagree about who may play.');
   process.exit(1);
 }
-console.log(`version check: ${rootVersion} agrees across ${Object.keys(found).length} markers (min client ${minClient}).`);
+console.log(`version check: ${rootVersion} agrees across ${Object.keys(found).length} markers (min client ${minClient})${TAG ? ` and the tag ${TAG}` : ''}.`);
