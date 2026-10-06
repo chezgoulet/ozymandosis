@@ -1,0 +1,40 @@
+Ozymandosis
+Copyright (C) 2026 Christopher Goulet
+
+This program is free software: you can redistribute it and/or modify it under the
+terms of the GNU Affero General Public License as published by the Free Software
+Foundation, version 3. The full text is at LICENSE.
+
+Ozymandosis includes the third-party components below. Each remains under its own
+licence; the licence text travels with the component where one is vendored here.
+
+VENDORED IN THIS REPOSITORY
+  three.js 0.186.1 - MIT
+    vendor/three.min.js, vendor/three.webgpu.min.js   (licence: vendor/THREE-LICENSE)
+  Atkinson Hyperlegible Next, Atkinson Hyperlegible Mono - SIL Open Font License 1.1
+    (Braille Institute of America)
+  Cinzel, Cinzel Decorative - SIL Open Font License 1.1
+    (Natanael Gama / Google Fonts)
+    vendor/fonts/   (licence: vendor/fonts/OFL.txt)
+
+PERMISSIVE LICENCES
+  MIT
+    @capacitor/android, @capacitor/app, @capacitor/browser, @capacitor/cli,
+    @capacitor/core, @capacitor/haptics, @capacitor/ios, @capacitor/screen-orientation,
+    @capacitor/share, @capacitor/status-bar, @fastify/cookie, @fastify/formbody,
+    @fastify/rate-limit, @fastify/static, @fastify/websocket, @node-rs/argon2, @types/node,
+    @types/nodemailer, @types/pg, @types/qrcode, @types/ws, arctic, bonjour-service,
+    electron, electron-builder, esbuild, fastify, pg, qrcode, stripe, three, tsx, zod
+  Apache-2.0
+    @electric-sql/pglite, playwright, typescript
+  MIT-0   (MIT No Attribution - no attribution is required; listed anyway)
+    nodemailer
+
+THE LICENCE TEXT
+  The AGPL-3.0 text at LICENSE is the SPDX canonical rendering
+  (spdx.org/licenses/AGPL-3.0-only), fetched 2026-10-06 and cross-checked against the
+  FSF's GPL-3 text, which it differs from in exactly the documented places: the
+  network-server preamble, section 13, and the appendix.
+
+  Regenerate this list with: npm ls --all --json (plus the two other lockfiles), reading
+  each package's own manifest for its licence field.
