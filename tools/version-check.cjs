@@ -48,6 +48,12 @@ if (!base) problems.push(`package.json has no usable semver version ("${rootVers
 
 for (const [label, value] of Object.entries(found)) {
   if (label === 'android versionCode') continue;             // checked by the formula below
+  // MIN_CLIENT_VERSION is a FLOOR, not an identity: it is meant to lag the release,
+  // so that a new build does not lock out everyone on the previous one. Requiring it
+  // to equal the version would fail every release that does not raise the minimum —
+  // which is most of them, and raising it every time is what it must not do.
+  // It is checked below as a floor, and refused only if it is NEWER than the release.
+  if (label === 'apps/play MIN_CLIENT_VERSION') continue;
   if (label === 'ios MARKETING_VERSION' && iosVersions.length > 1) {
     problems.push(`${label} disagrees with itself: ${iosVersions.join(' + ')}`);
     continue;
