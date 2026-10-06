@@ -95,45 +95,56 @@ At zero accounts it can wait; a manual dump before any risky change is enough.
 The moment the first real account exists it stops being optional — that is the
 point where the data becomes the business rather than a copy of it.
 
-## Deployment automation — already written, not yet live
+## Deployment automation
 
-`.github/workflows/deploy.yml` exists and does the right thing:
+Deployment is **tag-driven**. `.github/workflows/deploy.yml` runs `deploy/deploy.sh`
+over SSH:
 
-- **Two triggers**: automatically after a **successful `ci` run on `main`**, or
-  manually via `workflow_dispatch` choosing `staging` or `production`.
-- **`deploy/deploy.sh`** takes a pre-deploy backup first and **aborts if that
-  backup fails**; rolls out with a **90-second health window**; and **rolls back
-  automatically** to the previous revision if the new one does not come up.
-  It also prunes old images afterwards.
-- **GitHub environments** `staging` and `production` (production with required
-  reviewers), each carrying `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and
-  `DEPLOY_KNOWN_HOSTS`.
-- A nice guard: `CONFIGURED` is computed from `secrets.DEPLOY_HOST != ''`
-  because secrets cannot appear in step conditions, so an **unconfigured
-  environment no-ops loudly instead of failing**.
+- **The trigger that ships is a release tag** — `v*`, or `server-v*` for a service-only
+  fix. A manual `workflow_dispatch` is the break-glass path and skips the checks
+  deliberately. **Nothing deploys on a push to a branch.**
+- **Two gates before it touches the server**: the tagged commit must have a green `ci`
+  run, and the tag must name the version the tree carries (`tools/ci-status.cjs`,
+  `tools/version-check.cjs`). A tag can point at any commit, including an untested one.
+- **`deploy/deploy.sh`** takes a pre-deploy backup first and **aborts if that backup
+  fails**; builds the images on the host; rolls out inside a **90-second health window**;
+  and **rolls back automatically** to the previous revision if the new one does not come
+  up. It prunes old images afterwards.
+- **One GitHub environment**, `production`, carrying `DEPLOY_HOST`, `DEPLOY_USER`,
+  `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS`. GitHub's required-reviewer rule is not
+  available for a private repository on this plan, so the gate is a two-name actor
+  allowlist inside the workflow.
+- A guard worth keeping: `CONFIGURED` is computed from `secrets.DEPLOY_HOST != ''`
+  because secrets cannot appear in step conditions, so an **unconfigured environment
+  no-ops loudly instead of failing**.
 
-**State today: zero environments exist in the repository**, so every deploy run
-prints *"No DEPLOY_HOST for this environment yet; nothing to deploy"* and does
-nothing. That is why the workflow has been harmless so far.
+**State today: live, and this section was stale for as long as nobody read it.** It used
+to say zero environments existed and that deploys would no-op — true when written on
+2026-09-28, false since the environment was created and the first tag went out. Production
+runs `v0.5.1`; the environment holds its four secrets.
 
-### To make it live
+### Cutting a release
 
-1. **Bootstrap the rebuilt host once by hand** — a clone at `~/ozymandosis`,
-   `deploy/.env` populated, Docker installed. Everything after that is
-   automatic.
-2. **Create the two environments and the four secrets in each.** Only the owner
-   can, because they contain the private key.
-3. **Promote `testing` to `main`**, and the pipeline deploys itself.
+```
+git checkout testing && git pull
+git tag v0.6.0 && git push origin v0.6.0
+```
+
+The tag deploys the service if the release touched `apps/play` or `deploy/`, and cuts a
+client release (`release-client.yml`) if it touched anything else. The table, and what
+each workflow ships, is in [OPERATIONS.md](OPERATIONS.md#releases).
 
 ### Two consequences worth naming
 
-- Deploys run on the **House runner on the Thelio**, so a deploy needs the
-  Thelio up — and the runner executing a deploy can read the deploy key. That is
-  the standard self-hosted trade, but it is a trade, and it is worth remembering
-  when anyone proposes running untrusted jobs on that runner.
-- `main` is the release branch, so deployment is triggered by **promotion**
-  rather than by every push. That is the flow working as intended.
-
+- The **deploy job runs on the House runner on the Thelio** — now the only job left there
+  besides the Steam Linux leg, and deliberately: the Linode cloud firewall admits port 22
+  from known addresses only, and a GitHub-hosted runner has none. That is the standard
+  self-hosted trade, and it is worth remembering when anyone proposes running untrusted
+  jobs on that runner.
+- **`main` is not the release branch in practice.** Releases are tagged from `testing`,
+  and `main` sat 54 commits behind before the first tag. Do not read `main` as "what is
+  deployed" — the tag, the deploy log line (`deploying <sha>`) and the image label are
+  the record.
 ## Do not
 
 - **Do not run a mail server here.** A fresh IP with no sending reputation is a

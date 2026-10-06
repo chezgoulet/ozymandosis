@@ -1,5 +1,11 @@
 # Work order: the first release
 
+> **Resolved since it was written (2026-09-28).** This is the order the first release was
+> built to, and it is kept as the record of that. Its open items have since been decided —
+> current status lives in [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md). Notably: the release
+> commits are tagged (`v0.5.1`), the licence landed (`LICENSE`, `NOTICE`), and the
+> `bench/results/check.json` residue is settled (it is in `.gitignore`).
+
 **This order owns no rule.** The decisions live in `docs/DECISIONS.md` (D19 and
 the entries around it), `docs/MONETIZATION.md`, and `docs/LAUNCH.md`. Where this
 order and one of those disagrees, the decision document wins and this order is

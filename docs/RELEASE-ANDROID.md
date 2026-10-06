@@ -25,7 +25,7 @@ git diff --stat                      # every place above, and nothing else
 ```
 
 `versionCode` only ever climbs (Play refuses one it has seen); the tool refuses a lower
-version. 0.5.0 (versionCode 500) is the first public release. When a release must stop
+version. 0.5.1 (versionCode 501) is the first tagged release; the first *public* one is whatever the stores ship. When a release must stop
 older clients playing online, raise `MIN_CLIENT_VERSION` (or the admin console's live
 config) to match.
 

@@ -96,7 +96,7 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 ## Follow-up: living title everywhere, Begin, beta
 | Request | Where it lives |
 |---|---|
-| The living title wherever the name is shown publicly | game title and farewell screen; website hero and navigation on every page; account portal; concept document (`title.html` in an iframe); emails and native splash screens get a rendered still (`tools/render-title.cjs`). Pages outside the game load `living-logo.js`, bundled from the game's own code by `tools/living-logo.cjs` (26 KB gzipped); it pauses off-screen and shows one still frame for reduced-motion users |
+| The living title wherever the name is shown publicly | game title and farewell screen; website hero and navigation on every page; account portal; concept document (`title.html` in an iframe); emails and native splash screens get a rendered still (`tools/render-title.cjs`). Pages outside the game load `/living-logo.js`, which is **built** from the game's own code by `tools/living-logo.cjs` (26 KB gzipped) — it is generated into `apps/play/public/` at image-build time, not committed; it pauses off-screen and shows one still frame for reduced-motion users |
 | "Begin the bloom" → "Begin" | setup screen (skirmish and lobbies) |
 | Beta | badge beside every living title; notice banner on the website and the portal; badge in the admin console; beta clause in the terms; "BETA" in emails |
 
@@ -127,7 +127,7 @@ Everything from the "what will bite us" review, fixed in code or handed over as 
 | Chat and children | age gate (13+, only a band stored), server-routed filtered chat, quick chat for under-16s, server-held evidence for reports |
 | Tax and fees | Stripe Tax, tax-inclusive prices from Stripe, optional yearly plan; economics in LAUNCH.md |
 | Store rules | store builds never sell; the decision on in-app purchase is in LAUNCH.md |
-| Single server, no alerts | encrypted off-site backups with restore drills, deploy with backup and automatic rollback, staging, alerts by email/webhook, metrics, key rotation for every secret (OPERATIONS.md) |
+| Single server, no alerts | deploy with backup and automatic rollback, alerts by email/webhook, metrics, key rotation for every secret (OPERATIONS.md). **Two gaps, stated here rather than left implied:** the pre-deploy backup is encrypted but has never left the box (`BACKUP_REMOTE` is unset), and there is no staging environment in the pipeline — a test box is spun up on demand (DEPLOY.md). |
 | Untested platforms | CI runs Chromium, Firefox and WebKit; real-device and real-provider checks are listed in LAUNCH.md |
 | Balance blind spots | culture win rates with confidence intervals and fielded designs in the admin console |
 | Legal, trademark, signing, email DNS | checklists in LAUNCH.md |

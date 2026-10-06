@@ -64,14 +64,21 @@ one of the fourteen.
 
 ## Why repository secrets, not environments
 
-`chezgoulet` is on the GitHub **Free** plan and `efflorescent` is **private**, and on
-that combination **environments cannot be configured, environment secrets are
-unavailable, and required reviewers on a private repo need Enterprise** (they are
-public-repo-only on Free, Pro and Team). `deploy.yml` as written would no-op forever
-printing "No DEPLOY_HOST for this environment yet" — a failure that reads as "not set
-up yet". Secrets go at **repository** level with prefixes, and the branch or a
-dispatch input selects the pair. Self-hosted runners do not consume Actions minutes,
-so the private-repo allowance is not a constraint.
+`chezgoulet` is on the GitHub **Free** plan and `efflorescent` is **private**, and
+GitHub's documentation says that on that combination environments and environment secrets
+are unavailable, and that required reviewers on a private repository need Enterprise.
+
+**Measured 2026-10-06: the first half of that is wrong here.** The `production`
+environment exists, holds `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and
+`DEPLOY_KNOWN_HOSTS` as *environment* secrets, and deploys have run through them — the
+run that put `v0.5.1` live read them successfully. What is genuinely unavailable is the
+**required-reviewer protection rule** (the API refuses it with a 422 naming the billing
+plan), so `deploy.yml` gates on a two-name actor allowlist instead.
+
+Treat the doc claim as the shape it is: a platform limitation recorded in a runbook is a
+claim about when it was written. Environment secrets work; only the reviewer rule does
+not. Self-hosted runners do not consume Actions minutes — and the general jobs have since
+moved to GitHub-hosted runners anyway, so that allowance is no longer a constraint.
 
 ## The two tests that make "the server cannot affect the app" true
 
