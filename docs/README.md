@@ -1,8 +1,8 @@
 # The documents, and what each is for
 
-Twenty-seven files, and several of them cover the same ground. This is the map: what each
-one is for, and whether it is **live** (keep it true) or a **record** (true as of its date
-— do not edit it to match today).
+Twenty-six documents, plus this index — and several of them cover the same ground. This is
+the map: what each one is for, and whether it is **live** (keep it true) or a **record**
+(true as of its date — do not edit it to match today).
 
 If two of these ever disagree, the order of authority is: **owner rulings**
 (`MONETIZATION.md`, `DECISIONS.md`) → the **live** operational documents → the
