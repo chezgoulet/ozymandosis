@@ -6,7 +6,6 @@ import type { Secrets, Keyring } from './lib/crypto.js';
 import type { Mailer } from './lib/mail.js';
 import type { Hub } from './realtime/hub.js';
 import type { Monitor } from './ops/monitor.js';
-import type { PlayApi } from './billing/play.js';
 
 export interface Ctx {
   cfg: Config;
@@ -15,7 +14,6 @@ export interface Ctx {
   mail: Mailer;
   signer: Keyring;
   stripe: Stripe | null;
-  play: PlayApi | null;
   log: FastifyBaseLogger;
   hub: Hub;
   monitor: Monitor;

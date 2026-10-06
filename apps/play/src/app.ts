@@ -27,7 +27,6 @@ import oauthRoutes from './auth/oauth.js';
 import meRoutes from './auth/me.js';
 import billingRoutes from './billing/stripe.js';
 import promoRoutes from './billing/promo.js';
-import playRoutes, { googlePlayApi, type PlayApi } from './billing/play.js';
 import appStoreRoutes from './billing/appstore.js';
 import ownershipRoutes from './billing/ownership.js';
 import reportRoutes from './reports/routes.js';
@@ -54,7 +53,7 @@ export async function newTicketKey(db: Db, secrets: Secrets): Promise<string> {
 }
 export async function loadSigner(db: Db, secrets: Secrets): Promise<Keyring> { return new Keyring(await loadKeys(db, secrets)); }
 
-export interface BuildOpts { db?: Db; mailer?: Mailer; stripe?: Stripe | null; play?: PlayApi | null; now?: () => number }
+export interface BuildOpts { db?: Db; mailer?: Mailer; stripe?: Stripe | null; now?: () => number }
 
 export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app: FastifyInstance; ctx: Ctx }> {
   const app = Fastify({
@@ -70,8 +69,7 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   setTitleImage(`${cfg.SITE_URL}/img/ozymandosis-title.png`);
   const mail = opts.mailer || makeMailer(cfg.SMTP_URL, cfg.MAIL_FROM, s => app.log.info(s));
   const stripe = opts.stripe !== undefined ? opts.stripe : cfg.STRIPE_SECRET_KEY ? new Stripe(cfg.STRIPE_SECRET_KEY) : null;
-  const play = opts.play !== undefined ? opts.play : cfg.GOOGLE_PLAY_SERVICE_ACCOUNT ? googlePlayApi(cfg.GOOGLE_PLAY_SERVICE_ACCOUNT, cfg.GOOGLE_PLAY_PACKAGE) : null;
-  const ctx: Ctx = { cfg, db, secrets, mail, signer, stripe, play, log: app.log, hub: null as any, monitor: null as any, now: opts.now || Date.now };
+  const ctx: Ctx = { cfg, db, secrets, mail, signer, stripe, log: app.log, hub: null as any, monitor: null as any, now: opts.now || Date.now };
   ctx.hub = new Hub(ctx);
   ctx.monitor = new Monitor(ctx);
 
@@ -160,7 +158,6 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   await meRoutes(app, ctx);
   await billingRoutes(app, ctx);
   await promoRoutes(app, ctx);
-  await playRoutes(app, ctx);
   await appStoreRoutes(app, ctx);
   await ownershipRoutes(app, ctx);
   await reportRoutes(app, ctx);
