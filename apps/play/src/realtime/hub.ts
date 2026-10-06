@@ -23,7 +23,6 @@ import { createHmac, randomInt } from 'node:crypto';
 import type { Ctx, UserRow } from '../context.js';
 import { entitlements, sessionUser, bump, type Entitlements } from '../auth/service.js';
 import { allowance, allowanceMessage, countPlayer, freeMatchesPerDay } from '../billing/allowance.js';
-import { owns, STORE_PLATFORMS } from '../billing/ownership.js';
 import { userTag } from '../lib/privacy.js';
 import { filterChat } from '../lib/names.js';
 import { activeAnnouncements } from '../routes/public.js';
@@ -115,12 +114,10 @@ export class Hub {
     const cfg = await this.remote();
     if (cmpVersion(c.version, cfg.minClientVersion) < 0) { this.send(c, { op: 'upgrade', msg: 'A new version of Ozymandosis is out. Please update to play online.', min: cfg.minClientVersion }); c.ws.close(4010, 'upgrade'); return; }
     if (!a.user.age_band) { this.send(c, { op: 'error', code: 'age', msg: 'Before you play online, tell us your age.' }); c.ws.close(4012, 'age'); return; }
-    // No browser version, and the $1 purchase gates online play (docs/MONETIZATION.md):
-    // only the store apps, each with a store-verified purchase on its own platform.
-    if (this.ctx.cfg.requireStoreClient && a.user.role === 'player') {
-      if (!(STORE_PLATFORMS as readonly string[]).includes(c.platform)) { this.send(c, { op: 'error', code: 'app_only', msg: 'Online play is in the Ozymandosis app, on Steam, iOS and Android.' }); c.ws.close(4013, 'app_only'); return; }
-      if (!(await owns(this.ctx, a.user.id, c.platform))) { this.send(c, { op: 'error', code: 'ownership', platform: c.platform, msg: 'Checking your copy of Ozymandosis with the store…' }); c.ws.close(4014, 'ownership'); return; }
-    }
+    // The store gate is deliberately gone (2026-10-06). It required a client to claim
+    // android/ios/steam and to hold a store-verified purchase — which a free, open-source
+    // client cannot produce, and which a patched one could always lie about. The gates
+    // that remain are the ones this server holds: the free daily allowance, and membership.
     if (cfg.maintenance?.on && a.user.role === 'player') { this.send(c, { op: 'maintenance', msg: cfg.maintenance.message || 'Online play is down for maintenance. Back soon.' }); c.ws.close(4011, 'maintenance'); return; }
     c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user, c.platform);
     this.send(c, {

@@ -75,8 +75,6 @@ export const CLIENT: { data: string; fields: readonly string[]; to: Dest[]; note
 // ── third-party code in the apps ──────────────────────────────────
 // Every dependency of the Android app and every Capacitor plugin, with what it collects.
 export const SDKS: { id: string; collects: string }[] = [
-  { id: 'com.android.billingclient:billing', collects: 'Google Play Billing: Google processes the purchase and holds the payment method (Financial info: Purchase history, shared with Google as the payment processor).' },
-  { id: 'com.google.android.play:integrity', collects: 'Play Integrity: Google checks that this copy came from Play and that the Google account holds a licence, and returns a verdict to our server (App info and performance: Diagnostics; Google’s own policy applies).' },
   { id: 'androidx.appcompat:appcompat', collects: 'Nothing.' },
   { id: 'androidx.coordinatorlayout:coordinatorlayout', collects: 'Nothing.' },
   { id: 'androidx.core:core-splashscreen', collects: 'Nothing.' },

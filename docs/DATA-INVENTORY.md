@@ -62,8 +62,6 @@ What Ozymandosis collects, where it goes and how long it is kept, produced from 
 
 | Library | What it collects |
 |---|---|
-| `com.android.billingclient:billing` | Google Play Billing: Google processes the purchase and holds the payment method (Financial info: Purchase history, shared with Google as the payment processor). |
-| `com.google.android.play:integrity` | Play Integrity: Google checks that this copy came from Play and that the Google account holds a licence, and returns a verdict to our server (App info and performance: Diagnostics; Google’s own policy applies). |
 | `androidx.appcompat:appcompat` | Nothing. |
 | `androidx.coordinatorlayout:coordinatorlayout` | Nothing. |
 | `androidx.core:core-splashscreen` | Nothing. |

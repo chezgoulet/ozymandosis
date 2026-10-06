@@ -47,7 +47,10 @@ test('every third-party library in the Android app and every Capacitor plugin is
   const plugins = Object.keys(pkg.dependencies || {}).filter(k => k.startsWith('@capacitor/'));
   const listed = SDKS.map(s => s.id);
   assert.deepEqual([...deps, ...plugins].filter(d => !listed.includes(d)), [], 'unlisted SDKs');
-  assert.ok(deps.includes('com.android.billingclient:billing'));
+  // The app is free on every rail and membership is bought on the website, so no Google
+  // artifact belongs in it. Until 2026-10-06 this line asserted the opposite — that the
+  // Play Billing dependency was present. The decision, inverted, and now enforced.
+  assert.deepEqual(deps.filter(d => /^(com\.android\.billingclient|com\.google\.)/.test(d)), [], 'Google dependencies are gone');
 });
 
 test('docs/DATA-INVENTORY.md is the current output (npm run inventory -w apps/play)', () => {

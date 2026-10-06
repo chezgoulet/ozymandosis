@@ -120,17 +120,21 @@ test('ownership on Steam, and the season: the Steam subscription, on Steam only'
   assert.equal((await me(u.token, 'android')).subscriber, false, 'the season is a Steam subscription');
 });
 
-test('production rules: browsers cannot play online, and a store app needs a verified purchase on its platform', async () => {
-  const p = await boot({ REQUIRE_STORE_CLIENT: 'true' }, { play });
+test('any client may play online: the gates are the allowance and the membership, not a purchase proof', async () => {
+  // Until 2026-10-06 this test asserted the opposite — that a browser was refused with
+  // `app_only`, and that a store client needed a verified purchase (`ownership`) on its
+  // own platform. The app is now free on every rail with membership bought on the
+  // website, so no client can produce a store proof and none is asked for. What gates a
+  // player is the free daily allowance and the membership: both the server's own.
+  const p = await boot();
   try {
     const u = await signup(p);
     // the first thing the service says to each kind of client
     const { WebSocket } = await import('ws');
     const said = (platform: string) => new Promise<any>(res => { const ws = new WebSocket(`ws://127.0.0.1:${p.port}/ws`); ws.on('open', () => ws.send(JSON.stringify({ op: 'auth', token: u.token, version: '9.9.9', proto: 2, platform }))); ws.on('message', d => { res(JSON.parse(d.toString())); ws.close(); }); });
-    assert.equal((await said('web')).code, 'app_only');
-    assert.equal((await said('ios')).code, 'ownership', 'the iOS app, but no verified purchase yet');
-    await p.api('POST', '/api/ownership/ios', { appTransaction: jws({ bundleId: 'com.ozymandosis.game', environment: 'Sandbox', appTransactionId: 'y' }) }, u.token);
-    assert.equal((await said('ios')).op, 'hello', 'verified: online');
-    assert.equal((await said('android')).code, 'ownership', 'bought on iOS does not make the Android copy bought');
+    assert.equal((await said('web')).op, 'hello', 'a browser client is not refused');
+    assert.equal((await said('android')).op, 'hello', 'an Android client needs no purchase proof');
+    assert.equal((await said('ios')).op, 'hello', 'nor an iOS one');
+    assert.equal((await said('')).op, 'hello', 'nor one that claims no platform at all');
   } finally { await p.app.close(); }
 });
