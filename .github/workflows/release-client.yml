@@ -1,0 +1,89 @@
+# Cuts a client release when a release tag is pushed.
+#
+# One repo holds the game and the service, so one tag fires two workflows: this one
+# and `deploy.yml`. Each asks tools/release-scope.cjs whether it has any work, so a
+# server-only tag does not cut a client release and a client-only tag does not
+# redeploy the service. See §6 of the CD review.
+#
+# What this does: verifies the version markers agree, verifies the tagged commit
+# passed CI, builds the web bundle and the site, and publishes a GitHub Release with
+# the bundle attached and the store steps written down.
+#
+# What it deliberately does not do: sign anything. Android, iOS and Steam builds need
+# keys that are not in CI, so they stay manual and are listed in the release note.
+name: release-client
+on:
+  push:
+    tags: ['v*', 'app-v*']
+permissions: { contents: write, actions: read }
+concurrency: { group: "release-client-${{ github.ref_name }}", cancel-in-progress: false }
+
+jobs:
+  scope:
+    runs-on: [self-hosted, linux, x64]
+    outputs:
+      client: ${{ steps.scope.outputs.client }}
+      why: ${{ steps.scope.outputs.why }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - id: scope
+        env: { TAG: "${{ github.ref_name }}", EVENT: "${{ github.event_name }}" }
+        run: node tools/release-scope.cjs >> "$GITHUB_OUTPUT"
+
+  verified:
+    needs: scope
+    if: needs.scope.outputs.client == 'true'
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: The tagged commit must have passed CI
+        env: { GITHUB_TOKEN: "${{ github.token }}" }
+        run: node tools/ci-status.cjs "${{ github.repository }}" "${{ github.sha }}"
+
+  release:
+    needs: [scope, verified]
+    if: always() && needs.scope.outputs.client == 'true' && needs.verified.result == 'success'
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+
+      # Every place the version is written down, agreeing — before anything ships.
+      - name: Version markers agree
+        run: node tools/version-check.cjs
+
+      - name: Build the web bundle and the site
+        run: node tools/build-web.cjs && node apps/site/build.cjs
+
+      - name: Package the web build
+        env: { TAG: "${{ github.ref_name }}" }
+        run: tar -czf "/tmp/ozymandosis-web-$TAG.tar.gz" -C www .
+
+      - name: Write the release note
+        env: { TAG: "${{ github.ref_name }}" }
+        run: node tools/release-notes.cjs > /tmp/RELEASE.md
+
+      # Idempotent: a re-run uploads over the same release instead of failing.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ASSET="/tmp/ozymandosis-web-$TAG.tar.gz"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$ASSET#Ozymandosis web build (offline PWA)"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "Ozymandosis $TAG" \
+              --notes-file /tmp/RELEASE.md \
+              "$ASSET#Ozymandosis web build (offline PWA)"
+          fi
+          echo "released $TAG (${{ needs.scope.outputs.why }})"

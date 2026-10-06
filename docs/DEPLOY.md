@@ -129,7 +129,12 @@ gh workflow run deploy.yml -f ref=<tag or commit>   # the deploy workflow
 
 It backs up the database, builds, starts the new release, waits for it to be healthy, and rolls back automatically if it is not. Details and the rules for migrations are in [OPERATIONS.md](OPERATIONS.md#releases).
 
-**Nothing deploys on a push.** The deploy workflow is a manual dispatch, and the only environment it knows is `production`. Because GitHub resolves `workflow_dispatch` against the **default branch**, the workflow file has to exist on `main` — editing it on `testing` alone changes nothing about what runs.
+**What deploys, and when.** A release tag (`v0.6.0`) deploys the service *if the release touched `apps/play` or `deploy/`* — a client-only release does not rebuild the server for nothing. `git tag v0.6.0 && git push origin v0.6.0` is the whole ritual; [OPERATIONS.md](OPERATIONS.md#releases) has the table and what the client release does. A push to a branch never deploys.
+
+**Two notes about the mechanics**, both of which have bitten:
+
+- Because GitHub resolves `workflow_dispatch` against the **default branch**, this workflow file has to exist on `main` — editing it on `testing` alone changes nothing about what a manual dispatch runs. A tag push is different: it runs the copy in the tagged commit.
+- A tag can point at any commit, including one that never passed CI, so the deploy refuses unless `tools/ci-status.cjs` finds a green `ci` run for that exact SHA.
 
 ## Mobile and desktop builds
 

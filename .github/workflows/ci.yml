@@ -1,5 +1,11 @@
 name: ci
-on: [push, pull_request]
+# Branches only, deliberately. A release tag fires the release workflows (deploy.yml,
+# release-client.yml), and re-running this whole matrix for a commit that already
+# passed here would just cost the one runner another hour.
+on:
+  push:
+    branches: ['**']
+  pull_request:
 permissions: { contents: read }
 concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 
@@ -22,6 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: node tools/version-check.cjs   # the version is written down in nine places; they must agree
       - run: npm test                      # simulation, content, host audit
       - run: npm run typecheck -w apps/play
       - run: npm run play:test             # play service (in-memory Postgres)
