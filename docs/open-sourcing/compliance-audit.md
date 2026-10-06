@@ -1,5 +1,10 @@
 # Ozymandosis: F-Droid compliance and reproducible-build audit
 
+> **Findings are as of the audited commit below, and some have since been actioned:** the
+> release commits are tagged (G5, partly), and the licence artefacts exist — `LICENSE`
+> (AGPL-3.0), `NOTICE`, and the `license` field in the four manifests (G2, partly). The rest
+> of the findings stand. See [README.md](README.md) for the decision record.
+
 Audit of `chezgoulet/efflorescent` at `fix/playtest-client-0.5.1` (65 commits, 306 tracked files), read-only on
 the playtest host. Goal: what stands between the current tree and an AGPL F-Droid release.
 

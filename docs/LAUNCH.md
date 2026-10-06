@@ -1,6 +1,6 @@
 # Before launch: what only you can do
 
-The code handles what code can. These need a person, an account, a signature or a decision. Tick them off on staging first where that applies.
+The code handles what code can. These need a person, an account, a signature or a decision. Tick them off on an on-demand staging box first where that applies (see DEPLOY.md).
 
 ## Decisions
 
@@ -42,7 +42,7 @@ The scheme is `docs/MONETIZATION.md` (implemented: D20). Set in each store, sinc
 - [ ] **Android**: `npm run android:keygen` once, then **back the upload key up somewhere that is not this machine** (it is the one irrecoverable-in-a-hurry item); accept Play App Signing when creating the app; `npm run android:aab` for every release (docs/RELEASE-ANDROID.md).
 - [ ] **iOS**: App Store Connect record, bundle ID `com.ozymandosis.game`.
 
-## Test with real things (on staging)
+## Test with real things (on an on-demand staging box)
 
 Automated tests cover the code paths with stand-ins; these need the real services and devices:
 

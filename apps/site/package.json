@@ -5,5 +5,6 @@
   "description": "ozymandosis.com: the game's website. Static; served by Caddy with the web client at /play/.",
   "scripts": {
     "build": "node build.cjs"
-  }
+  },
+  "license": "AGPL-3.0-only"
 }

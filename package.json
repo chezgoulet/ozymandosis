@@ -47,5 +47,6 @@
   "workspaces": [
     "apps/play",
     "apps/site"
-  ]
+  ],
+  "license": "AGPL-3.0-only"
 }

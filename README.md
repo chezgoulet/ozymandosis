@@ -113,4 +113,12 @@ The browser tests use Playwright-core with a local Chromium (`PW=/path/to/playwr
 
 ## Credits
 
-The visual language, color sets, organ renderers and palette logic come from the *Bioluminescent Dreamscape* pack of the Phonon visualizer bench. The original concept document is in `docs/concept.html`.
+The visual language, color sets, organ renderers and palette logic come from the *Bioluminescent Dreamscape* pack of the Phonon visualizer bench. That bench is kept in this repository at `phonon-viz-bench_2_.html` as the provenance for that work — it is a source artefact, not a build input, and nothing loads it. The original concept document is in `docs/concept.html`.
+
+## Licence
+
+Ozymandosis is free software under the **GNU Affero General Public License, version 3** (`AGPL-3.0-only`); the full text is in [LICENSE](LICENSE). The network clause is the point of choosing it: anyone who runs a modified version as a service has to offer the source.
+
+Third-party components and their licences are listed in [NOTICE](NOTICE), and the vendored fonts carry the SIL Open Font License at `vendor/fonts/OFL.txt`.
+
+[`docs/`](docs/README.md) is indexed — that file says what each document is for and which one is current.

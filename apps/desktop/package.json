@@ -2,6 +2,7 @@
   "name": "@ozymandosis/desktop",
   "version": "0.5.1",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Desktop shell for Windows, macOS and Linux (the Steam build's base). Launches fullscreen. Not an npm workspace: install it separately so the server and CI never download Electron.",
   "main": "main.cjs",
   "scripts": {

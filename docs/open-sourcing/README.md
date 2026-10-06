@@ -34,8 +34,13 @@ of the Android build. The plan already implies it: Stripe replaces Play Billing,
 to attest Play-delivered binaries.
 **R2 — Licence and attribution.** AGPL-3.0 `LICENSE`, SPDX headers, and a `NOTICE` covering three.js (MIT) and
 every Capacitor/Fastify/Electron dependency. Confirm the launcher art and `icon.svg` are ours.
+*Status 2026-10-06: `LICENSE` and `NOTICE` landed, and the fonts' OFL text is vendored beside them. **SPDX headers
+are still outstanding** — that is the one piece of R2 left.*
 **R3 — History hygiene, before the repo goes public.** Scan the full git history for keys and tokens; rotate
 anything found. `.gitignore` protects the present, not the past.
+*Status 2026-10-06: done. Every object reachable from every ref (104 commits, 1,786 blobs) was scanned and every
+match resolved by reading the code; nothing needs rotating. The only thing the history carries that the tree does
+not is ~4 MB of screenshots, and removing those would rewrite every SHA.*
 **R4 — Generate the release keystore now.** It is the one irreversible decision: if Play ever goes to
 production, it must be enrolled with *this* key, and that cannot be revisited after a first Play release.
 **R5 — Pin every toolchain.** Gradle, AGP, the JDK, Node, the SDK build-tools, and `apksigner` explicitly.
