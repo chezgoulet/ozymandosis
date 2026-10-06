@@ -4,7 +4,7 @@
 // peer to peer (js/net/net.js); this module only talks to the matchmaking service.
 (function (E) {
   'use strict';
-  E.VERSION = '0.5.1';
+  E.VERSION = '0.5.2';
   const O = E.Online = { me: null, ent: null, config: null, announcements: [], chatLog: [], listeners: new Set() };
   const TOKEN = 'efl.session';
 
