@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // Assembles dist/: the static site and the shared fonts. There is no browser version
 // of the game (docs/MONETIZATION.md): the site describes it and links to the stores.
 //   node apps/site/build.cjs
