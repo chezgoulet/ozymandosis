@@ -59,35 +59,23 @@ In Play Console: create the app (`com.ozymandosis.game`), **accept Play App Sign
 register the upload key's SHA-256 (the keygen prints it), then upload the bundle to
 **Testing → Internal testing**.
 
-## Play Billing
+## There is no Play Billing
 
-The game sells the subscription through Play; the service decides who is subscribed
-(`apps/play/src/billing/play.ts`). Set up once:
+The app sells nothing. It is free on every platform and membership is bought on the
+website (`docs/MONETIZATION.md`, revision of 2026-10-06), so **there is nothing to set up
+on the Play side**: no subscriptions, no service account, no Real-time Developer
+Notifications, no license testers buying anything, no `google-services.json`. The app
+carries no Google dependency of any kind — that is enforced by a test that reads
+`build.gradle`.
 
-1. **Monetize → Subscriptions**: product `ozymandosis_membership`, base plans
-   `monthly` ($2, auto-renewing, 1 month) and `annual` ($12, 1 year). Prices shown in
-   the game come from here.
-2. **Google Cloud**: a service account; in Play Console **Users and permissions**, invite
-   it with *View financial data* and *Manage orders and subscriptions*. Put its JSON key
-   (raw or base64) in `GOOGLE_PLAY_SERVICE_ACCOUNT`.
-3. **Real-time developer notifications**: a Pub/Sub topic (grant
-   `google-play-developer-notifications@system.gserviceaccount.com` publish), set it in
-   Play Console → Monetization setup, and a **push** subscription to
-   `https://play.ozymandosis.com/api/billing/play/rtdn?token=<GOOGLE_PLAY_RTDN_TOKEN>`
-   (24+ random characters). Send a test notification; it answers `ignored: test`.
-4. **License testers** (Settings → License testing) for the internal track; their test
-   purchases renew every few minutes, which exercises renewals and expiry quickly.
+What the closed test proves, then, is the *free* experience: that it installs, signs in,
+plays online inside the daily allowance, and survives an update. The membership path is
+proved on the website instead — subscribe in the browser, come back, and the account
+shows *Member*; cancel from the account page and it returns to the allowance.
 
-What the service does: every purchase token the game sends is read back from the Play
-Developer API; it must be the membership product and must name the player's account
-(`obfuscatedAccountId`); a token already bound to another account is refused; it is
-acknowledged server-side. Notifications only prompt a re-read. Refunds and chargebacks
-(voided purchases) end access immediately. The entitlement is Android-only.
-
-**Proof on the internal track** (a person, a license tester, a real phone): subscribe →
-Settings shows *Member*; uninstall, reinstall, sign in → still a member; cancel in Play
-→ member until the period ends, then not; refund from Play Console → not a member within
-a minute. The forged-token rejection is proved in `apps/play/test/playbilling.test.ts`.
+The service's Play code (`apps/play/src/billing/play.ts`, the Play Integrity proof and the
+`GOOGLE_PLAY_*` settings) is unreferenced by any shipping client. It is slated for
+deletion and is not part of this flow.
 
 ## Local network: the Android 17 permission
 

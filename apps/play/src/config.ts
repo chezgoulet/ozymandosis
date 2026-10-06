@@ -51,7 +51,6 @@ const Env = z.object({
   // No browser version (docs/MONETIZATION.md): online play only from the store apps
   // (android, ios, steam) whose purchase the service has verified with that store.
   // On by default in production; development and tests use browsers.
-  REQUIRE_STORE_CLIENT: bool.optional(),
   // Stripe on the web is not part of the scheme (subscriptions are sold per platform,
   // in the platform's store). Off unless an operator decides otherwise.
   WEB_BILLING: bool.default(false),
@@ -85,7 +84,7 @@ const Env = z.object({
   REVISION: z.string().default('dev'),
 });
 
-export type Config = z.infer<typeof Env> & { dev: boolean; test: boolean; prod: boolean; corsOrigins: string[]; requireStoreClient: boolean };
+export type Config = z.infer<typeof Env> & { dev: boolean; test: boolean; prod: boolean; corsOrigins: string[] };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.safeParse(env);
@@ -102,5 +101,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (c.SECRET_KEY && Buffer.from(c.SECRET_KEY, 'base64').length < 32) throw new Error('SECRET_KEY must be at least 32 bytes of base64');
   const corsOrigins = [c.SITE_URL, c.PUBLIC_URL, ...c.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)];
   if (c.SITE_URL.startsWith('https://')) corsOrigins.push(c.SITE_URL.replace('https://', 'https://www.'));
-  return { ...c, dev: c.NODE_ENV === 'development', test: c.NODE_ENV === 'test', prod, corsOrigins, requireStoreClient: c.REQUIRE_STORE_CLIENT ?? prod };
+  return { ...c, dev: c.NODE_ENV === 'development', test: c.NODE_ENV === 'test', prod, corsOrigins };
 }

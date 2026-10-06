@@ -11,7 +11,7 @@ What Ozymandosis collects, where it goes and how long it is kept, produced from 
 | Data | Play Data Safety | App Privacy | Purpose | Goes to | Kept | Optional | Linked to account |
 |---|---|---|---|---|---|---|---|
 | Display name | Personal info: Name | Contact Info: Name | Shown to other players; account | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Until the player deletes the account (deletion erases it). Replaced by a tombstone name on deletion. | Yes | Yes |
-| Email address | Personal info: Email address | Contact Info: Email Address | Account, sign-in, security mail | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site); Our email provider (sends sign-in and account mail); Stripe (web payments, off by default; memberships are sold in each platform’s store) | Until the player deletes the account (deletion erases it). Unconfirmed sign-ups: 30 days. | No | Yes |
+| Email address | Personal info: Email address | Contact Info: Email Address | Account, sign-in, security mail | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site); Our email provider (sends sign-in and account mail); Stripe (payments on the website; the card is handled by Stripe and never reaches us) | Until the player deletes the account (deletion erases it). Unconfirmed sign-ups: 30 days. | No | Yes |
 | Password hash (Argon2) and two-factor secret (encrypted) | Personal info: Other info | Other Data: Other Data Types | Account security | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Until the player deletes the account (deletion erases it). | Yes | Yes |
 | Account id and role | Personal info: User IDs | Identifiers: User ID | Account, preferences | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Until the player deletes the account (deletion erases it). The id row remains, emptied, so match history stays consistent. | No | Yes |
 | Age range (13–15, 16–17, adult; never the birth date) | Personal info: Other info | Other Data: Other Data Types | Chat safety for younger players; the 13+ rule | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Until the player deletes the account (deletion erases it). | No | Yes |
@@ -21,8 +21,8 @@ What Ozymandosis collects, where it goes and how long it is kept, produced from 
 | Rating, match count and wins | App activity: App interactions | Usage Data: Product Interaction | Matchmaking and the player’s record | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Until the player deletes the account (deletion erases it). | No | Yes |
 | Online match records (who, when, result, rating change, and whether it used the free daily match) | App activity: App interactions | User Content: Gameplay Content | Ratings, disputes, counting the free match (one per rolling 24 hours) | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Kept for the life of the service, anonymised on account deletion; unfinished matches are closed after 24 hours. | No | Yes |
 | Cloud saves: lineage, designs, save slots | App activity: Other user-generated content | User Content: Gameplay Content | Sync between the player’s devices | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Until the player deletes the account (deletion erases it). | Yes | Yes |
-| Proof of purchase per platform (which stores confirmed this account bought the game, when; a hash of the proof, never the proof) | Financial info: Purchase history | Purchases: Purchase History | The $1 purchase gates online play; bound to the account | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site); Google Play (Android purchases and Play Integrity; Google processes the payment); Apple App Store (iOS purchases; Apple processes the payment); Valve / Steam (Steam purchases and ownership checks) | Until the player deletes the account (deletion erases it). Re-checked with the store at least every 30 days. | No | Yes |
-| Memberships (status, period, plan, platform; a store purchase token, encrypted) | Financial info: Purchase history | Purchases: Purchase History | Online play beyond the free match | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site); Google Play (Android purchases and Play Integrity; Google processes the payment); Apple App Store (iOS purchases; Apple processes the payment); Valve / Steam (Steam purchases and ownership checks) | Until the player deletes the account (deletion erases it). Card details never reach us (Stripe and Google hold them). | Yes | Yes |
+| Proof of purchase per platform (which stores confirmed this account bought the game, when; a hash of the proof, never the proof) | Financial info: Purchase history | Purchases: Purchase History | For the Steam build, that Steam confirmed the account owns the game; bound to the account | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site); Valve / Steam (Steam purchases and ownership checks) | Until the player deletes the account (deletion erases it). Re-checked with Steam at least every 30 days. | No | Yes |
+| Memberships (status, period, plan, platform; a store purchase token, encrypted) | Financial info: Purchase history | Purchases: Purchase History | Online play beyond the free match | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site); Stripe (payments on the website; the card is handled by Stripe and never reaches us); Valve / Steam (Steam purchases and ownership checks) | Until the player deletes the account (deletion erases it). Card details never reach us (Stripe holds them). | Yes | Yes |
 | Player reports (reason, details, and the chat lines attached) | Messages: Other in-app messages | User Content: Other User Content | Moderation | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Chat lines: 90 days after the report is resolved; the report: 730 days. | Yes | Yes |
 | Crash and bug reports (scrubbed message and stack, version, platform, renderer, whitelisted context, optional screenshot) | App info and performance: Crash logs | Diagnostics: Crash Data | Fixing crashes and bugs | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | Reports: 180 days; screenshots: 30 days; resolved issues: 365 days. Unlinked on account deletion. | Yes | Yes |
 | Frame-rate runs (frame-time percentiles, tier changes, device class, renderer; anonymous) | App info and performance: Other app performance data | Diagnostics: Performance Data | Keeping the game smooth on real devices | Ozymandosis play service (our server, Linode/Akamai; backups encrypted, off-site) | 180 days | Yes | No |
@@ -62,8 +62,6 @@ What Ozymandosis collects, where it goes and how long it is kept, produced from 
 
 | Library | What it collects |
 |---|---|
-| `com.android.billingclient:billing` | Google Play Billing: Google processes the purchase and holds the payment method (Financial info: Purchase history, shared with Google as the payment processor). |
-| `com.google.android.play:integrity` | Play Integrity: Google checks that this copy came from Play and that the Google account holds a licence, and returns a verdict to our server (App info and performance: Diagnostics; Google’s own policy applies). |
 | `androidx.appcompat:appcompat` | Nothing. |
 | `androidx.coordinatorlayout:coordinatorlayout` | Nothing. |
 | `androidx.core:core-splashscreen` | Nothing. |
@@ -77,9 +75,7 @@ What Ozymandosis collects, where it goes and how long it is kept, produced from 
 
 ## Other services involved
 
-- Stripe (web payments, off by default; memberships are sold in each platform’s store)
-- Google Play (Android purchases and Play Integrity; Google processes the payment)
-- Apple App Store (iOS purchases; Apple processes the payment)
+- Stripe (payments on the website; the card is handled by Stripe and never reaches us)
 - Valve / Steam (Steam purchases and ownership checks)
 - Our email provider (sends sign-in and account mail)
 - Cloudflare Turnstile (sign-up bot check, when enabled)
@@ -92,7 +88,7 @@ What Ozymandosis collects, where it goes and how long it is kept, produced from 
 - **App activity: Other user-generated content** — collected, not shared; optional; purposes: Sync between the player’s devices.
 - **App info and performance: Crash logs** — collected, not shared; optional; purposes: Fixing crashes and bugs.
 - **App info and performance: Other app performance data** — collected, not shared; optional; purposes: Keeping the game smooth on real devices.
-- **Financial info: Purchase history** — collected, shared with service providers only; required; purposes: The $1 purchase gates online play; bound to the account; Online play beyond the free match.
+- **Financial info: Purchase history** — collected, shared with service providers only; required; purposes: For the Steam build, that Steam confirmed the account owns the game; bound to the account; Online play beyond the free match.
 - **Messages: Other in-app messages** — collected, not shared; optional; purposes: Moderation.
 - **Personal info: Email address** — collected, shared with service providers only; required; purposes: Account, sign-in, security mail.
 - **Personal info: Name** — collected, not shared; optional; purposes: Shown to other players; account.

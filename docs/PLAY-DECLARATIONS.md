@@ -70,7 +70,7 @@ records are **required**.
 - **Sexuality, nudity, profanity, controlled substances, gambling:** none. There
   are **no loot boxes** — powerups spawn in the world and nothing randomised is
   sold (the monetization ruling is cosmetics and designs only).
-- **Digital purchases:** yes — the $1 purchase and the membership.
+- **Digital purchases:** **no.** The app is free on every platform and nothing is sold inside it; memberships are bought on the website. *(This was "yes" until 2026-10-06, when the in-app purchase went away.)*
 - **User-generated content and online interaction:** **yes.** This is the answer
   that drives the rating, and it is unavoidable: chat goes through the server and
   is filtered, and reports are moderated.
