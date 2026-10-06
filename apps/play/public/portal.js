@@ -53,7 +53,7 @@
     if (q.get('mfa')) return mfaStep(q.get('mfa'));
     if (q.get('done')) return handoffDone();
     if (me && me.user.needsAge) return askAge();
-    if (me && handoff) return approve();
+    if (me && handoff) return approvePrompt();
     if (me) return account();
     return signIn(q.get('signup') ? 'up' : 'in');
   }
@@ -70,7 +70,7 @@
     const age = agePicker();
     const form = h('form', { class: 'stack' }, le, email, lp, pass, mode === 'up' ? [h('p', { class: 'muted', style: 'font-size:.85rem;margin:6px 0 0' }, 'At least 10 characters. We will email you a link to confirm your address.'), ln, name, age.el] : null, go);
     form.onsubmit = e => { e.preventDefault(); busy(go, async () => {
-      const body = { email: email.value, password: pass.value, client: 'web', handoff: handoff || undefined };
+      const body = { email: email.value, password: pass.value, client: 'web' };
       if (mode === 'up' && !age.value()) throw new Error('Tell us the month and year you were born.');
       const r = mode === 'in' ? await api('POST', '/api/auth/login', body) : await api('POST', '/api/auth/signup', Object.assign(body, { name: name.value || undefined }, age.value()));
       if (r.mfa) return mfaStep(r.challenge);
@@ -86,7 +86,7 @@
   }
   async function after(note) {
     me = await api('GET', '/api/me?platform=*');
-    if (handoff) return handoffDone();
+    if (handoff) return approvePrompt();
     history.replaceState(null, '', '/account'); account(); if (note) flash(note, 'ok');
   }
   function mfaStep(challenge) {
@@ -98,7 +98,7 @@
     toggle.onclick = e => { e.preventDefault(); recovery = !recovery; lc.textContent = recovery ? 'Recovery code' : '6-digit code from your authenticator app'; code.removeAttribute('pattern'); code.setAttribute('maxlength', 12); code.setAttribute('inputmode', 'text'); toggle.textContent = recovery ? 'Use my authenticator app' : 'Use a recovery code instead'; code.value = ''; code.focus(); };
     const form = h('form', { class: 'stack' }, lc, code, go, h('p', { style: 'text-align:center;margin:10px 0 0' }, toggle));
     form.onsubmit = e => { e.preventDefault(); busy(go, async () => {
-      await api('POST', '/api/auth/mfa', { challenge, handoff: handoff || undefined, [recovery ? 'recovery' : 'code']: code.value });
+      await api('POST', '/api/auth/mfa', { challenge, [recovery ? 'recovery' : 'code']: code.value });
       history.replaceState(null, '', location.pathname + (handoff ? '?handoff=' + encodeURIComponent(handoff) : '')); after('');
     }); };
     show(h('div', { class: 'card' }, form)); code.focus();
@@ -123,9 +123,28 @@
     form.onsubmit = e => { e.preventDefault(); busy(go, async () => { await api('POST', '/api/auth/reset', { token: q.get('token') || '', password: pass.value }); show(h('div', { class: 'card' }, h('h2', null, 'Password saved'), h('p', null, 'You were signed out everywhere. Sign in with your new password.'), h('a', { class: 'btn primary', href: '/login' }, 'Sign in'))); }); };
     show(h('div', { class: 'card' }, form)); pass.focus();
   }
-  async function approve() {
-    try { await api('POST', '/api/auth/handoff/approve', { handoff }); handoffDone(); }
-    catch (e) { flash(e.message, 'error'); account(); }
+  // Approving is an explicit act: the player is shown which client is asking and must
+  // type the code that client is displaying. Opening a link approves nothing.
+  async function approvePrompt() {
+    let info = null;
+    try { info = await api('GET', '/api/auth/handoff/' + encodeURIComponent(handoff)); }
+    catch (e) { flash(e.message, 'error'); return account(); }
+    $('#subtitle').textContent = 'Approve sign-in';
+    const [lc, codeInput] = field('The code shown in the game', { autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false', maxlength: 12, required: true, style: 'text-transform:uppercase;letter-spacing:.14em' });
+    const go = h('button', { class: 'btn primary block', type: 'submit' }, 'Approve');
+    const deny = h('button', { class: 'btn block', type: 'button' }, 'Not me');
+    deny.onclick = () => { history.replaceState(null, '', '/account'); account(); flash('Nothing was approved.', 'ok'); };
+    const form = h('form', { class: 'stack' }, lc, codeInput, go, deny);
+    form.onsubmit = e => { e.preventDefault(); busy(go, async () => {
+      await api('POST', '/api/auth/handoff/approve', { handoff, code: codeInput.value });
+      handoffDone();
+    }); };
+    show(h('div', { class: 'card' },
+      h('h2', null, 'A game client is asking to sign in'),
+      h('p', { class: 'soft' }, 'Started ' + new Date(info.startedAt).toLocaleString() + (info.hint ? ', from ' + info.hint : '') + '.'),
+      h('p', null, 'If you did not ask to play, choose Not me. Otherwise type the code the game is showing.'),
+      form));
+    codeInput.focus();
   }
   function handoffDone() {
     $('#subtitle').textContent = 'Signed in';
@@ -142,7 +161,7 @@
       if (!age.value()) throw new Error('Choose a month and a year.');
       try { await api('POST', '/api/me/age', age.value()); }
       catch (x) { if (x.status === 403) { me = null; show(h('div', { class: 'card' }, h('h2', null, 'Sorry'), h('p', null, x.message))); return; } throw x; }
-      me = await api('GET', '/api/me?platform=*'); handoff ? approve() : account();
+      me = await api('GET', '/api/me?platform=*'); handoff ? approvePrompt() : account();
     }); };
     show(h('div', { class: 'card' }, h('h2', null, 'Before you play online'), form));
   }

@@ -151,7 +151,7 @@
     const r = await O.api('POST', '/api/auth/handoff', { challenge });
     O.openExternal(provider ? `${O.base()}/auth/${provider}/start?handoff=${encodeURIComponent(challenge)}` : r.url);
     const cancel = { done: false };
-    if (onWait) onWait(cancel);
+    if (onWait) onWait(cancel, { code: r.code, hint: r.hint });
     const t0 = Date.now();
     while (!cancel.done && Date.now() - t0 < 10 * 60e3) {
       await new Promise(res => setTimeout(res, 2000));
@@ -385,9 +385,16 @@
       };
       const viaBrowser = async p => {
         const stop = h('button', { class: 'btn small', type: 'button' }, 'Cancel');
-        box.replaceChildren(h('h3', null, 'Finish in your browser'), h('p', { class: 'si-note' }, 'A browser window opened. Sign in there, then come back: the game signs you in by itself.'), h('div', { class: 'spinner', 'aria-hidden': 'true' }), err, h('div', { class: 'row' }, stop));
+        const shown = h('span', { class: 'si-code-value' }, '— — — —');
+        box.replaceChildren(h('h3', null, 'Finish in your browser'),
+          h('p', { class: 'si-note' }, 'A browser window opened. Sign in there, then type this code when it asks:'),
+          h('div', { class: 'si-code' }, shown),
+          h('div', { class: 'spinner', 'aria-hidden': 'true' }), err, h('div', { class: 'row' }, stop));
         try {
-          const r = await O.browserSignIn(p, c => { stop.onclick = () => { c.done = true; render(); }; });
+          const r = await O.browserSignIn(p, (c, info) => {
+            stop.onclick = () => { c.done = true; render(); };
+            if (info && info.code) shown.textContent = String(info.code).replace(/(.{4})(.{4})/, '$1-$2');
+          });
           if (r.ok) close(true);
         } catch (x) { say(x.message); }
       };

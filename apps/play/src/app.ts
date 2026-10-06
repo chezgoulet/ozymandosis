@@ -92,7 +92,11 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
     const origin = req.headers.origin;
-    reply.header('access-control-allow-origin', origin && origin !== 'null' ? origin : '*');
+    // Only our own origins are echoed back. Everyone else (file://, capacitor://, the
+    // store shells) gets '*'. Neither form carries credentials — this API never sends
+    // access-control-allow-credentials — and a reflected origin would only invite the
+    // browser to attach a session cookie it should not.
+    reply.header('access-control-allow-origin', origin && origin !== 'null' && ctx.cfg.corsOrigins.includes(origin) ? origin : '*');
     reply.header('vary', 'origin');
     reply.header('access-control-allow-headers', 'authorization, content-type, x-ozy');
     reply.header('access-control-allow-methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
