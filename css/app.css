@@ -481,6 +481,12 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line-
 .news-item .btn svg { width: 16px; height: 16px; }
 .modal.signin { max-width: 400px; }
 .si-note { margin: 0; color: var(--ink-soft); font-size: .92em; line-height: 1.45; }
+
+/* The hand-off code the player types in the browser (must match the game). */
+.si-code { display:flex; justify-content:center; margin:10px 0 4px; }
+.si-code-value { font-family:var(--mono, ui-monospace, monospace); font-size:1.6rem; letter-spacing:.28em;
+  padding:10px 14px; border-radius:10px; background:rgba(255,255,255,.05); color:var(--ink,#e8fffb); }
+
 .si-form { display: grid; gap: 10px; }
 .si-form textarea { resize: vertical; min-height: 90px; }
 .age-pick { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 6px; }

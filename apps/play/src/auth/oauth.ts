@@ -61,8 +61,9 @@ export default async function oauthRoutes(app: FastifyInstance, ctx: Ctx) {
     if (user.status === 'banned' || user.status === 'deleted') return reply.redirect('/login?error=banned');
     assertCanPlay(user);
     if (user.totp_enabled) return reply.redirect(`/login?mfa=${encodeURIComponent(mfaChallenge(ctx, user.id, 'web'))}${st.handoff ? '&handoff=' + encodeURIComponent(st.handoff) : ''}`);
-    await issueSession(ctx, req, reply, user, 'web', false, st.handoff);
-    return reply.redirect(st.handoff ? '/login?done=1' : st.return_to || '/account');
+    await issueSession(ctx, req, reply, user, 'web', false);
+    // the player approves the hand-off on the portal, with the code the game shows
+    return reply.redirect(st.handoff ? '/login?handoff=' + encodeURIComponent(st.handoff) : st.return_to || '/account');
   };
   const takeState = async (state: string | undefined, provider: string) => {
     if (!state) throw bad('Missing sign-in state.');

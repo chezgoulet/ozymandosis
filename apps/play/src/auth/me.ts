@@ -20,7 +20,7 @@ const renameLimit = new Limiter(3, 24 * 3600e3), stepUp = new Limiter(10, 15 * 6
 
 export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
   // Confirm a sensitive change with the password, or with a TOTP code for accounts without one.
-  const confirm = async (userId: string, b: { password?: string; code?: string }) => {
+  const confirm = async (userId: string, sessionId: string, b: { password?: string; code?: string }) => {
     if (!stepUp.take(userId)) throw tooMany();
     const u = await ctx.db.one<any>('select password_hash, totp_enabled, totp_secret_enc, totp_last_step from users where id = $1', [userId]);
     if (u.totp_enabled) {
@@ -29,6 +29,15 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
       await ctx.db.query('update users set totp_last_step = $2 where id = $1', [userId, step]);
     } else if (u.password_hash) {
       if (!b.password || !(await verifyPassword(u.password_hash, b.password))) throw unauthorized('That password is not right.');
+    } else {
+      // A provider-created account has neither a password nor a second factor on
+      // file, so there is nothing here to check. Fail closed rather than open: the
+      // one proof still available is that the account holder signed in with their
+      // provider a moment ago.
+      const s = await ctx.db.one<any>('select created_at from sessions where id = $1', [sessionId]);
+      if (!s || ctx.now() - new Date(s.created_at).getTime() > 15 * 60e3) {
+        throw new HttpError(403, 'For your safety, sign out and sign in again before changing this.', 'step_up');
+      }
     }
   };
 
@@ -71,7 +80,7 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireUser(req);
     const b = z.object({ current: z.string().optional(), next: z.string(), code: z.string().optional() }).parse(req.body);
     checkPassword(b.next);
-    await confirm(a.user.id, { password: b.current, code: b.code });
+    await confirm(a.user.id, a.sessionId, { password: b.current, code: b.code });
     await ctx.db.query('update users set password_hash = $2 where id = $1', [a.user.id, await hashPassword(b.next)]);
     await revokeAll(ctx, a.user.id, a.sessionId);
     return { ok: true };
@@ -82,9 +91,12 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
     const b = z.object({ email: z.string(), password: z.string().optional(), code: z.string().optional() }).parse(req.body);
     const email = normEmail(b.email);
     if (!validEmail(email)) throw bad('That email address does not look right.');
-    await confirm(a.user.id, b);
+    await confirm(a.user.id, a.sessionId, b);
     if (await ctx.db.one('select 1 from users where email = $1 and id <> $2', [email, a.user.id])) throw new HttpError(409, 'That email is already in use.', 'exists');
+    const previous = a.user.email;
     await ctx.db.query('update users set email = $2, email_verified = false where id = $1', [a.user.id, email]);
+    // tell the address that is losing the account: a silent change must be impossible
+    if (previous && previous !== email) await ctx.mail.send({ to: previous, ...templates.emailChanged(email) });
     await sendVerify(ctx, { id: a.user.id, email });
     return { ok: true };
   });
@@ -118,7 +130,7 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
   app.post('/api/me/mfa/disable', async req => {
     const a = requireUser(req);
     const b = z.object({ code: z.string() }).parse(req.body);
-    await confirm(a.user.id, { code: b.code });
+    await confirm(a.user.id, a.sessionId, { code: b.code });
     await ctx.db.query('update users set totp_enabled = false, totp_secret_enc = null, totp_last_step = null where id = $1', [a.user.id]);
     await ctx.db.query('delete from recovery_codes where user_id = $1', [a.user.id]);
     if (a.user.email) await ctx.mail.send({ to: a.user.email, ...templates.mfaOff() });
@@ -128,7 +140,7 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
     const a = requireUser(req);
     const b = z.object({ code: z.string() }).parse(req.body);
     if (!a.user.totp_enabled) throw bad('Two-factor sign-in is off.');
-    await confirm(a.user.id, { code: b.code });
+    await confirm(a.user.id, a.sessionId, { code: b.code });
     return { recoveryCodes: await ctx.db.tx(t => newRecoveryCodes(t, a.user.id)) };
   });
 
@@ -183,7 +195,7 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
   app.delete('/api/me', async (req, reply) => {
     const a = requireUser(req);
     const b = z.object({ password: z.string().optional(), code: z.string().optional(), confirm: z.literal('DELETE') }).parse(req.body);
-    await confirm(a.user.id, b);
+    await confirm(a.user.id, a.sessionId, b);
     await deleteAccount(ctx, a.user.id);
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
@@ -192,7 +204,7 @@ export default async function meRoutes(app: FastifyInstance, ctx: Ctx) {
 
 async function newRecoveryCodes(t: Ctx['db'], userId: string): Promise<string[]> {
   await t.query('delete from recovery_codes where user_id = $1', [userId]);
-  const codes = Array.from({ length: 10 }, () => randomBytes(5).toString('hex'));
+  const codes = Array.from({ length: 10 }, () => randomBytes(10).toString('hex')); // 80 bits each
   for (const c of codes) await t.query('insert into recovery_codes (user_id, code_hash) values ($1, $2)', [userId, sha256(c)]);
   return codes.map(c => c.slice(0, 5) + '-' + c.slice(5));
 }
