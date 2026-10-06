@@ -1,34 +1,81 @@
 # Deploys one revision to production over SSH with deploy/deploy.sh: backup first,
 # health-checked rollout, automatic rollback.
 #
-# Manual dispatch only. Nothing deploys on a push, and there is no staging
-# environment in this pipeline — a test box is spun up on demand on Linode and
-# destroyed afterwards (docs/DEPLOY.md, "A staging box, when you need one").
+# Two ways in, and only two:
+#   • a release tag (`v*` or `server-v*`) whose changes include the server — the normal
+#     path. A tag that only touches the game does not redeploy the service.
+#   • a manual dispatch — break-glass. It skips the scope and CI checks, because a
+#     human asking is the evidence.
 #
-# Setup (docs/OPERATIONS.md): a repository environment "production" with secrets
-# DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS.
+# Nothing deploys on a push to a branch, and there is no staging environment in this
+# pipeline (docs/DEPLOY.md, "A staging box, when you need one").
 #
-# ⚠️ GitHub resolves workflow_dispatch against the DEFAULT branch, so this file has
-# to exist on `main`. Changing it on `testing` alone changes nothing about what runs.
+# ⚠️ GitHub resolves workflow_dispatch against the DEFAULT branch, so this file must
+# exist on `main`. A tag push runs the copy in the tagged commit, so keep the two in step.
 name: deploy
 on:
+  push:
+    tags: ['v*', 'server-v*']
   workflow_dispatch:
     inputs:
       ref:
         description: "tag or commit to deploy (blank = the integration branch)"
         required: false
         default: ""
-permissions: { contents: read }
+permissions: { contents: read, actions: read }
 concurrency: { group: "deploy-production", cancel-in-progress: false }
 
 jobs:
+  # Does this release touch the service at all? (tools/release-scope.cjs)
+  scope:
+    runs-on: [self-hosted, linux, x64]
+    outputs:
+      server: ${{ steps.scope.outputs.server }}
+      why: ${{ steps.scope.outputs.why }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, fetch-tags: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - id: scope
+        env: { TAG: "${{ github.ref_name }}", EVENT: "${{ github.event_name }}" }
+        # A manual dispatch checks out the DEFAULT branch, which need not carry this
+        # tool. Fall back to "deploy the server as asked" rather than failing the
+        # break-glass path on a missing file.
+        run: |
+          if [ -f tools/release-scope.cjs ]; then
+            node tools/release-scope.cjs >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "server=true"
+              echo "client=true"
+              echo "why=no scope tool on this ref; a manual dispatch deploys the server as asked"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+  # A tag can point at any commit, including one that never passed CI.
+  verified:
+    needs: scope
+    if: needs.scope.outputs.server == 'true' && github.event_name == 'push'
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: The tagged commit must have passed CI
+        env: { GITHUB_TOKEN: "${{ github.token }}" }
+        run: node tools/ci-status.cjs "${{ github.repository }}" "${{ github.sha }}"
+
   deploy:
-    # Who may deploy. GitHub's required-reviewer protection rule is not available on
-    # this plan for a private repository (the API refuses it with a 422 naming the
-    # billing plan), so the gate is an authorization list instead of an approval
-    # step. Narrow it to ["big-cookie"] to make every production deploy an explicit
-    # act by the owner; widen it only with the same care as handing out admin.
-    if: contains(fromJSON('["big-cookie","robot-chezgoulet"]'), github.actor)
+    needs: [scope, verified]
+    # Who may deploy. GitHub's required-reviewer rule is unavailable on this plan for a
+    # private repository (the API refuses it), so the gate is this list. Narrow it to
+    # ["big-cookie"] to make every production deploy an act by the owner.
+    if: >-
+      always()
+      && needs.scope.outputs.server == 'true'
+      && (github.event_name == 'workflow_dispatch' || needs.verified.result == 'success')
+      && contains(fromJSON('["big-cookie","robot-chezgoulet"]'), github.actor)
     runs-on: [self-hosted, linux, x64]
     environment: production
     env: { CONFIGURED: "${{ secrets.DEPLOY_HOST != '' }}" }  # secrets cannot appear in step conditions
@@ -42,8 +89,9 @@ jobs:
           KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
-          REF: ${{ inputs.ref || 'origin/testing' }}
+          REF: ${{ github.event_name == 'push' && github.ref_name || (inputs.ref || 'origin/testing') }}
         run: |
+          echo "deploying $REF  (${{ needs.scope.outputs.why }})"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
           printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
