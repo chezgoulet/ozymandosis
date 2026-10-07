@@ -1,0 +1,5 @@
+The game is the same; the way you get it changed.
+
+- The Android app now installs and updates from this project's releases with Obtainium.
+  There is no store account and nothing to buy inside the app.
+- The creature designer's button is named Forge. It fits on a phone; Spawnforge did not.
