@@ -3,27 +3,29 @@
 Everything F-Droid needs is in this repository now. What follows is what a person still has
 to do, and the one question to ask them before anything else.
 
-## The question to ask first
+## What reading their docs settled (2026-10-07)
 
-Send this to F-Droid (their forum at <https://forum.f-droid.org/> or the issue tracker on
-<https://gitlab.com/fdroid/fdroiddata>). It is R7 in `docs/open-sourcing/README.md`, and its
-answer decides whether the main repository is reachable at all:
+There is no question to ask before submitting. The path is documented and in use:
 
-> **Subject: Capacitor/Node build — may `prebuild` fetch npm packages?**
->
-> Ozymandosis (github.com/chezgoulet/ozymandosis) is an AGPL-3.0 Capacitor app. The Android
-> project lives in `android/`, and the web assets it packages are produced by Node:
-> `npm ci`, then `node tools/build-web.cjs` (esbuild), then `npx cap sync android`.
->
-> So the recipe's `prebuild` needs to install npm dependencies and fetch esbuild from the
-> registry. Is network access during `prebuild` permitted on the build server, or does the
-> whole build have to run offline? If it must be offline, what is the recommended shape for
-> a Capacitor project — vendoring `node_modules`, a `srclibs` entry, or something else?
->
-> The build itself is a plain Gradle Android build and needs no network. The toolchain is
-> pinned in the tree (JDK 21, build-tools 34.0.0, Gradle 8.14.3, AGP 8.13.0), and two builds
-> of one commit produce an identical APK, so the reproducible-builds path is the intended
-> one.
+- F-Droid ships a template for Node-built apps, `templates/build-react-native.yml`, which
+  installs npm through `sudo` and then runs `npm install`. npm during the build is expected,
+  not exceptional, and the template points at the metadata directory for more examples.
+- A React Native app is in review with exactly that shape (`fdroiddata` merge request !48673,
+  September 2026), and its notes record the current review direction: install Node/npm **from
+  Debian** — that submission uses Debian *forky*, at the maintainer's request.
+- Their inclusion policy prefers Debian-packaged dependencies where they exist, and accepts
+  prebuilt FLOSS binaries from the Node ecosystem — which covers esbuild's platform binary,
+  the same class as the hermesc entry their own template `scanignore`s.
+- The signature question has an official answer. `binary:` plus `AllowedAPKSigningKeys` makes
+  our published APK the reference for reproducible verification, and *"F-Droid will use
+  upstream binaries if the verification succeeded"* — so their copy and ours are the same app,
+  and a player can move between F-Droid, Obtainium and our release page without reinstalling.
+
+So the next step is the submission rather than a question: copy the recipe into a fork of
+`fdroiddata` and open a merge request. Details like the exact Node source get settled with the
+reviewer on the merge request, which is how the app in review is doing it. The one thing worth
+raising in the description is whether they prefer plain Debian npm (their template) or Debian
+forky (the newer direction).
 
 ## The recipe
 
