@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 // What does this release actually contain?
 //
 // This repo holds the game (client, Android, iOS, desktop, website) and the service

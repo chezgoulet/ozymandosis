@@ -1,0 +1,141 @@
+# Ozymandosis production stack for one VPS.
+#   cp deploy/.env.example deploy/.env   # fill it in
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+#   deploy/deploy.sh                     # later releases: backup, build, health-checked rollout
+# See docs/DEPLOY.md and docs/OPERATIONS.md.
+name: ozymandosis
+
+# Every container's logs rotate: 5 files of 10 MB, compressed. Without this,
+# Docker's json-file logs grow until the disk is full.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5", compress: "true" }
+
+services:
+  web:
+    logging: *logging
+    image: ozymandosis-web:${IMAGE_TAG:-latest}
+    build: { context: .., dockerfile: deploy/web.Dockerfile, args: { REVISION: "${IMAGE_TAG:-dev}" } }
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      play: { condition: service_healthy }
+
+  play:
+    logging: *logging
+    image: ozymandosis-play:${IMAGE_TAG:-latest}
+    build: { context: .., dockerfile: apps/play/Dockerfile, args: { REVISION: "${IMAGE_TAG:-dev}" } }
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PUBLIC_URL: https://play.${DOMAIN}
+      SITE_URL: https://${DOMAIN}
+      DATABASE_URL: postgres://ozy:${POSTGRES_PASSWORD}@db:5432/ozy
+      TRUST_PROXY: "true"
+      TURN_URLS: turn:turn.${DOMAIN}:3478?transport=udp,turn:turn.${DOMAIN}:3478?transport=tcp,turns:turn.${DOMAIN}:5349?transport=tcp
+    depends_on:
+      db: { condition: service_healthy }
+    expose: ["8787"]
+
+  db:
+    logging: *logging
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ozy
+      POSTGRES_DB: ozy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ozy -d ozy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # TURN relays encrypted match traffic for players behind strict NATs and for
+  # those who hide their IP. It cannot read the traffic (DTLS end to end).
+  turn:
+    logging: *logging
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - caddy_data:/caddy:ro
+      - ./turn.sh:/turn.sh:ro
+    environment:
+      DOMAIN: ${DOMAIN}
+    # finds Caddy's certificate for turn.DOMAIN and reloads coturn when it renews
+    entrypoint: ["/bin/sh", "/turn.sh"]
+    user: root   # only to read Caddy's root-owned key; turnserver itself runs as nobody
+    command:
+      - -n
+      - --realm=${DOMAIN}
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --min-port=49160
+      - --max-port=49400
+      - --external-ip=${PUBLIC_IP}
+      - --fingerprint
+      - --no-cli
+      - --no-multicast-peers
+      - --no-tlsv1
+      - --no-tlsv1_1
+      # never relay into private networks (protects the host and its neighbours)
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=::1
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --user-quota=12
+      - --total-quota=1200
+      # no logs: coturn logs peer addresses
+      - --log-file=/dev/null
+      - --no-stdout-log
+
+  # Encrypted, verified dumps every 6 hours, copied off-site (docs/OPERATIONS.md).
+  backup:
+    logging: *logging
+    image: ozymandosis-backup:${IMAGE_TAG:-latest}
+    build: { context: .., dockerfile: deploy/backup.Dockerfile }
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
+      BACKUP_INTERVAL_S: ${BACKUP_INTERVAL_S:-21600}
+      BACKUP_REMOTE_DAYS: ${BACKUP_REMOTE_DAYS:-90}
+      # rclone remote "linode" for Linode Object Storage (S3-compatible)
+      RCLONE_CONFIG_LINODE_TYPE: s3
+      RCLONE_CONFIG_LINODE_PROVIDER: Linode
+      RCLONE_CONFIG_LINODE_ENDPOINT: ${LINODE_S3_ENDPOINT:-}
+      RCLONE_CONFIG_LINODE_ACCESS_KEY_ID: ${LINODE_S3_ACCESS_KEY:-}
+      RCLONE_CONFIG_LINODE_SECRET_ACCESS_KEY: ${LINODE_S3_SECRET_KEY:-}
+      RCLONE_CONFIG_LINODE_ACL: private
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

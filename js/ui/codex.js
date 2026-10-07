@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Codex: how to play, controls, and an encyclopedia of every organ, chassis,
 // ability, power, powerup, structure and culture.
 (function (E) {
@@ -21,7 +22,9 @@
           body.appendChild(h('div', { class: 'prose', html: `
             <h3>Your goal</h3><p>Destroy every enemy structure (nuclei, buds and spires). Allies on the same team share victory.</p>
             <h3>The economy</h3><p><b>Lumen</b> ◆ comes from drifting caustic pools, carried home by creatures with <b>pili</b>. <b>Spore</b> ✦ comes from golden spore beds, gathered more slowly, and pays for advanced evolution. Every nucleus also filters a trickle of <b>silt</b> lumen from the water.</p>
-            <h3>Growing</h3><p>Select a nucleus or bud to hatch creatures. Each creature is a <b>design</b>: one chassis plus organs. Open the <b>Forge</b> to create your own designs, and <b>Evolve</b> to research new organs, chassis, tiers and colony powers. Research lanes grow with every Bud you plant.</p>
+            <h3>Growing</h3><p>Select a nucleus or bud to hatch creatures. Each creature is a <b>design</b>: one chassis plus organs. Open the <b>Spawnforge</b> to create your own designs, and <b>Evolve</b> to research new organs, chassis, tiers and colony powers. Research lanes grow with every Bud you plant.</p>
+            <h3>Wounds and healing</h3><p>Wounded creatures lose pieces: organs tear away and tails wear down, and they regrow as the creature heals. Out of the fight for five seconds, a creature knits slowly on its own. Beside your own Nucleus or Bud it <b>mends</b> fast, paid for in lumen; tap <b>Mend</b> (N) to send the selection home. Structures regrow slowly when left alone.</p>
+            <h3>Gatherers and fighters</h3><p>Gatherers are soft and pale, with a glowing harvest sac that fills as they carry. Fighters wear dark war plates, spikes and a spiked crown. A design that can harvest but also bites hard counts as a fighter.</p>
             <h3>Expanding</h3><p>Select any creature, tap <b>Build</b>, and plant a <b>Bud</b> near distant pools. Buds are drop-off points and hatcheries, and add population and research lanes. <b>Spires</b> defend and reveal hidden creatures.</p>
             <h3>Fever</h3><p>Hatching and fighting heat your colony. Fever makes creatures faster and deadlier. Above 60% they start to burn. <b>Frenzy</b> spikes it on purpose. You can read any colony's fever from its color, including your enemies'.</p>
             <h3>Reading the light</h3><p>Colors tell you each colony's state: calm cultures glow in their base tones, busy ones brighten, fevered ones turn amber then red, starving ones fade to cold blue, and a colony whose nucleus is dying pulses red.</p>
@@ -44,18 +47,22 @@
               <kbd>left-click / drag</kbd><span>Select / box-select (Shift adds)</span>
               <kbd>right-click</kbd><span>Smart command: move, attack, harvest</span>
               <kbd>wheel</kbd><span>Zoom at cursor</span>
-              <kbd>middle-drag · arrows · screen edge</kbd><span>Pan</span>
-              <kbd>A</kbd><span>Attack-move (then click)</span>
-              <kbd>M · S · H</kbd><span>Move · Stop · Hold</span>
-              <kbd>Q W E R</kbd><span>Abilities of the selection</span>
+              <kbd>W A S D · arrows</kbd><span>Pan the camera (hold Shift to pan faster)</span>
+              <kbd>middle-drag · screen edge</kbd><span>Pan</span>
+              <kbd>X</kbd><span>Attack-move (then click)</span>
+              <kbd>M · Z · H · N</kbd><span>Move · Stop · Hold · Mend (return home to heal)</span>
+              <kbd>Q E R F C V</kbd><span>Abilities of the selection</span>
               <kbd>B</kbd><span>Build</span>
-              <kbd>T · G</kbd><span>Evolve · Forge</span>
+              <kbd>T · G</kbd><span>Evolve · Spawnforge</span>
               <kbd>F1 · F2</kbd><span>Idle foragers · Army</span>
               <kbd>Space</kbd><span>Jump to your nucleus / last alert</span>
               <kbd>Ctrl+0–9 · 0–9</kbd><span>Set / recall control group</span>
               <kbd>1–9 (hatchery)</kbd><span>Hatch design</span>
               <kbd>Enter</kbd><span>Chat (multiplayer)</span>
-              <kbd>Esc · P</kbd><span>Cancel / menu · pause</span>` }))));
+              <kbd>P · Ctrl+Z</kbd><span>Patrol · undo last order</span>
+              <kbd>Shift+order</kbd><span>Queue as a waypoint</span>
+              <kbd>Esc · F10</kbd><span>Cancel / menu</span>
+              <kbd>Alt+Enter · F11</kbd><span>Toggle fullscreen</span>` }))));
           return;
         case 'cultures':
           for (const c of E.CULTURE_LIST) entry(c.name, c.blurb + ' ' + c.rule + '.', `${c.spec.toUpperCase()} · STARTS WITH ${E.ORGANS[c.startForm].name.toUpperCase()} & ${E.CHASSIS[c.startChassis].name.toUpperCase()}`, cv => E.drawPortrait(cv, E.SIGNATURES[c.id], c.id, {}, 0.6));

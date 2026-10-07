@@ -1,0 +1,9 @@
+First public build.
+
+- Online play: one free match every 24 hours, then unlimited with a membership bought on
+  the website.
+- Local network play with no account and no internet.
+- Campaign, skirmish and the Spawnforge; five rival cultures.
+- Fixed since the playtest: joining a game by its code, sound returning after the app is
+  backgrounded, and the Android build no longer confusing its own address for a
+  development server.

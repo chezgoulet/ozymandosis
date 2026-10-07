@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // The World: a deterministic, fully serializable simulation.
 // All game rules live here. Rendering, UI, audio and networking only read
 // world state and submit commands through world.command().
@@ -20,7 +21,12 @@
     brutal: { name: 'Leviathan', income: 1.6, think: 0.5, wave: [14, 36], first: 170 },
   };
   E.POP_MAX = 120;
+  // Healing. Creatures knit slowly once out of combat; beside their own Nucleus or
+  // Bud they mend fast, paid in lumen. Structures regrow slowly when left alone.
+  E.MEND = { delay: 5, natural: 0.01, nestReach: 70, nest: 0.12, lumenPerHp: 0.25, nestDelay: 1.5, structDelay: 8, struct: 0.004 };
   const RANK_XP = [60, 180, 420];
+  // commands only the host itself may issue; a host drops these when a guest sends them
+  E.HOST_CMDS = new Set(['seat']);
 
   class World {
     constructor(opts) {
@@ -60,7 +66,8 @@
             Object.assign({}, E.BUILTIN_DESIGNS._warden, { id: 'warden' }),
             Object.assign({}, E.SIGNATURES[cult.id]),
           ].concat((pc.designs || []).map((d, k) => Object.assign({}, d, { id: 'c' + k }))),
-          dseq: 1, stats: { hatched: 0, lost: 0, kills: 0, gathered: 0, spore: 0, dmg: 0, built: 0, peak: 0 },
+          dseq: 1, stats: { hatched: 0, lost: 0, kills: 0, gathered: 0, spore: 0, dmg: 0, built: 0, peak: 0, mended: 0 },
+          persona: pc.persona && E.PERSONAS && E.PERSONAS[pc.persona] ? pc.persona : undefined,
           echoT: 0, coralT: 0, income: pc.kind === 'bot' ? E.DIFFS[pc.diff || 'normal'].income : 1, ai: {}, start: map.starts[i],
         };
         s.players.push(p);
@@ -122,7 +129,7 @@
       for (const b of this.s.structs) if (b.o === pi && b.build >= 1) cap += E.STRUCTS[b.kind].pop;
       for (const u of this.s.units) if (u.o === pi && !u.temp && !u.free) used++;
       const cult = E.CULTURES[p.culture];
-      return { used, cap: Math.min(cap, E.POP_MAX + (cult.popBonus || 0)) };
+      return { used, cap: Math.min(cap, (this.s.cfg.map.popCap || E.POP_MAX) + (cult.popBonus || 0)) };
     }
     buff(u, k, dur, v, src, x) {
       if (!u.buffs) return;
@@ -249,8 +256,10 @@
         armor = Math.min(0.8, armor) * (1 - (opts.pierce || 0));
         dmg *= 1 - armor;
         const hard = this.buffV(tg, 'harden'); if (hard) dmg *= 1 - hard;
+        if (this.inEddy(tg.x, tg.y)) dmg *= 0.85; // vortex cores are cover
         if (opts.melee && src && ts.thorns && !opts.noThorns) this.damage(src, dmg * ts.thorns, tg.o, tg, { noThorns: true, dot: true });
       } else dmg *= 1 - (E.STRUCTS[tg.kind].armor || 0) * (1 - (opts.pierce || 0));
+      if (srcO !== undefined && srcO !== null && tg.o !== undefined) dmg *= this.counterMul(srcO, tg.o);
       tg.hp -= dmg;
       if (srcO !== undefined && srcO !== null) {
         tg.lastHit = { o: srcO, t: this.s.t, src: src ? src.id : 0 };
@@ -275,6 +284,30 @@
       }
       return dmg;
     }
+    inEddy(x, y) {
+      for (const c of this.s.map.currents) if (c.kind === 'vortex' && E.dist2(c.x, c.y, x, y) < c.r * c.r * 0.09) return true;
+      return false;
+    }
+    // The Tide Wheel: +12% against cultures you pressure, −8% against those that pressure you.
+    counterMul(a, b) {
+      const pa = this.s.players[a], pb = this.s.players[b]; if (!pa || !pb || a === b) return 1;
+      const A = E.CULTURES[pa.culture], B = E.CULTURES[pb.culture];
+      return A.pressures.includes(B.id) ? 1.12 : B.pressures.includes(A.id) ? 0.92 : 1;
+    }
+    // An own, finished hatchery (Nucleus or Bud) close enough to mend beside.
+    nestFor(u) {
+      for (const b of this.s.structs) {
+        if (b.o !== u.o || b.build < 1 || b.hp <= 0 || !E.STRUCTS[b.kind].hatch) continue;
+        const r = E.STRUCTS[b.kind].r + E.MEND.nestReach;
+        if (E.dist2(b.x, b.y, u.x, u.y) < r * r) return b;
+      }
+      return null;
+    }
+    nearestNest(o, x, y) {
+      let best = null, bd = Infinity;
+      for (const b of this.s.structs) if (b.o === o && b.build >= 1 && b.hp > 0 && E.STRUCTS[b.kind].hatch) { const d = E.dist2(b.x, b.y, x, y); if (d < bd) { bd = d; best = b; } }
+      return best;
+    }
     heal(u, amt) { if (u.hp <= 0) return; const s = u.kind === undefined ? this.stats(u) : E.STRUCTS[u.kind]; u.hp = Math.min(s.hp, u.hp + amt); }
     rankUp(u) {
       if (u.rank >= 3) return;
@@ -289,11 +322,28 @@
       const mine = (c.ids || []).map(id => this.byId.get(id)).filter(u => u && u.o === pi && u.kind === undefined && u.hp > 0);
       const spread = (i) => ({ dx: Math.cos(i * 2.4) * Math.sqrt(i) * 14, dy: Math.sin(i * 2.4) * Math.sqrt(i) * 14 });
       switch (c.c) {
-        case 'move': case 'amove': case 'hold':
-          mine.forEach((u, i) => { const o = spread(i); u.order = { t: c.c, x: clamp(c.x + o.dx, 10, this.s.map.w - 10), y: clamp(c.y + o.dy, 10, this.s.map.h - 10) }; u.tgt = 0; });
+        case 'move': case 'amove': case 'hold': case 'patrol':
+          mine.forEach((u, i) => {
+            const o = spread(i), x = clamp(c.x + o.dx, 10, this.s.map.w - 10), y = clamp(c.y + o.dy, 10, this.s.map.h - 10);
+            const ord = { t: c.c, x, y };
+            this.giveOrder(u, ord, c.queue);
+          });
           break;
-        case 'stop': mine.forEach(u => { u.order = { t: 'idle', x: u.x, y: u.y }; u.tgt = 0; }); break;
-        case 'attack': { const t = this.byId.get(c.tid); if (t && t.hp > 0 && this.isEnemy(pi, t.o)) mine.forEach(u => { u.order = { t: 'attack', id: t.id }; }); break; }
+        case 'mend': mine.forEach(u => { const n = this.nearestNest(pi, u.x, u.y); if (n) this.giveOrder(u, { t: 'mend', id: n.id, x: n.x, y: n.y }, c.queue); }); break;
+        case 'stop': mine.forEach(u => { u.order = { t: 'idle', x: u.x, y: u.y }; u.tgt = 0; u.q = []; }); break;
+        // host only (never accepted from a guest): a seat changes hands between a player and a bot
+        case 'seat': p.kind = c.kind === 'bot' ? 'bot' : 'remote'; p.dropped = c.kind === 'bot'; if (c.diff && E.DIFFS[c.diff]) p.diff = c.diff; if (c.income) p.income = +c.income || 1; break;
+        case 'attack': { const t = this.byId.get(c.tid); if (t && t.hp > 0 && this.isEnemy(pi, t.o)) mine.forEach(u => this.giveOrder(u, { t: 'attack', id: t.id }, c.queue)); break; }
+        case 'restore': {
+          // undo: put back the orders a unit had before a mis-tap (only order shapes, only own units)
+          const OK = { idle: 1, move: 1, amove: 1, hold: 1, patrol: 1, attack: 1, harvest: 1, mend: 1 };
+          for (const r of (c.orders || []).slice(0, 200)) {
+            const u = this.byId.get(r.id);
+            if (!u || u.o !== pi || u.kind !== undefined || !r.order || !OK[r.order.t]) continue;
+            u.order = this.cleanOrder(r.order, u); u.q = (r.q || []).slice(0, 12).filter(o => o && OK[o.t]).map(o => this.cleanOrder(o, u)); u.tgt = 0;
+          }
+          break;
+        }
         case 'harvest': {
           const r = this.byId.get(c.rid);
           if (!r || r.amt === undefined) break;
@@ -390,6 +440,30 @@
         case 'surrender': for (const b of this.s.structs) if (b.o === pi) b.hp = 0; break;
       }
     }
+    cleanOrder(o, u) {
+      const m = this.s.map, n = { t: o.t };
+      if (o.x !== undefined) { n.x = clamp(+o.x || 0, 10, m.w - 10); n.y = clamp(+o.y || 0, 10, m.h - 10); }
+      if (o.t === 'attack' || o.t === 'mend') n.id = o.id | 0;
+      if (o.t === 'harvest') n.rid = o.rid | 0;
+      if (o.t === 'patrol') { n.ax = o.ax !== undefined ? clamp(+o.ax, 10, m.w - 10) : u.x; n.ay = o.ay !== undefined ? clamp(+o.ay, 10, m.h - 10) : u.y; }
+      if (n.x === undefined && o.t !== 'attack' && o.t !== 'harvest') { n.x = u.x; n.y = u.y; }
+      return n;
+    }
+    // Replace the current order, or append to the waypoint queue (shift/queue mode).
+    giveOrder(u, ord, queue) {
+      if (!u.q) u.q = [];
+      const busy = u.order.t !== 'idle' && u.order.t !== 'hold';
+      if (queue && busy) { if (u.q.length < 12) u.q.push(ord); return; }
+      if (ord.t === 'patrol') { ord.ax = u.x; ord.ay = u.y; }
+      u.order = ord; u.tgt = 0; if (!queue) u.q = [];
+    }
+    // Current order finished: take the next waypoint, or rest where we are.
+    nextOrder(u, x, y) {
+      const n = u.q && u.q.length ? u.q.shift() : null;
+      if (n) { if (n.t === 'patrol') { n.ax = u.x; n.ay = u.y; } u.order = n; }
+      else u.order = { t: 'idle', x: x === undefined ? u.x : x, y: y === undefined ? u.y : y };
+      u.tgt = 0;
+    }
     techCost(p, t) { const m = E.CULTURES[p.culture].mods.research; return { l: Math.round(t.cost.l * m), s: Math.round(t.cost.s * m) }; }
     techReady(p, t) { return !t.have(p) && t.req(p); }
     bestHatchery(pi) {
@@ -415,6 +489,8 @@
       const s = this.s;
       if (s.over) return;
       const pend = s.pending; s.pending = [];
+      // an online host keeps the applied command stream so guests can audit it (js/net/audit.js)
+      if (this.rec) for (const { pi, cmd } of pend) this.rec.push([s.tick, pi, cmd]);
       for (const { pi, cmd } of pend) this.applyCommand(pi, cmd);
       s.t += DT; s.tick++;
       // pools & vents
@@ -497,6 +573,7 @@
         return;
       }
       if (p.specials.includes('roots')) b.hp = Math.min(sd.hp, b.hp + 4 * DT);
+      if (b.hp < sd.hp && (!b.lastHit || s.t - b.lastHit.t > E.MEND.structDelay)) b.hp = Math.min(sd.hp, b.hp + sd.hp * E.MEND.struct * DT);
       if (sd.silt) { const g = sd.silt * (p.specials.includes('roots') ? 2 : 1) * p.income * DT; p.lumen += g; }
       // hatching
       const q = b.queue[0];
@@ -557,6 +634,15 @@
         if (b.t <= 0) u.buffs.splice(i, 1);
       }
       if (st.regen) this.heal(u, st.regen * DT);
+      if (u.hp < st.hp) {
+        const since = u.lastHit ? s.t - u.lastHit.t : 1e9;
+        if (since > E.MEND.delay) this.heal(u, st.hp * E.MEND.natural * DT);
+        // the nest: fast mending, paid for in lumen, only out of the fight
+        if (since > E.MEND.nestDelay && this.nestFor(u)) {
+          const want = Math.min(st.hp - u.hp, st.hp * E.MEND.nest * DT), cost = want * E.MEND.lumenPerHp;
+          if (want > 0 && p.lumen >= cost) { p.lumen -= cost; u.hp += want; p.stats.mended = (p.stats.mended || 0) + want; }
+        }
+      }
       if (p.fever > 0.6 && !(p.coralT > 0)) u.hp -= (p.fever - 0.6) * 6 * DT;
       // periodic auras (every 0.5s)
       u.aT -= DT;
@@ -621,20 +707,33 @@
             }
           }
           // harvesters defend themselves only if attacked in melee range
+        } else if (o.t === 'mend') {
+          // swim home and stay beside the nest until whole; ignore fights on the way
+          let n = this.byId.get(o.id);
+          if (!n || n.hp <= 0 || n.o !== u.o) { n = this.nearestNest(u.o, u.x, u.y); if (n) { o.id = n.id; o.x = n.x; o.y = n.y; } }
+          if (!n) this.nextOrder(u);
+          else {
+            const r = E.STRUCTS[n.kind].r + E.MEND.nestReach * 0.6;
+            if (E.dist2(u.x, u.y, n.x, n.y) < r * r) {
+              if (u.hp >= st.hp - 0.01 || p.lumen < 0.5) this.nextOrder(u);
+              if (!u.wp || E.dist2(u.wp.x, u.wp.y, u.x, u.y) < 144) { const a = this.rand() * TAU, rr = E.STRUCTS[n.kind].r + 12 + this.rand() * 30; u.wp = { x: n.x + Math.cos(a) * rr, y: n.y + Math.sin(a) * rr }; }
+              tx = u.wp.x; ty = u.wp.y; spK = 0.35;
+            } else { tx = n.x; ty = n.y; }
+          }
         } else if (o.t === 'build') {
           tx = o.x; ty = o.y;
           if (E.dist2(u.x, u.y, o.x, o.y) < 36 * 36) {
             const sd = E.STRUCTS[o.k];
             if (this.canPlace(u.o, o.k, o.x, o.y)) { this.addStruct(u.o, o.k, o.x, o.y, false); this.event('plant', { x: o.x, y: o.y, o: u.o, kind: o.k }); }
             else { p.lumen += sd.cost.l; p.spore += sd.cost.s; this.event('deny', { o: u.o, why: 'Site blocked. Refunded.' }); }
-            u.order = { t: 'idle', x: u.x, y: u.y };
+            this.nextOrder(u);
           }
         } else {
           const blind = this.inEnemyInk(u);
           let target = null;
           if (o.t === 'attack') {
             target = this.byId.get(o.id);
-            if (!target || target.hp <= 0 || (target.kind === undefined && !this.canTarget(u.o, u.x, u.y, st.detect, target) && E.dist2(u.x, u.y, target.x, target.y) > 90000)) { u.order = { t: 'idle', x: u.x, y: u.y }; target = null; }
+            if (!target || target.hp <= 0 || (target.kind === undefined && !this.canTarget(u.o, u.x, u.y, st.detect, target) && E.dist2(u.x, u.y, target.x, target.y) > 90000)) { this.nextOrder(u); target = null; }
           }
           if (!target && o.t !== 'move' && !blind) {
             u.acqT -= DT;
@@ -678,7 +777,8 @@
             const d2 = E.dist2(o.x, o.y, u.x, u.y);
             tx = o.x; ty = o.y;
             if (d2 < 45 * 45) {
-              if (o.t === 'move' || o.t === 'amove') u.order = { t: 'idle', x: o.x, y: o.y };
+              if (o.t === 'patrol') { u.order = { t: 'patrol', x: o.ax, y: o.ay, ax: o.x, ay: o.y }; u.wp = null; }
+              else if (o.t === 'move' || o.t === 'amove') this.nextOrder(u, o.x, o.y);
               if (!u.wp || E.dist2(u.wp.x, u.wp.y, u.x, u.y) < 144 || E.dist2(u.wp.x, u.wp.y, o.x, o.y) > 3600) u.wp = { x: o.x + (this.rand() * 2 - 1) * 40, y: o.y + (this.rand() * 2 - 1) * 40 };
               tx = u.wp.x; ty = u.wp.y; spK = o.t === 'hold' ? 0.3 : 0.45;
             }
@@ -698,7 +798,12 @@
         u.x += Math.cos(u.a) * spd * DT; u.y += Math.sin(u.a) * spd * DT;
       }
       if (u.dash) { u.x += u.dash.vx * DT; u.y += u.dash.vy * DT; u.dash.t -= DT; if (u.dash.t <= 0) u.dash = null; }
-      if (s.map.currents.length) { const f = E.currentAt(s.map.currents, u.x, u.y); const k = st.chassis === 'nautiloid' || st.chassis === 'carapace' ? 0.5 : 1; u.x += f.x * DT * k; u.y += f.y * DT * k; }
+      if (s.map.currents.length) {
+        // riding a current speeds you up, fighting it slows you (with the flow ×1.4, against ×0.75)
+        const f = E.currentAt(s.map.currents, u.x, u.y); const k = st.chassis === 'nautiloid' || st.chassis === 'carapace' ? 0.5 : 1;
+        u.x += f.x * DT * k; u.y += f.y * DT * k;
+        if (spd > 0) { const along = Math.cos(u.a) * f.x + Math.sin(u.a) * f.y, mul = clamp(1 + along * 0.012, 0.75, 1.4) - 1; u.x += Math.cos(u.a) * spd * mul * DT; u.y += Math.sin(u.a) * spd * mul * DT; }
+      }
       const m = s.map;
       if (u.x < 8) { u.x = 8; u.a = Math.PI - u.a; } else if (u.x > m.w - 8) { u.x = m.w - 8; u.a = Math.PI - u.a; }
       if (u.y < 8) { u.y = 8; u.a = -u.a; } else if (u.y > m.h - 8) { u.y = m.h - 8; u.a = -u.a; }
@@ -795,14 +900,14 @@
         s.units.splice(i, 1); this.byId.delete(u.id);
         if (!u.temp) p.stats.lost++;
         if (u.apex) p.apex = 0;
-        this.event('die', { id: u.id, x: u.x, y: u.y, o: u.o, withered: !!u.withered });
+        this.event('die', { id: u.id, x: u.x, y: u.y, o: u.o, withered: !!u.withered, by: killer ? killer.idx : -1, d: u.d });
       }
       for (let i = s.structs.length - 1; i >= 0; i--) {
         const b = s.structs[i]; if (b.hp > 0) continue;
         s.structs.splice(i, 1); this.byId.delete(b.id);
         const k = b.lastHit; if (k && s.players[k.o]) s.players[k.o].stats.kills++;
         for (const q of b.queue) { s.players[b.o].lumen += q.l; }
-        this.event('destroy', { x: b.x, y: b.y, o: b.o, kind: b.kind });
+        this.event('destroy', { id: b.id, x: b.x, y: b.y, o: b.o, kind: b.kind, by: k ? k.o : -1 });
       }
     }
     adoptDesign(p, design) {
@@ -814,19 +919,44 @@
     checkVictory() {
       const s = this.s;
       if (s.tick % 15) return;
+      const mode = s.cfg.map.mode || 'annihilation';
       for (const p of s.players) {
         if (!p.alive) continue;
-        if (!s.structs.some(b => b.o === p.idx)) {
+        const dead = mode === 'regicide' ? !s.structs.some(b => b.o === p.idx && b.kind === 'nucleus') : !s.structs.some(b => b.o === p.idx);
+        if (dead) {
+          if (mode === 'regicide') for (const b of s.structs) if (b.o === p.idx) b.hp = 0;
           p.alive = false;
           for (const u of s.units) if (u.o === p.idx) { u.hp = 0; u.withered = 1; }
           this.event('eliminated', { o: p.idx });
         }
       }
       const teams = new Set(s.players.filter(p => p.alive).map(p => this.teamOf(p.idx)));
-      if (teams.size <= 1) {
-        s.over = true; s.winner = teams.size ? [...teams][0] : null;
-        this.event('over', { winner: s.winner });
+      let winner = teams.size <= 1 ? (teams.size ? [...teams][0] : null) : undefined;
+      if (winner === undefined && (mode === 'tide' || mode === 'bloom')) winner = this.objectiveTick(mode, teams);
+      if (winner !== undefined) {
+        s.over = true; s.winner = winner;
+        this.event('over', { winner: s.winner, mode });
       }
+    }
+    // Tide: hold the great caustics. Bloom: gather the most light. Returns a winning team or undefined.
+    objectiveTick(mode, teams) {
+      const s = this.s, obj = s.obj || (s.obj = { score: {}, holders: {} });
+      const goal = E.objectiveGoal(s.cfg.map);
+      if (mode === 'tide') {
+        for (const r of s.pools) {
+          if (!r.great) continue;
+          const present = new Set();
+          for (const u of this.grid.query(r.x, r.y, r.r * 1.6, this._q)) if (u.kind === undefined && u.hp > 0) present.add(this.teamOf(u.o));
+          const holder = present.size === 1 ? [...present][0] : null;
+          if (obj.holders[r.id] !== holder) { obj.holders[r.id] = holder; this.event('objective', { pool: r.id, team: holder, x: r.x, y: r.y }); }
+          if (holder !== null) obj.score[holder] = (obj.score[holder] || 0) + 0.5;
+        }
+      } else {
+        for (const tm of teams) obj.score[tm] = 0;
+        for (const p of s.players) if (p.alive) obj.score[this.teamOf(p.idx)] = (obj.score[this.teamOf(p.idx)] || 0) + p.stats.gathered;
+      }
+      for (const tm in obj.score) if (obj.score[tm] >= goal && teams.has(+tm)) return +tm;
+      return undefined;
     }
     // Vision radius sources for a player (and allies) — used by fog + UI
     visionSources(pi) {

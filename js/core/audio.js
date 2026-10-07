@@ -1,35 +1,29 @@
-// Procedural audio: an ambient abyssal pad that follows the colony's mood,
-// plus synthesized effects. No assets.
+// SPDX-License-Identifier: AGPL-3.0-only
+// Procedural audio: the generative score (js/core/music.js) plus synthesized
+// effects. No assets.
 (function (E) {
   'use strict';
   const A = { ctx: null, on: false, last: {} };
   A.init = function () {
     if (A.ctx) { if (A.ctx.state === 'suspended') A.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    const c = A.ctx = new AC();
+    const c = A.ctx = new AC({ latencyHint: 'playback' });
     A.master = c.createGain(); A.master.connect(c.destination);
     A.music = c.createGain(); A.music.connect(A.master);
     A.fx = c.createGain(); A.fx.connect(A.master);
     const rev = c.createConvolver(); rev.buffer = impulse(c, 3.2); A.rev = c.createGain(); A.rev.gain.value = 0.35; A.rev.connect(rev); rev.connect(A.master);
     A.apply();
-    // pad
-    A.padF = c.createBiquadFilter(); A.padF.type = 'lowpass'; A.padF.frequency.value = 700; A.padF.Q.value = 0.7;
-    A.padG = c.createGain(); A.padG.gain.value = 0.0; A.padF.connect(A.padG); A.padG.connect(A.music); A.padG.connect(A.rev);
-    A.oscs = [];
-    [55, 82.41, 110, 164.81, 220.5].forEach((f, i) => {
-      const o = c.createOscillator(); o.type = i % 2 ? 'triangle' : 'sine'; o.frequency.value = f; o.detune.value = (i - 2) * 6;
-      const g = c.createGain(); g.gain.value = [0.5, 0.25, 0.3, 0.12, 0.08][i];
-      const lfo = c.createOscillator(); lfo.frequency.value = 0.05 + i * 0.03; const lg = c.createGain(); lg.gain.value = g.gain.value * 0.5; lfo.connect(lg); lg.connect(g.gain); lfo.start();
-      o.connect(g); g.connect(A.padF); o.start(); A.oscs.push(o);
-    });
-    // ocean noise
-    const nb = c.createBuffer(1, c.sampleRate * 2, c.sampleRate), d = nb.getChannelData(0);
-    let last = 0; for (let i = 0; i < d.length; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
-    const n = c.createBufferSource(); n.buffer = nb; n.loop = true;
-    const nf = c.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 380;
-    const ng = c.createGain(); ng.gain.value = 0.22; n.connect(nf); nf.connect(ng); ng.connect(A.music); n.start();
-    A.padG.gain.setTargetAtTime(0.18, c.currentTime, 3);
     A.on = true;
+    const lite = E.Settings.quality === 'low' || (E.Perf && E.Perf.defaultTier && E.Perf.defaultTier() === 'low');
+    if (E.Music) E.Music.start(c, A.music, { lite });
+  };
+  // Resume a suspended score and report whether audio is running. Used when the
+  // app returns from the background and by the title-screen gesture handlers.
+  A.wake = function () {
+    A.init();
+    const c = A.ctx; if (!c) return Promise.resolve(false);
+    if (c.state === 'running') return Promise.resolve(true);
+    return c.resume().then(() => c.state === 'running').catch(() => false);
   };
   function impulse(c, sec) {
     const len = c.sampleRate * sec, b = c.createBuffer(2, len, c.sampleRate);
@@ -38,16 +32,14 @@
   }
   A.apply = function () {
     if (!A.ctx) return;
-    A.music.gain.value = E.Settings.music * 0.6; A.fx.gain.value = E.Settings.sfx * 0.7;
+    const m = E.Settings.muted ? 0 : 1;
+    A.music.gain.value = E.Settings.music * 0.6 * m; A.fx.gain.value = E.Settings.sfx * 0.7 * m;
   };
-  // mood: 0..1 energy, 0..1 fever
-  A.mood = function (e, fever) {
-    if (!A.on) return;
-    const t = A.ctx.currentTime;
-    A.padF.frequency.setTargetAtTime(500 + e * 900 + fever * 600, t, 1.5);
-    A.oscs[3].detune.setTargetAtTime(fever * 80, t, 2);
-    A.oscs[4].detune.setTargetAtTime(fever * -60, t, 2);
-  };
+  // mood: 0..1 energy, 0..1 fever, 0..1 starvation; intensity: 0..1 how hard the fighting is
+  A.mood = function (e, fever, starve) { if (A.on && E.Music) E.Music.mood(e, fever, starve); };
+  A.intensity = function (v) { if (E.Music) E.Music.intensity(v); };
+  A.theme = function (name) { if (!E.Music) return; if (E.Music.on) { if (E.Music.theme !== name) E.Music.setTheme(name); } else E.Music.theme = name; };
+  A.cadence = function (won) { if (E.Music) E.Music.cadence(won); };
   function tone(freq, dur, type, vol, glide, when, wet) {
     const c = A.ctx, t = c.currentTime + (when || 0);
     const o = c.createOscillator(), g = c.createGain();
@@ -77,6 +69,12 @@
     defeat: () => [392, 311, 262, 196].forEach((f, i) => tone(f, 1.4, 'sine', 0.06, 1, i * 0.25, true)),
     chat: () => tone(1200, 0.08, 'sine', 0.04),
   };
+  // Each culture sings in its own mode; hatch and research chimes use it.
+  const SCALES = [[0, 2, 4, 7, 9], [0, 2, 4, 5, 7, 9, 11], [0, 3, 5, 7, 10], [0, 1, 5, 7, 8], [0, 2, 3, 7, 8], [0, 4, 6, 7, 11]];
+  A.setCulture = function (idx) { A.scale = SCALES[idx % 6]; A.root = [523.25, 587.33, 493.88, 440, 466.16, 554.37][idx % 6]; };
+  A.note = function (step) { const sc = A.scale || SCALES[0], n = sc[((step % sc.length) + sc.length) % sc.length] + 12 * Math.floor(step / sc.length); return (A.root || 523.25) * Math.pow(2, n / 12); };
+  SFX.hatch = () => { const s = Math.floor(Math.random() * 5); tone(A.note(s), 0.5, 'sine', 0.06, 1, 0, true); tone(A.note(s + 2), 0.4, 'sine', 0.03, 1, 0.05, true); };
+  SFX.research = () => [0, 1, 2, 4].forEach((s, i) => tone(A.note(s), 0.6, 'sine', 0.05, 1, i * 0.08, true));
   A.play = function (k, ms) { if (!A.on || !SFX[k]) return; if (!thr(k, ms || 60)) return; try { SFX[k](); } catch (e) { /* ignore */ } };
   E.Audio = A;
 })(window.E);

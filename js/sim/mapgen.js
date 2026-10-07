@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Procedural Dreamscape maps. Deterministic from cfg.seed.
 (function (E) {
   'use strict';
@@ -87,6 +88,17 @@
     return map;
   };
 
+  E.MODES = {
+    annihilation: { name: 'Annihilation', desc: 'Destroy every enemy structure.' },
+    regicide: { name: 'Heartfall', desc: 'Destroy the enemy nucleus. When a nucleus dies, its colony dies with it.' },
+    tide: { name: 'Hold the Tide', desc: 'Hold the great caustics. Every half-second a team holds one alone earns a point.' },
+    bloom: { name: 'Luminance', desc: 'The first team to gather the goal amount of lumen wins.' },
+  };
+  E.objectiveGoal = function (m) {
+    if (m.mode === 'tide') return m.goal || 240;
+    if (m.mode === 'bloom') return m.goal || ({ s: 6000, m: 9000, l: 12000, xl: 15000 }[m.size] || 10000) * (m.richness || 1);
+    return 0;
+  };
   // Current force at a point (units/s)
   E.currentAt = function (currents, x, y) {
     let fx = 0, fy = 0;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Menus: main menu, skirmish & multiplayer lobby setup, load, settings,
 // codex, forge lab, and the living backdrop.
 (function (E) {
@@ -7,19 +8,18 @@
   const game = new E.Game();
   E.game = game;
 
-  // ── backdrop: the seed pack, unmodified ─────────────────────────
-  const bg = $('bg'), bgx = bg.getContext('2d');
-  let bgT = 0, bgLast = performance.now();
+  // ── title backdrop: the abyss and its school; the living word ──
+  const bg = $('bg'), scene = new E.MenuScene(bg), logo = new E.LivingLogo($('logo-cv'));
+  let bgLast = performance.now(), logoLast = bgLast, bgAcc = 0;
   function bgFrame(now) {
     requestAnimationFrame(bgFrame);
-    const dt = Math.min(0.05, (now - bgLast) / 1000); bgLast = now;
-    if (bg.hidden || document.hidden) return;
-    bgT += dt;
-    const r = bg.getBoundingClientRect(), dpr = Math.min(1.5, window.devicePixelRatio || 1);
-    if (bg.width !== Math.round(r.width * dpr)) { bg.width = Math.round(r.width * dpr); bg.height = Math.round(r.height * dpr); }
-    bgx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const load = 0.45 + 0.35 * Math.sin(bgT * 0.09) + 0.12 * Math.sin(bgT * 0.31);
-    BioluminescentDreamscape.render(bgx, r.width, r.height, { lowPowerMode: false, isProcessing: load > 0.4, inferenceLoad: E.clamp(load, 0, 1), queueDepth: load * 14, isHealthy: true, isCharging: false, batteryLevel: 80, batteryTemperature: 33 }, bgT, dt);
+    if (bg.hidden || document.hidden) { bgLast = logoLast = now; return; }
+    const menuUp = !$('scr-menu').hidden;
+    if (menuUp) { logo.frame((now - logoLast) / 1000); } logoLast = now;
+    bgAcc += now - bgLast; bgLast = now;
+    if (bgAcc < 32) return; // the backdrop is fine at 30 fps
+    const dt = Math.min(0.05, bgAcc / 1000); bgAcc = 0;
+    scene.frame(dt);
     if (forgeLab && !$('scr-forge').hidden) forgeLab.frame(dt);
   }
 
@@ -31,18 +31,40 @@
     return { map: Object.assign({}, E.DEFAULT_MAP, { seed: 1 + Math.floor(Math.random() * 99999) }),
       slots: [{ kind: 'you', culture: 'verdant', team: 0, diff: 'normal' }, { kind: 'bot', culture: 'bloom', team: 0, diff: 'normal' }] };
   }
-  function playerName() { return (E.Settings.name || '').trim() || 'Tender'; }
+  function playerName() { if (lobby && lobby.online && E.Online.me) return E.Online.me.name; return (E.Settings.name || '').trim() || 'Tender'; }
   function freeCulture(except) { const used = new Set(setup.slots.filter(s => s !== except).map(s => s.culture)); return E.CULTURE_LIST.find(c => !used.has(c.id)).id; }
   function setCulture(slot, cid) {
     const other = setup.slots.find(s => s !== slot && s.culture === cid);
     if (other) other.culture = slot.culture;
     slot.culture = cid;
   }
+  function lobbyCode() { return lobby ? (lobby.joinCode || lobby.room || '') : ''; }
+  function canShareCode() { return !!((window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Share) || navigator.share); }
+  async function copyLobbyCode() {
+    const el = $('lobby-code'), code = el.textContent.trim(); if (!code) return;
+    let ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(code); ok = true; } } catch (e) { /* fall through */ }
+    if (!ok) { try { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); ok = document.execCommand('copy'); } catch (e) { /* ignore */ } }
+    E.toast(ok ? 'Join code copied' : 'Select the code and copy it');
+  }
+  function shareLobbyCode() {
+    const code = lobbyCode(); if (!code) return;
+    const P = window.Capacitor && Capacitor.Plugins;
+    const text = `Join my Ozymandosis game — code ${code}`;
+    if (P && P.Share) { P.Share.share({ title: 'Ozymandosis', text, dialogTitle: 'Share join code' }).catch(() => {}); return; }
+    if (navigator.share) { navigator.share({ title: 'Ozymandosis', text }).catch(() => {}); return; }
+    copyLobbyCode();
+  }
 
   function renderSetup() {
     const isHost = lobby && lobby.role === 'host', isGuest = lobby && lobby.role === 'guest';
     $('setup-title').textContent = lobby ? (lobby.save ? 'Resume together' : 'Lobby') : 'Skirmish';
-    $('setup-room').textContent = lobby ? 'ROOM ' + lobby.room : '';
+    $('setup-room').textContent = lobby ? (lobby.joinCode ? 'JOIN CODE ' + lobby.joinCode : 'ROOM ' + lobby.room) : '';
+    const code = lobbyCode();
+    $('lobby-code-row').hidden = !code;
+    $('lobby-code').textContent = code;
+    $('lobby-code-lbl').textContent = lobby && lobby.joinCode ? 'Join code' : 'Room code';
+    $('lobby-share').hidden = !(code && canShareCode());
     $('lobby-chat-card').hidden = !lobby;
     const host = $('slots'); host.innerHTML = '';
     setup.slots.forEach((s, i) => {
@@ -71,9 +93,14 @@
       const team = h('select', { disabled: !editable || (lobby && lobby.save), 'aria-label': 'Team' }, [['0', 'Free-for-all'], ['1', 'Team 1'], ['2', 'Team 2'], ['3', 'Team 3']].map(([v, l]) => h('option', { value: v }, l)));
       team.value = String(s.team || 0);
       team.onchange = () => { if (isGuest) { lobby.relay.toHost({ k: 'pick', culture: s.culture, team: +team.value }); return; } s.team = +team.value; changed(); };
-      const spec = h('span', { class: 'mono', style: 'color:var(--ink-dim);align-self:center', title: c.rule }, c.spec);
+      let spec = h('span', { class: 'mono', style: 'color:var(--ink-dim);align-self:center', title: c.rule }, c.spec);
+      if (s.kind === 'bot') {
+        spec = h('select', { disabled: !(!lobby || isHost), 'aria-label': 'Bot personality', title: 'Personality' }, [h('option', { value: '' }, 'Personality: ' + E.PERSONAS[c.persona].name)].concat(Object.entries(E.PERSONAS).filter(([, v]) => !v.hidden).map(([k, v]) => h('option', { value: k }, v.name))));
+        spec.value = s.persona || ''; spec.onchange = () => { s.persona = spec.value || undefined; changed(); };
+      }
       host.appendChild(h('div', { class: 'slot-row', style: `--c0:${c.hex[0]};--c1:${c.hex[1]}` }, h('div', { class: 'sw' }), h('div', null, h('div', { class: 'ctl' }, cult, ctrl, team, spec),
-        h('div', { style: 'font-size:.8em;color:var(--ink-soft);margin-top:6px' }, `${c.epithet}. ${c.rule}. Starts with ${E.ORGANS[c.startForm].name} and the ${E.CHASSIS[c.startChassis].name}.`))));
+        h('div', { style: 'font-size:.8em;color:var(--ink-soft);margin-top:6px' }, `${c.epithet}. ${c.rule}. Starts with ${E.ORGANS[c.startForm].name} and the ${E.CHASSIS[c.startChassis].name}.`),
+        h('div', { class: 'counters' }, h('span', { class: 'up' }, '▲ strong vs ' + c.pressures.map(id => E.CULTURES[id].short).join(', ')), h('span', { class: 'down' }, '▼ weak vs ' + E.CULTURE_LIST.filter(o => o.pressures.includes(c.id)).map(o => o.short).join(', '))))));
     });
     $('slot-add').hidden = setup.slots.length >= 6 || isGuest || (lobby && lobby.save);
     $('slot-note').textContent = `${setup.slots.length}/6 cultures`;
@@ -90,18 +117,32 @@
     seg('map-rich', [[0.6, 'Scarce'], [1, 'Normal'], [1.5, 'Lush']], 'richness');
     seg('map-pu', [[0, 'Off'], [1, 'Normal'], [2, 'Frequent']], 'powerups');
     seg('map-start', [[150, '150'], [220, '220'], [500, '500'], [1000, '1000']], 'startLumen');
+    if (!setup.map.mode) setup.map.mode = 'annihilation';
+    if (!setup.map.popCap) setup.map.popCap = E.Perf.defaultPopCap();
+    seg('map-mode', Object.entries(E.MODES).map(([k, v]) => [k, v.name]), 'mode');
+    $('map-mode-d').textContent = E.MODES[setup.map.mode].desc;
+    seg('map-pop', [[60, '60'], [90, '90'], [120, '120'], [150, '150']], 'popCap');
     $('map-seed').value = setup.map.seed; $('map-seed').disabled = isGuest || !!(lobby && lobby.save);
     $('map-reseed').disabled = isGuest || !!(lobby && lobby.save);
     $('map-fog').checked = !!setup.map.fog; $('map-cur').checked = !!setup.map.currents;
     $('map-fog').disabled = $('map-cur').disabled = isGuest || !!(lobby && lobby.save);
     $('setup-start').hidden = isGuest;
-    $('setup-start').textContent = lobby ? 'Start the match' : 'Begin the bloom';
+    $('setup-start').textContent = 'Begin';
     drawMapPreview();
   }
   function changed() {
     if (!lobby || lobby.role === 'host') { if (!lobby) { E.Settings.lastSetup = setup; E.saveSettings(); } }
     renderSetup();
-    if (lobby && lobby.role === 'host') broadcastLobby();
+    if (lobby && lobby.role === 'host') { broadcastLobby(); sendMeta(); }
+  }
+  function sendMeta() {
+    if (!lobby || !lobby.online || lobby.role !== 'host') return;
+    const seats = setup.slots.filter(s => s.kind === 'you' || s.kind === 'human' || s.kind === 'open');
+    lobby.relay.raw({ op: 'meta', players: setup.slots.filter(s => s.kind === 'you' || s.kind === 'human').length, max: Math.max(2, seats.length), mode: setup.map.mode || 'annihilation' });
+    if (lobby.quick && !lobby.starting && setup.slots.every(s => s.kind !== 'open')) {
+      lobby.starting = true; lobbyLog('Room', 'Everyone is here. The bloom begins in 3…');
+      setTimeout(() => { if (lobby && lobby.starting) startFromSetup(); }, 3000);
+    }
   }
   function drawMapPreview() {
     const cv = $('map-preview'), r = cv.getBoundingClientRect(); if (!r.width) return;
@@ -118,7 +159,7 @@
     for (const v of m.vents) { ctx.fillStyle = 'rgba(255,180,120,.7)'; ctx.fillRect(v.x - 40, v.y - 40, 80, 80); }
     m.starts.forEach((s, i) => { const c = E.CULTURES[slots[i].culture]; ctx.fillStyle = c.hex[1]; ctx.shadowColor = c.hex[0]; ctx.shadowBlur = 30; ctx.beginPath(); ctx.arc(s.x, s.y, 110, 0, E.TAU); ctx.fill(); ctx.shadowBlur = 0; });
     ctx.restore();
-    ctx.fillStyle = 'rgba(212,236,231,.6)'; ctx.font = '10px "Martian Mono", monospace'; ctx.fillText(`${m.w}×${m.h} · ${m.pools.length} pools · ${m.vents.length} vents`, 8, r.height - 8);
+    ctx.fillStyle = 'rgba(212,236,231,.6)'; ctx.font = '11px "Atkinson Hyperlegible Mono", monospace'; ctx.fillText(`${m.w}×${m.h} · ${m.pools.length} pools · ${m.vents.length} vents`, 8, r.height - 8);
   }
   function bindSetup() {
     $('slot-add').onclick = () => {
@@ -134,18 +175,35 @@
     $('setup-start').onclick = () => startFromSetup();
     $('lobby-chat').onsubmit = e => {
       e.preventDefault(); const v = $('lobby-msg').value.trim(); $('lobby-msg').value = ''; if (!v || !lobby) return;
-      if (lobby.role === 'host') { lobbyLog(playerName(), v); lobby.relay.send('all', { k: 'chat', from: playerName(), text: v }); }
-      else lobby.relay.toHost({ k: 'chat', text: v });
+      sayInLobby({ text: v });
     };
+    $('lobby-copy').onclick = copyLobbyCode;
+    $('lobby-share').onclick = shareLobbyCode;
+  }
+  // Online lobbies chat through the service (filtered, age-aware); LAN lobbies peer to peer.
+  function sayInLobby(m) {
+    if (!lobby) return;
+    if (lobby.online) { lobby.relay.raw(Object.assign({ op: 'chat' }, m)); return; }
+    const text = m.q !== undefined ? E.QUICK_CHAT[m.q] : E.filterChat(m.text);
+    if (lobby.role === 'host') { lobbyLog(playerName(), text); lobby.relay.send('all', { k: 'chat', from: playerName(), text }); }
+    else lobby.relay.toHost({ k: 'chat', text });
+  }
+  function renderLobbyChat() {
+    const online = lobby && lobby.online, mode = online ? E.Online.chatMode() : 'all';
+    $('lobby-chat').hidden = mode !== 'all';
+    $('lobby-quick').replaceChildren(...(mode === 'off' ? [] : (online ? E.Online.quickChat() : E.QUICK_CHAT).slice(0, 6).map((t, q) => h('button', { type: 'button', onclick: () => sayInLobby({ q }) }, t))));
+    if (mode === 'off') $('lobby-quick').append(h('small', { class: 'hint-s' }, 'Chat is off in your settings.'));
   }
   function lobbyLog(from, text) {
+    if (!renderLobbyChat.done) { renderLobbyChat.done = true; renderLobbyChat(); }
+    if (from !== 'Room') E.Online.logChat(from, text);
     const log = $('lobby-log'); log.appendChild(h('div', null, h('b', null, from + ': '), text)); log.scrollTop = 1e9; E.Audio.play('chat');
   }
   function buildCfg() {
     const slots = setup.slots;
     const players = slots.map(s => ({
       name: s.kind === 'you' ? playerName() : s.kind === 'human' ? s.name : E.CULTURES[s.culture].short,
-      culture: s.culture, team: s.team || 0, kind: s.kind === 'you' ? 'human' : s.kind === 'human' ? 'remote' : 'bot', diff: s.diff || 'normal',
+      culture: s.culture, team: s.team || 0, kind: s.kind === 'you' ? 'human' : s.kind === 'human' ? 'remote' : 'bot', diff: s.diff || 'normal', persona: s.kind === 'bot' ? s.persona : undefined,
       designs: s.kind === 'you' ? E.Library.all().slice(0, 12) : [],
     }));
     return { map: Object.assign({}, setup.map), players };
@@ -158,17 +216,19 @@
     if (lobby) {
       for (const s of setup.slots) if (s.kind === 'open') { s.kind = 'bot'; s.diff = 'normal'; }
       const peers = new Map();
-      setup.slots.forEach((s, i) => { if (s.kind === 'human') peers.set(s.peer, { slot: i, name: s.name }); });
+      setup.slots.forEach((s, i) => { if (s.kind === 'human') peers.set(s.peer, { slot: i, name: s.name, muted: s.muted }); });
       const local = setup.slots.findIndex(s => s.kind === 'you');
-      const relay = lobby.relay;
+      const relay = lobby.relay, online = !!lobby.online;
+      const slotUid = {}; setup.slots.forEach((s, i) => { if (s.uid) slotUid[i] = s.uid; if (s.kind === 'you' && online && E.Online.me) slotUid[i] = E.Online.me.id; });
+      if (online) relay.raw({ op: 'start' });
       if (lobby.save) {
         const st = JSON.parse(lobby.save.state);
         st.players.forEach((p, i) => { const s = setup.slots[i]; if (s.kind === 'human') { p.kind = 'remote'; p.name = s.name; p.dropped = false; } else if (s.kind === 'you') { p.kind = 'human'; } else if (p.kind !== 'bot') { p.kind = 'bot'; p.dropped = true; p.diff = p.diff || 'normal'; } });
         lobby = null;
-        game.start({ mode: 'host', save: st, local, relay, peers });
+        game.start({ mode: 'host', save: st, local, relay, peers, online, slotUid });
       } else {
         const cfg = buildCfg(); lobby = null;
-        game.start({ mode: 'host', cfg, local, relay, peers });
+        game.start({ mode: 'host', cfg, local, relay, peers, online, slotUid });
       }
       return;
     }
@@ -178,21 +238,51 @@
   }
 
   // ── multiplayer lobby ───────────────────────────────────────────
-  function lobbyView() { return { k: 'lobby', setup, room: lobby.room, save: !!lobby.save }; }
+  function lobbyView() { return { k: 'lobby', setup, room: lobby.room, save: !!lobby.save, code: lobby.joinCode || null }; }
   function broadcastLobby() { if (lobby && lobby.role === 'host') lobby.relay.send('all', lobbyView()); }
-  async function connect() {
-    const url = $('mp-server').value.trim() || E.Relay.defaultUrl();
-    E.Settings.server = $('mp-server').value.trim(); E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
+  let browse = null; // the online connection kept open while the multiplayer screen is showing
+  function onlineStatus(t) { $('mp-online-status').textContent = t || ''; }
+  function onlineError(e) {
+    if (e.code === 'signin' || e.code === 'unauthorized') { renderOnline(); E.Online.signInDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
+    if (e.code === 'upgrade') { E.modal('Update Ozymandosis', e.message); return; }
+    if (onlineRefusal({ code: e.code, msg: e.message })) { onlineStatus(e.message); return; }
+    if (e.code === 'age') { E.Online.ageDialog().then(ok => { if (ok) { renderOnline(); openBrowse(); } }); return; }
+    onlineStatus(e.message); E.toast(e.message);
+  }
+  async function connect(src, lanUrl) {
+    if (src === 'online') {
+      if (browse && browse.ws) { const r = browse; browse = null; r.handlers = {}; E.Online.wire(r); return r; }
+      onlineStatus('Connecting…');
+      try { const r = await E.Online.openRelay(); E.Online.wire(r); onlineStatus(''); return r; } catch (e) { onlineError(e); return null; }
+    }
+    // LAN: never the service. The address is this device's own host, a code, a
+    // discovered game, or a computer running server/server.js.
+    const typed = $('mp-server').value.trim();
+    const url = lanUrl || E.Relay.fromInput(typed || E.Relay.defaultUrl());
+    E.Settings.server = typed; E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
+    if (!url) { $('mp-status').textContent = 'Enter the join code shown on the host’s screen, or find the game nearby.'; return null; }
     $('mp-status').textContent = 'Connecting to ' + url + '…';
-    const r = new E.Relay();
+    const r = new E.Relay({ lan: true });
     try { await r.connect(url); } catch (e) { $('mp-status').textContent = e.message + '. Is the server running?'; return null; }
     $('mp-status').textContent = 'Connected.';
     return r;
   }
-  async function hostGame(save) {
-    const r = await connect(); if (!r) return;
+  async function hostGame(save, opts) {
+    opts = opts || {}; const online = opts.src === 'online';
+    // This device hosts the LAN game itself when it can (the app); a browser opened
+    // from server/server.js, or given its address, uses that server instead.
+    let own = null;
+    if (!online && !opts.relay && E.Lan.available() && !$('mp-server').value.trim()) {
+      E.Settings.name = $('mp-name').value.trim(); E.saveSettings();
+      $('mp-status').textContent = 'Opening a game on this network…';
+      try { own = await E.Lan.host(playerName()); }
+      catch (e) { $('mp-status').textContent = e.message; if (e.code === 'denied') E.Lan.denied(e.message); return; }
+    }
+    const r = opts.relay || await connect(opts.src, own && own.url); if (!r) { if (own) E.Lan.stopHost(); return; }
+    if (own) { const close = r.close.bind(r); r.close = () => { close(); E.Lan.stopHost(); }; }
+    if (opts.relay) E.Online.wire(r);
     r.on('hosted', m => {
-      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null };
+      lobby = { role: 'host', relay: r, room: m.room, id: 0, save: save || null, online, quick: opts.quick || null, joinCode: own && own.code }; renderLobbyChat.done = false;
       if (save) {
         const st = JSON.parse(save.state), local = save.extra && save.extra.local !== undefined ? save.extra.local : 0;
         setup = { map: Object.assign({}, st.cfg.map), slots: st.players.map((p, i) => ({ kind: i === local ? 'you' : p.kind === 'bot' ? 'bot' : 'open', culture: p.culture, team: p.team, diff: p.diff || 'normal', name: p.name })) };
@@ -200,8 +290,15 @@
         setup = defaultSetup();
         const mine = setup.slots[0].culture;
         setup.slots = [{ kind: 'you', culture: mine, team: 0, diff: 'normal' }, { kind: 'open', culture: E.CULTURE_LIST.find(c => c.id !== mine).id, team: 0, diff: 'normal' }];
+        if (opts.quick) {
+          // quick match: one seat per matched player, a fair map, no bots
+          while (setup.slots.length < opts.quick.players) setup.slots.push({ kind: 'open', culture: freeCulture(), team: 0, diff: 'normal' });
+          setup.slots.length = opts.quick.players;
+          Object.assign(setup.map, { size: opts.quick.players > 2 ? 'm' : 's', mode: 'annihilation', layout: 'ring' });
+        }
       }
-      $('lobby-log').innerHTML = ''; lobbyLog('Room', `Share code ${m.room}. Friends open this page, choose Multiplayer, and enter the code.`);
+      $('lobby-log').innerHTML = '';
+      lobbyLog('Room', opts.quick ? 'Matched. Waiting for your rivals to connect…' : online ? `This lobby is ${$('mp-private').checked ? 'private: share the code' : 'listed for everyone, and joinable with its code'}.` : own ? (own.code ? 'Others on this network find this game under Games nearby, or join with the code above.' : 'Others on this network find this game under Games nearby. (This device has no local address to make a code from: is it on Wi-Fi?)') : 'Friends open this page, choose Multiplayer, and enter the code above.');
       E.Screens.show('scr-setup'); renderSetup();
     });
     r.on('peer', m => {
@@ -209,33 +306,122 @@
       let s = setup.slots.find(s => s.kind === 'open' && (!lobby.save || s.name === m.name)) || setup.slots.find(s => s.kind === 'open');
       if (!s && setup.slots.length < 6 && !lobby.save) { s = { kind: 'open', culture: freeCulture(), team: 0, diff: 'normal' }; setup.slots.push(s); }
       if (!s) { r.kick(m.id); return; }
-      s.kind = 'human'; s.peer = m.id; s.name = m.name;
+      s.kind = 'human'; s.peer = m.id; s.name = m.name; s.uid = m.uid; s.sub = m.sub; s.muted = m.muted;
       lobbyLog('Room', `${m.name} joined`); changed();
     });
+    r.on('chat', m => { if (lobby) lobbyLog(m.from, m.text); });
     r.on('left', m => { if (!lobby) return; const s = setup.slots.find(s => s.peer === m.id); if (s) { s.kind = 'open'; delete s.peer; lobbyLog('Room', `${s.name} left`); changed(); } });
     r.on('msg', m => {
       if (!lobby) return;
       const d = m.data, s = setup.slots.find(s => s.peer === m.from);
       if (d.k === 'pick' && s) { if (!lobby.save) { setCulture(s, d.culture); s.team = d.team || 0; } changed(); }
-      else if (d.k === 'chat' && s) { lobbyLog(s.name, String(d.text).slice(0, 140)); r.send('all', { k: 'chat', from: s.name, text: String(d.text).slice(0, 140) }); }
+      else if (d.k === 'chat' && s && !lobby.online) { if (s.muted) return; const text = E.filterChat(d.text); lobbyLog(s.name, text); r.send('all', { k: 'chat', from: s.name, text }); }
       else if (d.k === 'hello') broadcastLobby();
     });
-    r.on('close', () => { if (lobby) { E.toast('Disconnected from relay'); lobby = null; E.Screens.show('scr-mp'); } });
-    r.host(playerName());
+    r.on('close', () => { if (lobby) { E.toast('Disconnected from the lobby'); lobby = null; E.Screens.show('scr-mp'); } });
+    r.on('error', m => { onlineStatus(m.msg); if (!onlineRefusal(m)) E.toast(m.msg); if (m.code === 'allowance' && lobby && lobby.relay === r) { r.close(); lobby = null; E.Screens.show('scr-mp'); } });
+    if (online) r.host(playerName(), opts.claim ? { claim: opts.claim } : { public: !$('mp-private').checked, title: `${E.Online.me ? E.Online.me.name : 'A'}'s bloom` });
+    else r.host(playerName());
   }
-  async function joinGame() {
-    const code = $('mp-code').value.trim().toUpperCase(); if (code.length < 4) { $('mp-status').textContent = 'Enter the 4-letter room code.'; return; }
-    const r = await connect(); if (!r) return;
-    r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id }; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
-    r.on('error', m => { $('mp-status').textContent = m.msg; E.toast(m.msg); });
+  async function joinGame(code, opts) {
+    opts = opts || {}; const online = opts.src === 'online';
+    let lanUrl = opts.url || null;
+    if (!code && !online) {
+      const typed = $('mp-code').value.trim();
+      const t = E.Lan.target(typed);
+      if (t) {
+        lanUrl = t.url; code = t.room;
+        if (!(await E.Lan.access())) { $('mp-status').textContent = E.Lan.explain({ code: 'denied' }); E.Lan.denied(); return; }
+      }
+      else if (/^[a-z]{4}$/i.test(typed)) code = typed.toUpperCase(); // a room on a computer running server/server.js
+      else { $('mp-status').textContent = typed ? 'That code does not look right. It has ten letters and numbers, like 60N00-H87WG.' : 'Enter the join code shown on the host’s screen.'; return; }
+    }
+    const r = opts.relay || await connect(opts.src, lanUrl); if (!r) return;
+    if (opts.relay) E.Online.wire(r);
+    r.on('chat', m => { if (lobby) lobbyLog(m.from, m.text); });
+    r.on('joined', m => { lobby = { role: 'guest', relay: r, room: m.room, id: m.id, online }; renderLobbyChat.done = false; setup = { map: E.deepCopy(E.DEFAULT_MAP), slots: [] }; $('lobby-log').innerHTML = ''; r.toHost({ k: 'hello' }); E.Screens.show('scr-setup'); renderSetup(); });
+    r.on('error', m => { $('mp-status').textContent = m.msg; onlineStatus(m.msg); if (!(online && onlineRefusal(m))) E.toast(m.msg); if (!lobby && online) E.Screens.show('scr-mp'); });
     r.on('msg', m => {
       const d = m.data;
-      if (d.k === 'lobby' && lobby) { setup = d.setup; lobby.save = d.save; renderSetup(); }
-      else if (d.k === 'chat') lobbyLog(d.from, d.text);
-      else if (d.k === 'init') { const rl = lobby ? lobby.relay : r; lobby = null; game.start({ mode: 'guest', init: d, relay: rl }); }
+      if (d.k === 'lobby' && lobby) { setup = d.setup; lobby.save = d.save; lobby.joinCode = d.code || lobby.joinCode; renderSetup(); }
+      else if (d.k === 'chat' && !online) lobbyLog(d.from, E.filterChat(d.text));
+      else if (d.k === 'init') {
+        const rl = lobby ? lobby.relay : r, slotUid = {};
+        if (setup) setup.slots.forEach((s, i) => { if (s.uid) slotUid[i] = s.uid; });
+        lobby = null; game.start({ mode: 'guest', init: d, relay: rl, online, slotUid });
+      }
     });
-    r.on('closed', () => { E.toast('The host closed the room.'); lobby = null; E.Screens.show('scr-mp'); });
+    r.on('closed', m => { if (!(m && (m.reason === 'version' || m.reason === 'allowance'))) E.toast('The host closed the room.'); lobby = null; E.Screens.show('scr-mp'); });
     r.join(code, playerName());
+  }
+
+  // ── online: account card, lobby browser, quick match ─────────────
+  function renderOnline() {
+    const O = E.Online, acc = $('mp-account'); acc.innerHTML = '';
+    if (!O.signedIn() || !O.me) {
+      $('mp-online-play').hidden = true;
+      acc.append(h('p', { class: 'hint-s' }, 'Find rivals anywhere. Matches run directly between players, encrypted; the server only introduces you.'),
+        h('button', { class: 'btn primary', style: 'width:100%', onclick: async () => { if (await O.signInDialog()) { renderOnline(); openBrowse(); } } }, 'Sign in or create an account'));
+      return;
+    }
+    $('mp-online-play').hidden = false;
+    const ent = O.ent || {};
+    acc.append(h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.lifetime ? 'Lifetime member' : ent.subscriber ? 'Member' : freePill(ent.freeMatches)),
+      h('span', { class: 'mono', title: 'Rating' }, '◆ ' + (O.me.rating || 1200))),
+      h('div', { class: 'row' }, ent.subscriber || !O.canPurchase() ? null : h('button', { class: 'btn small', onclick: () => O.membershipDialog() }, `Membership · ${O.priceLabel()}`),
+        ent.lifetime || !O.canRedeem() ? null : h('button', { class: 'btn small ghost', onclick: async () => { if (await O.redeemDialog()) renderOnline(); } }, 'Redeem a code'),
+        h('button', { class: 'btn small ghost', onclick: () => O.openExternal(O.accountUrl()) }, 'Account'),
+        h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); if (browse) { browse.close(); browse = null; } renderOnline(); } }, 'Sign out')));
+    if (O.hello && O.hello.config && O.hello.config.needsVerify) acc.append(h('p', { class: 'hint-s warn' }, 'Confirm your email to play online. Check your inbox for the link.'));
+  }
+  // one free online match per rolling 24 hours (docs/MONETIZATION.md)
+  function freePill(f) {
+    if (!f) return 'Free';
+    if (f.left > 0) return `Free · ${f.left} online match${f.left === 1 ? '' : 'es'} left today`;
+    return f.nextAt ? `Free match used · next at ${new Date(f.nextAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Free match used';
+  }
+  // what the service says when this account cannot play online right now
+  function onlineRefusal(m) {
+    if (m.code === 'allowance') { E.Online.membershipDialog(m.msg); return true; }
+    if (m.code === 'app_only') { E.modal('Online play', m.msg); return true; }
+    return false;
+  }
+  function renderLobbies(list) {
+    const box = $('mp-lobbies'); box.innerHTML = '';
+    if (!list.length) { box.append(h('p', { class: 'hint-s' }, 'No open lobbies right now. Host one, or try a quick match.')); return; }
+    for (const l of list) box.append(h('button', { class: 'lobby-item', onclick: () => joinGame(l.room, { src: 'online' }) },
+      h('span', { class: 'lobby-title' }, l.title), h('span', { class: 'mono' }, `${l.players}/${l.max}`),
+      h('span', { class: 'hint-s' }, `${l.host}${l.hostSub ? ' · member host' : ''} · ${(E.MODES[l.mode] || { name: l.mode }).name}`)));
+  }
+  async function openBrowse() {
+    if (!E.Online.signedIn() || (browse && browse.ws)) { if (browse && browse.ws) browse.raw({ op: 'lobbies' }); return; }
+    try {
+      const r = await E.Online.openRelay(); browse = r; E.Online.wire(r);
+      r.on('lobbies', m => renderLobbies(m.list));
+      r.on('close', () => { if (browse === r) browse = null; });
+      r.raw({ op: 'lobbies' }); renderOnline();
+      clearInterval(openBrowse.t); openBrowse.t = setInterval(() => { if (browse && browse.ws && !$('scr-mp').hidden) browse.raw({ op: 'lobbies' }); }, 8000);
+    } catch (e) { onlineError(e); }
+  }
+  async function quick(mode) {
+    const r = await connect('online'); if (!r) return;
+    $('mp-queue').hidden = false; $('mp-queue-t').textContent = 'Searching for rivals…';
+    const stop = () => { $('mp-queue').hidden = true; };
+    $('mp-unqueue').onclick = () => { r.raw({ op: 'unqueue' }); r.close(); stop(); openBrowse(); };
+    r.on('queued', m => { $('mp-queue-t').textContent = m.waiting > 1 ? `Searching… ${m.waiting} players waiting` : 'Searching for rivals…'; });
+    r.on('matched', m => {
+      stop(); E.Audio.play('research'); E.toast('Match found');
+      if (m.role === 'host') hostGame(null, { src: 'online', relay: r, claim: m.room, quick: { mode: m.mode, players: m.players.length } });
+      else joinGame(m.room, { src: 'online', relay: r });
+    });
+    r.on('error', m => { stop(); onlineStatus(m.msg); if (!onlineRefusal(m)) E.toast(m.msg); });
+    r.raw({ op: 'queue', mode });
+  }
+  E.Online.on(() => { if (!$('scr-mp').hidden) renderOnline(); renderNews(); });
+  function renderNews() {
+    const box = $('m-news'); if (!box) return; box.innerHTML = '';
+    for (const a of E.Online.visibleNews().slice(0, 2)) box.append(h('div', { class: 'news-item sev-' + a.severity, role: a.severity === 'critical' ? 'alert' : null },
+      h('div', null, h('b', null, a.title), h('span', null, a.body)), h('button', { class: 'btn small ghost', 'aria-label': 'Dismiss', onclick: () => E.Online.dismiss(a.id) }, E.icon('cancel'))));
   }
 
   // ── load screen ─────────────────────────────────────────────────
@@ -250,7 +436,7 @@
         h('div', null, h('b', null, m.name || (m.id === 'auto' ? 'Autosave' : m.id)), h('small', null, `${new Date(m.date).toLocaleString()} · ${E.fmtTime(m.time)} · ${E.MAP_SIZES[m.size] ? E.MAP_SIZES[m.size].name : 'Custom'} · ${m.players.length} cultures`), dots),
         h('div', { class: 'row', style: 'flex-wrap:nowrap' },
           h('button', { class: 'btn small primary', onclick: () => loadSave(m.id) }, 'Play'),
-          humans > 1 ? h('button', { class: 'btn small', onclick: () => { const d = E.Saves.read(m.id); if (d) { E.Screens.show('scr-mp'); hostGame(d); } } }, 'Host') : null,
+          humans > 1 ? h('button', { class: 'btn small', onclick: () => { const d = E.Saves.read(m.id); if (d) { E.Screens.show('scr-mp'); hostGame(d, { src: E.Online.signedIn() ? 'online' : 'lan' }); } } }, 'Host') : null,
           h('button', { class: 'btn small', onclick: () => exportSave(m.id) }, '⤓'),
           h('button', { class: 'btn small ghost', 'aria-label': 'Delete', onclick: async () => { if (await E.confirm('Delete save?', m.name || m.id, 'Delete')) { E.Saves.remove(m.id); renderLoad(); } } }, '✕'))));
     }
@@ -268,8 +454,8 @@
   }
   function exportSave(id) {
     const d = E.Saves.read(id); if (!d) return;
-    const blob = new Blob([JSON.stringify(Object.assign({ efflorescent: 1 }, d))], { type: 'application/json' });
-    const a = h('a', { href: URL.createObjectURL(blob), download: `efflorescent-${id}.json` }); document.body.appendChild(a); a.click(); a.remove();
+    const blob = new Blob([JSON.stringify(Object.assign({ ozymandosis: 1 }, d))], { type: 'application/json' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `ozymandosis-${id}.json` }); document.body.appendChild(a); a.click(); a.remove();
   }
 
   // ── settings ────────────────────────────────────────────────────
@@ -284,9 +470,34 @@
     const nameIn = h('input', { type: 'text', maxlength: 18, value: S.name, placeholder: 'Tender' }); nameIn.onchange = () => { S.name = nameIn.value.trim(); E.saveSettings(); };
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Display & sound'),
       h('div', { class: 'field' }, h('label', null, 'Your name'), nameIn),
-      seg('Graphics quality', 'quality', [['auto', 'Auto'], ['high', 'High'], ['low', 'Low (battery saver)']], () => { game.renderer.quality = S.quality === 'low' ? 'low' : 'high'; game.resize(); }),
+      seg('Renderer', 'backend', [['auto', 'Auto'], ['webgpu', 'WebGPU'], ['webgl2', 'WebGL2'], ['canvas2d', 'Canvas 2D']], () => { if (S.backend === 'webgpu') E.loadWebGPU(); }),
+      h('small', { class: 'hint-s' }, `This device: WebGL2 ${E.hasWebGL2() ? '✓' : '✗'} · WebGPU ${navigator.gpu ? '✓' : '✗'}. Auto uses WebGL2, and Canvas 2D if WebGL2 is unavailable.`),
+      seg('Quality', 'quality', [['auto', 'Auto'], ['ultra', 'Ultra'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']], () => { if (game.renderer) { if (game.renderer.setTier) game.renderer.setTier(S.quality === 'auto' ? E.Perf.defaultTier() : S.quality); else game.renderer.quality = S.quality === 'low' ? 'low' : 'high'; game.resize(); } }),
+      h('small', { class: 'hint-s' }, 'Auto adjusts detail to hold 60 frames per second.'),
+      seg('Culture shape markers', 'markers', [['auto', 'When zoomed in'], ['always', 'Always'], ['off', 'Off']]),
+      seg('Orientation', 'orientation', [['auto', 'Auto'], ['landscape', 'Landscape'], ['portrait', 'Portrait']]),
       seg('Interface size', 'uiScale', [[0.9, 'S'], [1, 'M'], [1.15, 'L'], [1.3, 'XL']], applyUi),
-      slider('Music', 'music'), slider('Effects', 'sfx'), tog('Health bars on damaged creatures', 'showHp'), tog('Vibration (touch)', 'haptics')));
+      slider('Music', 'music'), slider('Effects', 'sfx'), tog('Mute all sound', 'muted'), tog('Organ-art command icons', 'organIcons'), tog('Health bars on damaged creatures', 'showHp'), tog('Vibration (touch)', 'haptics'), E.isDesktop() ? tog('Fullscreen on launch (desktop)', 'fullscreen') : null));
+    const O = E.Online, ent = O.ent || {};
+    const playIn = h('input', { type: 'text', value: S.playServer || '', placeholder: O.base(), spellcheck: 'false', 'aria-label': 'Play server' });
+    playIn.onchange = () => { S.playServer = playIn.value.trim(); E.saveSettings(); O.refresh(); };
+    body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Account & online'),
+      O.me ? h('div', { class: 'acct-row' }, h('b', null, O.me.name), h('span', { class: 'pill' + (ent.subscriber ? ' good' : '') }, ent.subscriber ? 'Member' : 'Free')) : h('p', { class: 'hint-s' }, 'Not signed in. Online play needs a free account.'),
+      h('div', { class: 'row' }, O.me ? [h('button', { class: 'btn small', onclick: () => O.openExternal(O.accountUrl()) }, 'Manage account'), h('button', { class: 'btn small ghost', onclick: async () => { await O.logout(); renderSettings(); } }, 'Sign out')]
+        : h('button', { class: 'btn small primary', onclick: async () => { if (await O.signInDialog()) renderSettings(); } }, 'Sign in')),
+      O.me ? h('button', { class: 'btn small ghost danger', style: 'margin-top:8px', onclick: async () => { if (await O.deleteAccountDialog()) renderSettings(); } }, 'Delete account…') : null,
+      O.me ? chatPref(O) : null,
+      O.me ? cloudRow() : null,
+      tog('Send automatic crash and performance reports (nothing personal)', 'crashReports'),
+      h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => E.Crash.dialog() }, 'Report a bug'), O.canRedeem() ? h('button', { class: 'btn small', onclick: async () => { if (await O.redeemDialog()) renderSettings(); } }, 'Redeem a code') : null),
+      h('div', { class: 'field', style: 'margin-top:12px' }, h('label', null, 'Play server (advanced)'), playIn)));
+    // the frame-rate instrument: the last runs measured on this device (js/ui/framestats.js)
+    const runs = E.FrameStats.runs();
+    body.appendChild(h('div', { class: 'card', id: 'perf-runs' }, h('h3', null, 'Performance'),
+      h('p', { class: 'hint-s' }, `Every match of ${E.FrameStats.MIN_SECONDS} seconds or more is measured on this device: frame times (p50, p95, p99), how often the quality governor changed tier, and the device class (${E.Perf.deviceClass()}).`),
+      runs.length ? h('ol', { class: 'perf-list' }, runs.slice(0, 8).map(r => h('li', null, h('b', null, new Date(r.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) + ' · ' + r.mode), h('br'), h('span', { class: 'mono' }, E.FrameStats.describe(r))))) : h('p', { class: 'hint-s' }, 'No matches measured yet.'),
+      runs.length ? h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(JSON.stringify(runs, null, 1)); E.toast('Copied'); } catch (e) { E.modal('Performance runs', h('pre', { class: 'mono', style: 'max-height:50vh;overflow:auto;font-size:.7rem' }, JSON.stringify(runs, null, 1))); } } }, 'Copy all runs'),
+        h('button', { class: 'btn small ghost', onclick: () => { E.FrameStats.clear(); renderSettings(); } }, 'Clear')) : null));
     body.appendChild(h('div', { class: 'card' }, h('h3', null, 'Controls'),
       tog('Tap ground to command (touch)', 'tapCommand'), tog('Pan at screen edges (mouse)', 'edgePan'), tog('Invert wheel zoom', 'invertZoom'),
       seg('Right-click / tap on ground', 'rightClick', [['amove', 'Attack-move'], ['move', 'Move']]),
@@ -295,14 +506,57 @@
       h('div', { style: 'height:12px' }),
       h('button', { class: 'btn danger small', onclick: async () => { if (await E.confirm('Erase all data?', 'Deletes settings, saves and your design library on this device.', 'Erase')) { localStorage.clear(); location.reload(); } } }, 'Erase all local data')));
   }
+  // Online chat: everyone / quick chat (preset phrases) / off. Free chat opens at 16.
+  function chatPref(O) {
+    const cur = O.chatMode(), free = O.me.freeChat !== false;
+    const set = async v => {
+      try { await O.api('PATCH', '/api/me', { chat: v }); O.me.chat = v; if (O.hello && O.hello.config) O.hello.config.chat = v; renderSettings(); }
+      catch (e) { E.toast(e.message); }
+    };
+    return h('div', { class: 'field' }, h('label', null, 'Online chat'),
+      h('div', { class: 'seg' }, [['all', 'Everyone'], ['quick', 'Quick chat only'], ['off', 'Off']].map(([v, l]) => h('button', { 'aria-pressed': String(cur === v), disabled: v === 'all' && !free ? true : null, onclick: () => set(v) }, l))),
+      h('small', { class: 'hint-s' }, free ? 'Quick chat sends and shows only preset phrases. Everything else is filtered by the server, and reports include what was said.' : 'Players under 16 use quick chat: preset phrases only.'));
+  }
+  function cloudRow() {
+    const C = E.Cloud, when = C.lastSync ? new Date(C.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+    const txt = C.state === 'syncing' ? 'Syncing…' : C.state === 'ok' ? `Lineage, designs and saves are backed up to your account${when ? ` (last at ${when})` : ''}.` : C.state === 'offline' ? 'Offline: changes sync when you reconnect.' : C.state === 'error' ? `Sync problem: ${C.error}` : 'Lineage, designs and saves sync to your account.';
+    return h('div', { class: 'toggle-row' }, h('span', { class: 'hint-s' }, txt), h('button', { class: 'btn small ghost', onclick: async () => { await C.sync(); renderSettings(); } }, 'Sync now'));
+  }
   function applyUi() { document.documentElement.style.setProperty('--ui', E.Settings.uiScale || 1); }
+
+  // Back into a match in progress after the link to the host dropped (the game calls
+  // this in a loop): a fresh signaling connection, the same room, the same seat.
+  async function rejoin(code, online, url) {
+    let r;
+    try {
+      if (online) { r = await E.Online.openRelay(); E.Online.wire(r); }
+      else { r = new E.Relay({ lan: true }); await r.connect(url || E.Relay.defaultUrl()); }
+    } catch (e) { return { ok: false, msg: e.message }; }
+    return new Promise(res => {
+      let done = false;
+      const finish = (v, keep) => { if (done) return; done = true; clearTimeout(to); if (!keep) r.close(); res(v); };
+      const to = setTimeout(() => finish({ ok: false, msg: 'The host did not answer.' }), 20000);
+      r.on('error', m => finish({ ok: false, msg: m.msg, code: m.code }));
+      r.on('closed', () => finish({ ok: false, msg: 'The host closed the game.', closed: true }));
+      r.on('msg', m => {
+        const d = m.data; if (!d || d.k !== 'init' || done) return;
+        finish({ ok: true }, true);
+        game.start({ mode: 'guest', init: d, relay: r, online, slotUid: game.slotUid, rejoined: true });
+      });
+      r.join(code, online && E.Online.me ? E.Online.me.name : (E.Settings.name || '').trim() || 'Tender');
+    });
+  }
 
   // ── screen routing ──────────────────────────────────────────────
   E.Menus = {
+    rejoin,
     home() {
       lobby = null;
+      E.Audio.theme('title');
       $('bg').hidden = false; E.Screens.stack = []; E.Screens.show('scr-menu');
       $('m-continue').hidden = !E.Saves.read('auto');
+      const pr = E.Profile.summary();
+      $('m-lineage').innerHTML = pr.matches ? `<b>Level ${pr.level}</b> ${E.esc(pr.title)} · ${pr.wins} wins · ${pr.ach}/${E.Profile.ACH.length} honours` : '';
     },
     openCodex(fromGame) { overGame('scr-codex', fromGame); E.Codex.render($('codex-tabs'), $('codex-body')); },
     openSettings(fromGame) { overGame('scr-settings', fromGame); renderSettings(); },
@@ -320,27 +574,85 @@
   }));
 
   $('m-continue').onclick = () => loadSave('auto');
+  // Quit: closes the desktop app and Android app; iOS apps may not quit themselves (Apple rule), so it is hidden there.
+  const ios = E.Native && E.Native.is && E.Native.platform === 'ios';
+  $('m-quit').hidden = ios;
+  $('m-quit').onclick = async () => {
+    if (!(await E.confirm('Leave Ozymandosis?', 'Your progress is saved. The bloom will be waiting.', 'Quit'))) return;
+    game.autosave(); E.Audio.play('defeat');
+    const P = window.Capacitor && Capacitor.Plugins;
+    if (E.Native && E.Native.is && P && P.App && P.App.exitApp) { P.App.exitApp(); return; }
+    setTimeout(() => {
+      window.close(); // desktop app and installed web apps close here
+      setTimeout(() => {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        const cv = h('canvas', { class: 'farewell-title', 'aria-hidden': 'true' }), fw = h('div', { class: 'farewell' }, cv, h('p', null, 'Nothing beside remains. You can close this tab.'), h('button', { class: 'btn', onclick: () => { cancelAnimationFrame(raf); fw.remove(); } }, 'Return'));
+        document.body.appendChild(fw);
+        // the title stays alive to the end
+        const lg = new E.LivingLogo(cv); let last = performance.now(), raf = 0;
+        const step = now => { raf = requestAnimationFrame(step); lg.frame((now - last) / 1000); last = now; }; raf = requestAnimationFrame(step);
+      }, 150);
+    }, 350);
+  };
+  $('m-tutorial').onclick = () => {
+    E.Audio.init();
+    const cfg = { map: Object.assign({}, E.DEFAULT_MAP, { size: 's', seed: 4242, startLumen: 320, mode: 'annihilation', popCap: 60 }),
+      players: [{ name: playerName(), culture: 'verdant', team: 0, kind: 'human', designs: [] }, { name: 'Slither', culture: 'current', team: 0, kind: 'bot', diff: 'easy', persona: 'tutor' }] };
+    game.start({ mode: 'local', cfg, local: 0, tutorial: true });
+  };
   $('m-skirmish').onclick = () => { E.Audio.init(); lobby = null; setup = defaultSetup(); E.Screens.show('scr-setup'); renderSetup(); };
-  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl(); $('mp-status').textContent = location.protocol === 'file:' ? 'Tip: open the game from the server URL for multiplayer.' : ''; E.Screens.show('scr-mp'); };
+  $('m-mp').onclick = () => { E.Audio.init(); $('mp-name').value = E.Settings.name || ''; $('mp-server').value = E.Settings.server || ''; $('mp-server').placeholder = E.Relay.defaultUrl() || 'e.g. 192.168.1.50:8080'; $('mp-find-field').hidden = !E.Lan.available(); $('mp-lan-found').innerHTML = ''; $('mp-status').textContent = location.protocol === 'file:' && !E.Lan.available() ? 'Tip: open the game from the local server URL to play on your network.' : ''; onlineStatus(''); E.Screens.show('scr-mp'); renderOnline(); renderLobbies([]); if (E.Online.signedIn()) E.Online.refresh().then(() => { renderOnline(); openBrowse(); }); };
+  E.Screens.onLeave['scr-mp'] = () => { if (browse && !lobby) { browse.close(); browse = null; } clearInterval(openBrowse.t); };
+  $('mp-host-online').onclick = () => hostGame(null, { src: 'online' });
+  $('mp-join-online').onclick = () => { const code = $('mp-code-online').value.trim().toUpperCase(); if (code.length !== 5) { onlineStatus('Online codes have 5 letters.'); return; } joinGame(code, { src: 'online' }); };
+  $('mp-refresh').onclick = () => openBrowse();
+  $('mp-quick-duel').onclick = () => quick('duel');
+  $('mp-quick-ffa').onclick = () => quick('ffa');
   $('m-load').onclick = () => { E.Screens.show('scr-load'); renderLoad(); };
   $('m-settings').onclick = () => E.Menus.openSettings(false);
   $('m-codex').onclick = () => E.Menus.openCodex(false);
   $('m-forge').onclick = () => { E.Screens.show('scr-forge'); if (!forgeLab) forgeLab = new E.Forge($('forge-lab'), { mode: 'lab' }); else forgeLab.renderAll(); };
-  $('mp-host').onclick = () => hostGame(null);
-  $('mp-join').onclick = () => joinGame();
+  $('mp-host').onclick = () => hostGame(null, { src: 'lan' });
+  $('mp-find').onclick = async () => {
+    const box = $('mp-lan-found'); box.innerHTML = '';
+    $('mp-status').textContent = 'Looking for games on this network…';
+    let r;
+    try { r = await E.Lan.find(3000); } catch (e) { $('mp-status').textContent = e.message; if (e.code === 'denied') E.Lan.denied(e.message); return; }
+    if (r.picker) { // Android 17+: the system picker chose (and granted) one device
+      if (!r.found.length) { $('mp-status').textContent = r.cancelled ? '' : 'No game was chosen.'; return; }
+      $('mp-status').textContent = ''; joinGame('*', { src: 'lan', url: r.found[0].url }); return;
+    }
+    $('mp-status').textContent = r.found.length ? '' : 'No games found. The host’s screen shows a code you can enter instead.';
+    for (const g of r.found) box.append(h('button', { class: 'lobby-item', onclick: () => joinGame('*', { src: 'lan', url: g.url }) }, h('span', { class: 'lobby-title' }, g.name), h('span', { class: 'mono' }, 'Join')));
+  };
+  $('mp-join').onclick = () => joinGame(null, { src: 'lan' });
   $('load-import').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-    try { const d = JSON.parse(await f.text()); if (!d.state) throw new Error('bad'); loadSave(null, d); } catch (err) { E.toast('That file is not an Efflorescent save'); }
+    try { const d = JSON.parse(await f.text()); if (!d.state) throw new Error('bad'); loadSave(null, d); } catch (err) { E.toast('That file is not an Ozymandosis save'); }
   };
   window.addEventListener('resize', () => { if (!$('scr-setup').hidden && setup) drawMapPreview(); });
   bindSetup();
 
   // ── boot ────────────────────────────────────────────────────────
   applyUi();
+  E.hydrateIcons();
+  // music needs a user gesture; the title theme starts on the first touch or key
+  // The score starts with the game. Where the platform allows it (desktop app, Android,
+  // installed PWAs, sites the browser trusts) that is immediately; otherwise browsers
+  // hold audio until the first touch, click or key, and a quiet hint says so.
+  E.Audio.init();
+  const WAKE = ['pointerdown', 'keydown', 'touchend', 'mousedown'];
+  const woke = () => { WAKE.forEach(ev => removeEventListener(ev, wake, true)); $('sound-hint').hidden = true; };
+  const wake = () => { E.Audio.wake().then(ok => { if (ok) woke(); }); };
+  WAKE.forEach(ev => addEventListener(ev, wake, true));
+  setTimeout(() => { const c = E.Audio.ctx; if (c && c.state !== 'running' && !E.Settings.muted) $('sound-hint').hidden = false; else wake(); }, 700);
+  if (E.Settings.backend === 'webgpu' || /[?&]bench/.test(location.search)) E.loadWebGPU();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !/[?&]nosw/.test(location.search)) navigator.serviceWorker.register('sw.js').catch(() => {});
   requestAnimationFrame(bgFrame);
   E.Menus.home();
   $('loading').remove();
+  // news and account status; skipped for signed-out local development so offline play stays quiet
+  if (E.Online.signedIn() || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || /[?&]play=/.test(location.search)) E.Online.refresh().catch(() => {});
   // Let tests and power users start directly: ?quick=1
   const q = new URLSearchParams(location.search);
   if (q.get('quick')) { setup = defaultSetup(); if (q.get('size')) setup.map.size = q.get('size'); if (q.get('n')) { const n = +q.get('n'); while (setup.slots.length < n) setup.slots.push({ kind: 'bot', culture: freeCulture(), team: 0, diff: 'normal' }); } startFromSetup(); }

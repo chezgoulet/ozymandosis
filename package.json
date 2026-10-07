@@ -1,12 +1,51 @@
 {
-  "name": "efflorescent",
-  "version": "1.0.0",
+  "name": "ozymandosis",
+  "version": "0.5.2",
   "private": true,
   "description": "A real-time strategy game of bioluminescent evolution.",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node test/sim.test.cjs && node test/content.test.cjs",
-    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/mp.test.cjs"
+    "test": "node tools/version.cjs check && node test/sim.test.cjs && node test/content.test.cjs && node test/audit.test.cjs && node test/base.test.cjs",
+    "test:ui": "node test/ui.smoke.cjs && node test/touch.test.cjs && node test/flow.test.cjs && node test/features.test.cjs && node test/mp.test.cjs && node test/online.test.cjs && node test/lan.test.cjs && node test/frames.test.cjs",
+    "build": "node tools/build-web.cjs",
+    "icons": "node tools/make-icons.cjs",
+    "vendor:three": "node tools/vendor-three.cjs",
+    "cap:sync": "node tools/build-web.cjs && npx cap sync",
+    "android:apk": "node tools/build-web.cjs && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "ios:open": "node tools/build-web.cjs && npx cap sync ios && npx cap open ios",
+    "bench": "node bench/bench.cjs",
+    "test:perf": "node bench/bench.cjs --backends webgl2,canvas2d --units 100,700 --label check --check",
+    "play:dev": "npm run dev -w apps/play",
+    "play:test": "npm test -w apps/play",
+    "play:build": "npm run build -w apps/play",
+    "test:all": "npm test && npm run play:test && npm run test:ui",
+    "android:aab": "bash tools/android-release.sh",
+    "android:keygen": "bash tools/android-keygen.sh",
+    "version:set": "node tools/version.cjs",
+    "test:lan": "node test/lan.test.cjs"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "esbuild": "^0.25.12",
+    "three": "^0.186.1",
+    "playwright": "1.62.1"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/screen-orientation": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0",
+    "@capacitor/browser": "^8.0.0"
+  },
+  "workspaces": [
+    "apps/play"
+  ],
+  "license": "AGPL-3.0-only"
 }

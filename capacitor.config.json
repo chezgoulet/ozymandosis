@@ -1,0 +1,26 @@
+{
+  "appId": "com.ozymandosis.game",
+  "appName": "Ozymandosis",
+  "webDir": "www",
+  "backgroundColor": "#02070a",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "backgroundColor": "#02070a",
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "backgroundColor": "#02070a",
+    "contentInset": "never",
+    "scrollEnabled": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "insetsHandling": "css"
+    }
+  }
+}

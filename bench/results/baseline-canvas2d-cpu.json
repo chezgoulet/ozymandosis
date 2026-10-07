@@ -1,0 +1,89 @@
+{
+ "label": "baseline-canvas2d-cpu",
+ "date": "2026-09-27T19:09:01.822Z",
+ "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+ "cpuMode": true,
+ "viewport": "1440x900@1x",
+ "rows": [
+  {
+   "backend": "canvas2d",
+   "units": 50,
+   "cpu": {
+    "avg": 5.37,
+    "p50": 5,
+    "p95": 7.6
+   },
+   "frame": {
+    "avg": 21.81,
+    "p50": 21.3,
+    "p95": 26.2
+   },
+   "fps": 45.9,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 100,
+   "cpu": {
+    "avg": 8.05,
+    "p50": 7.5,
+    "p95": 10.8
+   },
+   "frame": {
+    "avg": 32.25,
+    "p50": 31,
+    "p95": 50.1
+   },
+   "fps": 31,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 200,
+   "cpu": {
+    "avg": 13.18,
+    "p50": 12.3,
+    "p95": 17.7
+   },
+   "frame": {
+    "avg": 51.7,
+    "p50": 50.7,
+    "p95": 68
+   },
+   "fps": 19.3,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 400,
+   "cpu": {
+    "avg": 25.72,
+    "p50": 22.2,
+    "p95": 49.6
+   },
+   "frame": {
+    "avg": 92.23,
+    "p50": 91,
+    "p95": 117.2
+   },
+   "fps": 10.8,
+   "gpu": ""
+  },
+  {
+   "backend": "canvas2d",
+   "units": 700,
+   "cpu": {
+    "avg": 117.3,
+    "p50": 112.3,
+    "p95": 137.8
+   },
+   "frame": {
+    "avg": 139.24,
+    "p50": 134.2,
+    "p95": 172
+   },
+   "fps": 7.2,
+   "gpu": ""
+  }
+ ]
+}
