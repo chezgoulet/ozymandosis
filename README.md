@@ -11,7 +11,7 @@ You tend a glowing culture: you harvest drifting light, evolve organs and body p
 | Local network | In the apps: Multiplayer → Host on this network (the device hosts; others find it or enter its join code). For development: `npm start`, then open http://localhost:8080 | No account, no internet, no relay. The host only introduces players; matches run directly over WebRTC. |
 | Online (development) | `npm run play:dev` in one terminal, `npm start` in another | The play service on :8787 with an embedded Postgres; the game on localhost talks to it automatically. Verification emails appear at http://localhost:8787/api/dev/outbox. |
 | Desktop app | `cd apps/desktop && npm install && npm start` | Electron shell that launches fullscreen (base for the Steam build). |
-| Install on a phone | open the served URL, then "Add to Home Screen" | Plays offline after the first visit. |
+| Install on a phone | get it on Android — F-Droid, or Obtainium straight from the releases | The Android app is the client that ships. There is no browser rail. |
 
 Production (ozymandosis.com, play.ozymandosis.com) is one Docker Compose stack on Linode: see `docs/DEPLOY.md`, then `docs/OPERATIONS.md` (releases, alerts, backups, keys, incidents) and `docs/LAUNCH.md` (what only a person can do before launch).
 
@@ -30,7 +30,7 @@ android/, ios/                   Capacitor projects
 
 ## Rendering and platforms
 - **three.js GPU renderer:** instanced batches, a baked organ atlas and shader caustics, currents and fog. WebGL2 by default, WebGPU optional, Canvas2D fallback. A frame-budget governor holds 60 fps. At 700 creatures it runs 125 fps versus 7 fps on the old renderer (`docs/PERFORMANCE.md`).
-- **Installable PWA:** `npm run build` → `www/`.
+- **Web build:** `npm run build` → `www/`. This is an input to the Android app, not a rail of its own: Capacitor packages it into the APK.
 - **Android:** `npm run android:apk`.
 - **iOS:** `npm run ios:open` on a Mac (Capacitor 6).
 - **Docs:** `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/PLAY-SERVICE.md` (online design, security and privacy), `docs/DEPLOY.md`, `docs/OPERATIONS.md`, `docs/LAUNCH.md`, and `docs/DELIVERY.md` (requirement-by-requirement summaries).
@@ -46,7 +46,7 @@ android/, ios/                   Capacitor projects
 - **The Spawnforge**: design your own creatures, save them to a library, and hatch them in any match once their parts are evolved.
 - **Maps** generated from a seed: Tidepool 2400², Lagoon 3600×2400, Reef 4800×3200, Abyss 6400×4200. Also configurable: 2–6 cultures, teams or free-for-all, resource richness, powerup frequency, starting lumen, fog of war, ocean currents.
 - **Bots** at four difficulty levels (Gentle, Tidal, Abyssal, Leviathan). They expand, research, design creatures, raid, defend, and use powers.
-- **Multiplayer**: humans and bots in any mix, host-authoritative, with lobbies, room codes, chat and pause sync. Matches run peer to peer over encrypted WebRTC DataChannels; servers only introduce players. Online: accounts, rated quick match (duel, 4-player FFA), a public lobby browser, and the scheme in docs/MONETIZATION.md: $1 on Steam, iOS and Android, one free online match every 24 hours, then a membership bought in that platform's store ($2/month or $12/year; a $12 season on Steam). LAN play is always free. If a player drops, a bot takes over their colony until they rejoin.
+- **Multiplayer**: humans and bots in any mix, host-authoritative, with lobbies, room codes, chat and pause sync. Matches run peer to peer over encrypted WebRTC DataChannels; servers only introduce players. Online: accounts, rated quick match (duel, 4-player FFA), a public lobby browser, and the scheme in docs/MONETIZATION.md: free on Android, one free online match every 24 hours, then a membership bought here on the website ($2/month or $12/year) that applies wherever you play. LAN play is always free. If a player drops, a bot takes over their colony until they rejoin.
 - **Wounds and healing**: creatures shed organs and tail as they are hurt, spraying residue in their culture's colours, and regrow as they heal: slowly on their own, fast (for lumen) beside a Nucleus or Bud via the Mend order. Gatherers (pale, with a harvest sac) and fighters (plated and spiked) are easy to tell apart.
 - **Living structures**: every Nucleus, Bud and Spire is an asymmetric organism with a heartbeat, veins and rim organs at your research tier, plus a culture signature (roots, nautilus shell, flagella vortex, song rings, toothed maw, carapace and egg sacs).
 - **A generative score**: composed live in each culture's mode, from ambient drift to a pumping synth surge as fighting grows.
@@ -108,7 +108,7 @@ npm run test:ui   # browser: features (backends, governor, undo, touch build con
                   # end to end (sign-up, lobby browser, join, signed tickets, relayed match, the daily free match)
 ```
 
-The browser tests use Playwright-core with a local Chromium (`PW=/path/to/playwright-core` to point elsewhere).
+The browser tests use Playwright-core with a local Chromium (`PW=/path/to/playwright-core` to point elsewhere). The browser is a test harness, not a way to play.
 
 ## Credits
 

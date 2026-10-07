@@ -113,12 +113,9 @@ jobs:
         env: { TAG: "${{ github.ref_name }}" }
         run: node tools/version-check.cjs
 
-      - name: Build the web bundle and the site
+      - name: Build the web bundle the APK embeds
         run: node tools/build-web.cjs
 
-      - name: Package the web build
-        env: { TAG: "${{ github.ref_name }}" }
-        run: tar -czf "/tmp/ozymandosis-web-$TAG.tar.gz" -C www .
 
       - name: Write the release note
         env: { TAG: "${{ github.ref_name }}" }
@@ -130,14 +127,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          ASSET="/tmp/ozymandosis-web-$TAG.tar.gz"
+          # The release is created here with no assets; the signed APK is attached by the step
+          # below, once its signature verifies. The web bundle is no longer published: it is an
+          # input to the Android app, not a rail of its own.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$ASSET#Ozymandosis web build (offline PWA)"
+            echo "release $TAG already exists; the APK step attaches to it"
           else
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
               --title "Ozymandosis $TAG" \
-              --notes-file /tmp/RELEASE.md \
-              "$ASSET#Ozymandosis web build (offline PWA)"
+              --notes-file /tmp/RELEASE.md
           fi
           echo "released $TAG (${{ needs.scope.outputs.why }})"
 

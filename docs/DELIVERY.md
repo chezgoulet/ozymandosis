@@ -17,7 +17,7 @@ Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, 
 ## 2. Web + mobile distribution
 | Requirement | Done |
 |---|---|
-| Installable offline PWA | ✅ Generated precaching service worker, manifest with PNG and maskable icons, self-hosted fonts; `npm run build` → `www/` |
+| Web build (an input, not a rail) | ✅ `npm run build` → `www/`; Capacitor packages it into the Android APK. The offline PWA is no longer offered. |
 | Android app | ✅ Capacitor 6 project; `npm run android:apk` builds `android/app/build/outputs/apk/debug/app-debug.apk`; installed and played on an Android 14 emulator (menu, setup and tutorial gameplay under WebGL2) |
 | iOS app | ⚠️ The Xcode project is generated and synced (`ios/`). **Blocker: building needs macOS with Xcode and CocoaPods, which this Linux host doesn't have.** Run `npm run ios:open` on a Mac. |
 | Touch parity, safe areas, notch | ✅ Touch gesture tests; `env(safe-area-inset-*)` on web and iOS; dark status band on Android (the WebView reports a zero inset when overlaid); Android back button; app-background autosave and pause |
