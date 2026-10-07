@@ -19,7 +19,9 @@ jobs:
   configure:
     # The same two-name gate as the deploy workflow: this can rewrite production secrets.
     if: contains(fromJSON('["big-cookie","robot-chezgoulet"]'), github.actor)
-    runs-on: [self-hosted, linux, x64]
+    # A hosted runner: the org's runner group does not admit public repositories, and the
+    # server's SSH is open with key-only auth, so this reaches it from anywhere.
+    runs-on: ubuntu-latest
     environment: production
     env: { CONFIGURED: "${{ secrets.DEPLOY_HOST != '' }}" }
     steps:
