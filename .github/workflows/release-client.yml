@@ -9,7 +9,7 @@
 # passed CI, builds the web bundle and the site, and publishes a GitHub Release with
 # the bundle attached and the store steps written down.
 #
-# What it deliberately does not do: sign anything. Android, iOS and Steam builds need
+# What it deliberately does not do: sign anything. Android builds need
 # keys that are not in CI, so they stay manual and are listed in the release note.
 name: release-client
 on:
