@@ -1065,7 +1065,7 @@
           cmd('⌂', 'Hatch', 'Space', () => this.goHome()),
           cmd('⧉', 'Evolve', 'T', () => this.openTech()),
           cmd('⬡', 'Build', 'B', () => this.showBuild()),
-          cmd('✎', 'Spawnforge', 'G', () => this.openForge()),
+          cmd('✎', 'Forge', 'G', () => this.openForge()),
           cmd('⚔', 'Army', 'F2', () => this.selectArmy()),
           cmd('◌', 'Idle', 'F1', () => this.selectIdle()));
         body.appendChild(row);
@@ -1160,7 +1160,7 @@
           body.appendChild(h('div', { class: 'hrow' },
             cmd('⚑', 'Rally', null, () => this.setMode({ k: 'rally' })),
             cmd('⧉', 'Evolve', 'T', () => this.openTech()),
-            cmd('✎', 'Spawnforge', 'G', () => this.openForge()),
+            cmd('✎', 'Forge', 'G', () => this.openForge()),
             cmd('⇥', 'Next', 'Tab', () => this.cycleStruct())));
         } else if (kind === 'enemyStruct') body.appendChild(h('div', { style: 'color:var(--ink-soft);font-size:.86em' }, E.CULTURES[owner.culture].name));
       } else if (kind === 'enemyUnit') {
