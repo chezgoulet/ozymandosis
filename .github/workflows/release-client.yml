@@ -96,6 +96,10 @@ jobs:
     needs: [scope, verified, reproducible]
     if: always() && needs.scope.outputs.client == 'true' && needs.verified.result == 'success' && needs.reproducible.result == 'success'
     runs-on: ubuntu-latest
+    environment: production
+    # The signing material lives in the environment. An `if:` cannot read secrets, so the
+    # question is asked once here and the steps test the answer.
+    env: { HAS_KEYSTORE: "${{ secrets.OZY_UPLOAD_KEYSTORE_B64 != '' }}" }
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, fetch-tags: true }
@@ -136,3 +140,42 @@ jobs:
               "$ASSET#Ozymandosis web build (offline PWA)"
           fi
           echo "released $TAG (${{ needs.scope.outputs.why }})"
+
+      - name: The toolchain the signed APK needs
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+
+      - name: The SDK pieces the APK build pins
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SM="$(command -v sdkmanager || echo "$SDK/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SM" --licenses >/dev/null 2>&1 || true
+          "$SM" --install "platforms;android-37.0" "build-tools;34.0.0" >/dev/null
+
+      # The web bundle is already built above, and the APK embeds it. The signature is
+      # checked before anything is attached: an APK that does not verify is not published.
+      - name: The signed Android APK
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.OZY_UPLOAD_KEYSTORE_B64 }}
+          OZY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.OZY_UPLOAD_KEYSTORE_PASSWORD }}
+          OZY_UPLOAD_KEY_PASSWORD: ${{ secrets.OZY_UPLOAD_KEY_PASSWORD }}
+          OZY_UPLOAD_KEY_ALIAS: ${{ secrets.OZY_UPLOAD_KEY_ALIAS }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          install -m 600 /dev/null "$RUNNER_TEMP/upload-keystore.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+          export OZY_UPLOAD_KEYSTORE="$RUNNER_TEMP/upload-keystore.jks"
+          npx cap sync android
+          (cd android && ./gradlew --no-daemon assembleRelease)
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          "$SDK/build-tools/34.0.0/apksigner" verify --verbose --print-certs "$APK"
+          NAME="ozymandosis-android-$TAG.apk"
+          cp "$APK" "$NAME"
+          printf '%s  %s\n' "$(sha256sum "$APK" | cut -d' ' -f1)" "$NAME" > "$NAME.sha256"
+          gh release upload "$TAG" "$NAME" "$NAME.sha256" --clobber
+          echo "attached $NAME"
