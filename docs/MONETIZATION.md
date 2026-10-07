@@ -16,7 +16,7 @@ mechanism stands, but the policy it enforces is no longer a per-match time limit
 - **Subscriptions do not cross platforms.** Buy it on Steam and play it there;
   buy it on iOS and play it there. Someone who wants it everywhere buys each
   platform's subscription. Walled gardens are not being fought.
-- **There is no browser version.** The game ships on Steam, iOS and Android only,
+- **There is no browser version.** The game ships as an open-source Android app, free, with membership bought on the website. F-Droid is the first-class rail and Obtainium carries the same signed APK; there is no store account and nothing to buy in the app.
   despite being a WebGPU game. `play.ozymandosis.com` is the service — accounts,
   billing, moderation, admin — not a game client.
 
