@@ -39,7 +39,7 @@ above becomes visible.
 ## What is already in place
 
 - Fastlane metadata under `fastlane/metadata/android/en-US/`: title, short description (55
-  characters, no trailing dot), full description, the 0.5.1 changelog, the icon, and two
+  characters, no trailing dot), full description, the changelogs for 0.5.1 and 0.5.2, the icon, and two
   phone screenshots.
 - A FOSS licence in the tree (`LICENSE`, AGPL-3.0) with `NOTICE`, and SPDX headers on the
   source.
