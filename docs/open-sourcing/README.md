@@ -59,7 +59,7 @@ release notes.
 ## Open questions
 
 - **The Node/Capacitor build on F-Droid's infrastructure**: whether their build environment may fetch npm
-  packages during `prebuild`. Decides whether the main repository is reachable at all. Ask them.
+  packages during `prebuild`. Settled: their React Native template and a live submission both install npm on the buildserver. The merge request is where the remaining details get settled.
 - **Play policy on a website-purchased subscription** for an in-app experience, in our target jurisdictions. A
   legal question, not a technical one.
 - **Whether every shipped asset is ours.** The inventory says the shipped asset set is 36 PNGs and one SVG — the
@@ -145,7 +145,7 @@ stale copy under `apps/site` is deleted, and `chezgoulet/ozymandosis-site` (GitH
 | **R4** Release keystore | **Done.** `~/.ozymandosis/upload-keystore.jks`, 0600. |
 | **R5** Pin the toolchain | **Done.** JDK 21 enforced at configuration time; build-tools 34.0.0 (which carries apksigner); Gradle 8.14.3 and AGP 8.13.0 pinned in the tree; Node pinned to 22 in CI. |
 | **R6** Build twice and diff | **Done.** A CI job on every release tag builds an unsigned APK at two different paths and fails the release if they differ. Measured first: two builds of one commit give an identical SHA-256. |
-| **R7** Ask F-Droid about the Node build | **Drafted, not sent.** The question is written out at `docs/fdroiddata/README.md` for you to send; it is the one thing blocking a submission. |
+| **R7** Ask F-Droid about the Node build | **Answered by reading their docs.** Their own React Native template installs npm on the buildserver and a React Native app in review does the same, so npm during the build is an expected path rather than a question. No question to send; the submission is the next step. |
 | **R8** Write the fdroiddata recipe | **Done.** `docs/fdroiddata/com.ozymandosis.game.yml`, and it passes their own `fdroid lint`. Fastlane metadata and two phone screenshots are in the tree. |
 | **R9** Tag releases | **Done.** `v0.5.1` and `v0.5.2`, and the pipeline refuses a tag that does not name the tree's version. |
 | **R10** Prove it on the Verification Server | **Waits on R7 and the first build on their infrastructure.** |
