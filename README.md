@@ -11,7 +11,7 @@ You tend a glowing culture: you harvest drifting light, evolve organs and body p
 | Local network | In the apps: Multiplayer → Host on this network (the device hosts; others find it or enter its join code). For development: `npm start`, then open http://localhost:8080 | No account, no internet, no relay. The host only introduces players; matches run directly over WebRTC. |
 | Online (development) | `npm run play:dev` in one terminal, `npm start` in another | The play service on :8787 with an embedded Postgres; the game on localhost talks to it automatically. Verification emails appear at http://localhost:8787/api/dev/outbox. |
 | Desktop app | `cd apps/desktop && npm install && npm start` | Electron shell that launches fullscreen (base for the Steam build). |
-| Install on a phone | get it on Android — F-Droid, or Obtainium straight from the releases | The Android app is the client that ships. There is no browser rail. |
+| Install on a phone | get it on Android with Obtainium, straight from the releases | The Android app is the client that ships; F-Droid is the rail it is being submitted to. There is no browser rail. |
 
 Production (ozymandosis.com, play.ozymandosis.com) is one Docker Compose stack on Linode: see `docs/DEPLOY.md`, then `docs/OPERATIONS.md` (releases, alerts, backups, keys, incidents) and `docs/LAUNCH.md` (what only a person can do before launch).
 
