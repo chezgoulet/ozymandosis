@@ -1,6 +1,6 @@
 {
   "name": "@ozymandosis/play",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "type": "module",
   "description": "play.ozymandosis.com: accounts, subscriptions, matchmaking and WebRTC signaling, reports, moderation and admin for Ozymandosis.",
