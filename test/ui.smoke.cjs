@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Browser smoke test: boots the server, drives menus and a match, screenshots.
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('../tools/pw.cjs');
 const path = require('path');
 process.env.PORT = process.env.PORT || '8093'; process.env.QUIET = '1';
 const server = require('../server/server.js');
 const URL0 = `http://localhost:${process.env.PORT}/`;
 const OUT = path.join(__dirname, 'shots');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome' });
+  const b = await pw.launch();
   const errs = [];
   const mk = async (vp, touch) => {
     const ctx = await b.newContext({ viewport: vp, hasTouch: !!touch, isMobile: !!touch, deviceScaleFactor: 1 });

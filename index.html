@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#02070a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Efflorescent</title>
+<title>Ozymandosis</title>
 <meta name="description" content="A real-time strategy game of bioluminescent evolution.">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='g'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.35' stop-color='%2360f0ff'/%3E%3Cstop offset='1' stop-color='%2360f0ff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%2302070a'/%3E%3Ccircle cx='32' cy='32' r='26' fill='url(%23g)'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,200..600,0..100,0..1;1,9..144,200..600,0..100,0..1&family=Figtree:wght@400;500;600&family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -22,24 +22,28 @@
 <!-- ═══ Main menu ═══ -->
 <section class="screen" id="scr-menu">
   <div class="menu-main">
-    <div class="logo">Efflorescent</div>
-    <p class="tagline">Grow a culture. Tend its light. Outshine the dark.</p>
+    <h1 class="logo living"><canvas id="logo-cv" aria-hidden="true"></canvas><span class="sr-only">Ozymandosis</span><span class="beta-badge" title="Ozymandosis is in beta. Report bugs from Settings or the pause menu.">Beta</span></h1>
+    <div class="news" id="m-news" aria-live="polite"></div>
     <button class="btn primary" id="m-continue" hidden>Continue</button>
+    <div class="lineage" id="m-lineage"></div>
     <button class="btn primary" id="m-skirmish">Skirmish</button>
+    <button class="btn" id="m-tutorial">Tutorial</button>
     <button class="btn" id="m-mp">Multiplayer</button>
     <button class="btn" id="m-load">Load game</button>
-    <button class="btn" id="m-forge">Organism Forge</button>
+    <button class="btn" id="m-forge">Spawnforge</button>
     <div class="row" style="width:100%;gap:10px">
       <button class="btn" id="m-codex" style="flex:1">Codex</button>
       <button class="btn" id="m-settings" style="flex:1">Settings</button>
     </div>
-    <div class="menu-foot"><a href="docs/concept.html" target="_blank" rel="noopener">Concept document</a><span id="m-version">v1.0</span></div>
+    <button class="btn ghost quit" id="m-quit">Quit</button>
+    <p class="sound-hint" id="sound-hint" hidden><i data-icon="conch"></i><span>Touch, click or press a key to wake the music</span></p>
+    <div class="menu-foot"><span id="m-version">v0.5.2</span></div>
   </div>
 </section>
 
 <!-- ═══ Skirmish / lobby setup (shared) ═══ -->
 <section class="screen dim" id="scr-setup" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2 id="setup-title">Skirmish</h2><span class="mono" id="setup-room"></span></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2 id="setup-title">Skirmish</h2><span class="mono" id="setup-room"></span></div>
   <div class="scr-body grid2 wide-left">
     <div class="card">
       <h3>Cultures</h3>
@@ -48,6 +52,7 @@
     </div>
     <div class="card">
       <h3>Dreamscape</h3>
+      <div class="field"><label>Victory</label><div class="seg" id="map-mode"></div><small class="hint-s" id="map-mode-d"></small></div>
       <div class="field"><label>Map size</label><div class="seg" id="map-size"></div></div>
       <div class="field" id="map-custom" hidden><label>Custom size (width × height)</label><div class="row" style="flex-wrap:nowrap"><input type="number" id="map-w" min="1600" max="9600" step="100"><span>×</span><input type="number" id="map-h" min="1200" max="6400" step="100"></div></div>
       <div class="field"><label>Start positions</label><div class="seg" id="map-layout"></div></div>
@@ -55,14 +60,24 @@
       <div class="field"><label>Resource richness</label><div class="seg" id="map-rich"></div></div>
       <div class="field"><label>Powerup vents</label><div class="seg" id="map-pu"></div></div>
       <div class="field"><label>Starting lumen</label><div class="seg" id="map-start"></div></div>
+      <div class="field"><label>Population cap per culture</label><div class="seg" id="map-pop"></div><small class="hint-s">Lower caps keep phones smooth. The default suits this device.</small></div>
       <div class="toggle-row"><span>Fog of war (the Murk)</span><label class="switch"><input type="checkbox" id="map-fog" checked><i></i></label></div>
       <div class="toggle-row"><span>Ocean currents</span><label class="switch"><input type="checkbox" id="map-cur" checked><i></i></label></div>
       <canvas id="map-preview" style="width:100%;height:170px;margin-top:12px;border-radius:12px;border:1px solid var(--line);display:block"></canvas>
-      <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn primary" id="setup-start">Begin the bloom</button></div>
+      <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn primary" id="setup-start">Begin</button></div>
     </div>
     <div class="card" id="lobby-chat-card" hidden>
       <h3>Lobby</h3>
+      <div id="lobby-code-row" hidden>
+        <span class="lbl" id="lobby-code-lbl">Join code</span>
+        <div class="lobby-code-box">
+          <code id="lobby-code" class="lobby-code"></code>
+          <button class="btn small" id="lobby-copy" type="button">Copy</button>
+          <button class="btn small primary" id="lobby-share" type="button" hidden>Share</button>
+        </div>
+      </div>
       <div id="lobby-log" style="max-height:160px;overflow:auto;font-size:.88em;display:grid;gap:4px;margin-bottom:8px"></div>
+      <div class="quick-chat" id="lobby-quick"></div>
       <form class="row" id="lobby-chat" style="flex-wrap:nowrap"><input type="text" id="lobby-msg" placeholder="Say something" maxlength="140"><button class="btn small">Send</button></form>
     </div>
   </div>
@@ -70,51 +85,64 @@
 
 <!-- ═══ Multiplayer ═══ -->
 <section class="screen dim" id="scr-mp" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Multiplayer</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Multiplayer</h2></div>
   <div class="scr-body grid2">
-    <div class="card">
-      <h3>You</h3>
-      <div class="field"><label>Name</label><input type="text" id="mp-name" maxlength="18"></div>
-      <div class="field"><label>Relay server</label><input type="text" id="mp-server" spellcheck="false"></div>
-      <p style="font-size:.84em;color:var(--ink-soft);margin:0">Run <code>node server/server.js</code> on one machine and everyone connects to it. Open slots can be filled by players or bots.</p>
+    <div class="card" id="mp-online">
+      <h3>Online</h3>
+      <div id="mp-account"></div>
+      <div id="mp-online-play" hidden>
+        <div class="field"><label>Quick match</label><div class="row"><button class="btn primary" id="mp-quick-duel">Duel · 1 vs 1</button><button class="btn" id="mp-quick-ffa">Free-for-all · 4</button></div></div>
+        <div class="queue-card" id="mp-queue" hidden><span class="spinner" aria-hidden="true"></span><span id="mp-queue-t">Searching for rivals…</span><button class="btn small" id="mp-unqueue">Cancel</button></div>
+        <div class="field"><label>Open lobbies</label><div class="lobby-list" id="mp-lobbies"></div>
+          <div class="row"><button class="btn small" id="mp-refresh">Refresh</button><button class="btn small primary" id="mp-host-online">Host a lobby</button><label class="check"><input type="checkbox" id="mp-private"><span>Private</span></label></div></div>
+        <div class="field"><label>Join with a code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code-online" maxlength="5" placeholder="ABCDE" class="code-in" autocapitalize="characters" spellcheck="false"><button class="btn" id="mp-join-online">Join</button></div></div>
+      </div>
+      <p class="mono status-line" id="mp-online-status"></p>
     </div>
-    <div class="card">
-      <h3>Play</h3>
-      <button class="btn primary" id="mp-host" style="width:100%;margin-bottom:12px">Host a new game</button>
-      <div class="field"><label>Join with room code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code" maxlength="6" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em"><button class="btn" id="mp-join">Join</button></div></div>
-      <p class="mono" id="mp-status" style="color:var(--ink-dim);min-height:1.2em"></p>
+    <div class="card" id="mp-lan">
+      <h3>Local network</h3>
+      <p class="hint-s">Everyone on one network plays directly: no account, no internet connection and no relay. Always free.</p>
+      <div class="field"><label>Name</label><input type="text" id="mp-name" maxlength="18"></div>
+      <button class="btn primary" id="mp-host" style="width:100%;margin-bottom:12px">Host on this network</button>
+      <div class="field" id="mp-find-field"><label>Games nearby</label><div class="row"><button class="btn" id="mp-find">Find games nearby</button></div><div class="lobby-list" id="mp-lan-found"></div></div>
+      <div class="field"><label>Join with a code</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="mp-code" maxlength="24" placeholder="60N00-H87WG" class="code-in" autocapitalize="characters" spellcheck="false" aria-label="Join code"><button class="btn" id="mp-join">Join</button></div>
+        <small class="hint-s">The host's screen shows the code. It works even when this network hides devices from each other's search.</small></div>
+      <details class="lan-adv"><summary>A computer as the host</summary>
+        <p class="hint-s">Run <code>node server/server.js</code> on it, enter its address here, then join with the 4-letter room code.</p>
+        <div class="field"><label>Local server</label><input type="text" id="mp-server" spellcheck="false"></div></details>
+      <p class="mono status-line" id="mp-status"></p>
     </div>
   </div>
 </section>
 
 <!-- ═══ Load ═══ -->
 <section class="screen dim" id="scr-load" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Saved games</h2>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Saved games</h2>
     <label class="btn small">Import<input type="file" id="load-import" accept=".json,application/json" hidden></label></div>
   <div class="scr-body"><div class="save-list" id="save-list"></div></div>
 </section>
 
 <!-- ═══ Settings ═══ -->
 <section class="screen dim" id="scr-settings" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Settings</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Settings</h2></div>
   <div class="scr-body grid2" id="settings-body"></div>
 </section>
 
 <!-- ═══ Codex ═══ -->
 <section class="screen dim" id="scr-codex" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Codex</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Codex</h2></div>
   <div class="scr-body"><div class="tabs" id="codex-tabs" role="tablist"></div><div id="codex-body"></div></div>
 </section>
 
 <!-- ═══ Forge (lab) ═══ -->
 <section class="screen dim" id="scr-forge" hidden>
-  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back">←</button><h2>Organism Forge</h2></div>
+  <div class="scr-head"><button class="icon-btn" data-back aria-label="Back"><i data-icon="back"></i></button><h2>Spawnforge</h2></div>
   <div class="scr-body" id="forge-lab"></div>
 </section>
 
 <!-- ═══ Game ═══ -->
 <div id="game" hidden>
-  <canvas id="view" aria-label="Game field"></canvas>
+  <div id="stage"><canvas id="view" aria-label="Game field"></canvas></div>
   <div class="hud-top">
     <div class="res">
       <span class="chip lumen" title="Lumen"><i>◆</i><b id="h-lumen">0</b></span>
@@ -122,35 +150,41 @@
       <span class="chip" id="h-pop-chip" title="Population"><i>●</i><b id="h-pop">0/0</b></span>
       <span class="chip fever" title="Fever"><i>♨</i><span class="bar"><b id="h-fever"></b></span></span>
       <span class="chip clock" id="h-clock">0:00</span>
+      <span class="chip objective" id="h-obj" hidden title="Objective"><i>◎</i><span class="obar"><b id="h-obj-me"></b><b id="h-obj-foe"></b></span><em id="h-obj-t"></em></span>
     </div>
     <div class="hud-right">
-      <button class="icon-btn" id="h-chat" title="Chat (Enter)" hidden>💬</button>
-      <button class="icon-btn" id="h-menu" title="Menu (Esc)" aria-label="Menu">☰</button>
+      <button class="icon-btn" id="h-chat" title="Chat (Enter)" aria-label="Chat" hidden><i data-icon="speech"></i></button>
+      <button class="icon-btn" id="h-mute" title="Sound" aria-label="Toggle sound"><i data-icon="conch"></i></button>
+      <button class="icon-btn" id="h-menu" title="Menu (Esc)" aria-label="Menu"><i data-icon="tendrils"></i></button>
     </div>
   </div>
   <div class="minimap-wrap" id="mm-wrap"><canvas id="minimap"></canvas><button class="mm-toggle" id="mm-toggle" aria-label="Toggle minimap">▾</button></div>
   <div class="fabs">
-    <button class="icon-btn" id="f-army" title="Select army (F2)">⚔<small>ARMY</small></button>
-    <button class="icon-btn" id="f-idle" title="Idle foragers (F1)">◌<small>IDLE</small><span class="badge" id="f-idle-n" hidden>0</span></button>
-    <button class="icon-btn" id="f-home" title="Nucleus (Space)">⌂<small>HOME</small></button>
-    <button class="icon-btn" id="f-tech" title="Evolve (T)">⧉<small>EVOLVE</small><span class="badge" id="f-tech-n" hidden>0</span></button>
-    <button class="icon-btn" id="f-forge" title="Forge (G)">✎<small>FORGE</small></button>
+    <button class="fab" id="f-army" title="Select army (F2)"><i data-icon="claws"></i><small>Army</small></button>
+    <button class="fab" id="f-idle" title="Idle foragers (F1)"><i data-icon="grub"></i><small>Idle</small><span class="badge" id="f-idle-n" hidden>0</span></button>
+    <button class="fab" id="f-home" title="Nucleus (Space)"><i data-icon="nucleus"></i><small>Home</small></button>
+    <button class="fab" id="f-tech" title="Evolve (T)"><i data-icon="helix"></i><small>Evolve</small><span class="badge" id="f-tech-n" hidden>0</span></button>
+    <button class="fab" id="f-forge" title="Spawnforge (G)"><i data-icon="egg"></i><small>Spawn</small></button>
   </div>
   <div class="alerts" id="alerts"></div>
+  <div class="killfeed" id="killfeed" aria-live="polite"></div>
+  <div class="threats" id="threats"></div>
+  <div class="undo" id="undo" hidden><button class="btn small" id="undo-btn">↶ Undo order</button></div>
+  <div class="net-banner" id="net-banner" role="status" aria-live="polite" hidden><span class="spin" aria-hidden="true"></span><span id="net-banner-t"></span><button class="btn small ghost" id="net-banner-leave">Leave</button></div>
   <div class="guide" id="guide" hidden><span class="mono" id="guide-n"></span><span id="guide-text"></span><button class="btn small" id="guide-next">Next</button><button class="btn small ghost" id="guide-off" aria-label="Turn off tips">✕</button></div>
-  <div class="chat" id="chat" hidden><div id="chat-log" style="display:grid;gap:4px"></div><form id="chat-form" hidden><input type="text" id="chat-input" maxlength="140" placeholder="Message"><button class="btn small">Send</button></form></div>
-  <div class="hint" id="hint" hidden><span id="hint-text"></span><button class="btn small" id="hint-cancel">Cancel</button></div>
+  <div class="chat" id="chat" hidden><div id="chat-log" style="display:grid;gap:4px"></div><form id="chat-form" hidden><div class="quick-chat" id="chat-quick"></div><div class="chat-line"><input type="text" id="chat-input" maxlength="140" placeholder="Message"><button class="btn small">Send</button></div></form></div>
+  <div class="hint" id="hint" hidden><span id="hint-text"></span><button class="btn small primary" id="hint-ok" hidden>Confirm</button><button class="btn small" id="hint-cancel">Cancel</button></div>
   <div class="sheet" id="sheet">
     <button class="grab" id="sheet-grab" aria-label="Collapse panel"></button>
     <div class="sheet-head"><div class="title" id="sh-title">Colony</div><span class="sub" id="sh-sub"></span><button class="btn small ghost" id="sh-close" hidden>✕</button></div>
     <div class="sheet-body" id="sh-body"></div>
   </div>
   <div class="overlay" id="ov-tech" hidden>
-    <div class="ov-head"><h2>Evolve</h2><span class="mono" id="tech-res"></span><button class="icon-btn" data-close aria-label="Close">✕</button></div>
+    <div class="ov-head"><h2>Evolve</h2><span class="mono" id="tech-res"></span><button class="icon-btn" data-close aria-label="Close"><i data-icon="cancel"></i></button></div>
     <div class="tabs" id="tech-tabs"></div><div id="tech-body"></div>
   </div>
   <div class="overlay" id="ov-forge" hidden>
-    <div class="ov-head"><h2>Forge</h2><button class="icon-btn" data-close aria-label="Close">✕</button></div>
+    <div class="ov-head"><h2>Spawnforge</h2><button class="icon-btn" data-close aria-label="Close"><i data-icon="cancel"></i></button></div>
     <div id="forge-game"></div>
   </div>
   <div class="overlay" id="ov-pause" hidden>
@@ -161,6 +195,9 @@
       <button class="btn" id="p-save">Save game</button>
       <button class="btn" id="p-codex">Codex</button>
       <button class="btn" id="p-settings">Settings</button>
+      <div class="row" style="gap:10px"><button class="btn" id="p-bug" style="flex:1">Report a bug</button><button class="btn" id="p-report" style="flex:1" hidden>Report a player</button></div>
+      <div class="row" style="gap:10px"><span class="lbl" style="width:70px;text-align:left">Music</span><input type="range" id="p-music" min="0" max="100" style="flex:1"></div>
+      <div class="row" style="gap:10px"><span class="lbl" style="width:70px;text-align:left">Effects</span><input type="range" id="p-sfx" min="0" max="100" style="flex:1"></div>
       <div class="row" style="gap:6px"><span class="lbl" style="flex:1;text-align:left">Game speed</span><div class="seg" id="p-speed" style="flex:2"></div></div>
       <button class="btn danger" id="p-surrender">Surrender</button>
       <button class="btn" id="p-quit">Quit to menu</button>
@@ -168,17 +205,22 @@
   </div>
   <div class="overlay" id="ov-end" hidden>
     <div class="ov-center" style="max-width:720px">
-      <h2 id="end-title">Efflorescence</h2>
+      <h2 id="end-title">Look on my works</h2>
       <p id="end-text" style="color:var(--ink-soft)"></p>
       <div class="card" style="overflow-x:auto"><table class="stats-tbl" id="end-stats"></table></div>
-      <div class="row" style="justify-content:center"><button class="btn" id="end-watch">Keep watching</button><button class="btn primary" id="end-menu">Main menu</button></div>
+      <div class="card end-xp" id="end-xp"></div>
+      <p class="end-result" id="end-result" role="status" aria-live="polite" hidden></p>
+      <div class="row" id="end-online" style="justify-content:center" hidden></div>
+      <div class="row" style="justify-content:center"><button class="btn primary" id="end-rematch">Rematch</button><button class="btn" id="end-reseed">New Dreamscape</button><button class="btn" id="end-watch">Keep watching</button><button class="btn" id="end-menu">Main menu</button></div>
     </div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="vendor/three.min.js"></script>
 <script src="js/core/seed.js"></script>
 <script src="js/core/util.js"></script>
+<script src="js/core/crash.js"></script>
 <script src="js/data/organs.js"></script>
 <script src="js/data/chassis.js"></script>
 <script src="js/data/specials.js"></script>
@@ -188,16 +230,36 @@
 <script src="js/sim/world.js"></script>
 <script src="js/sim/ai.js"></script>
 <script src="js/render/look.js"></script>
+<script src="js/render/anatomy.js"></script>
+<script src="js/render/gore.js"></script>
+<script src="js/render/menuscene.js"></script>
+<script src="js/render/core.js"></script>
 <script src="js/render/renderer.js"></script>
 <script src="js/render/minimap.js"></script>
+<script src="js/render/gl/atlas.js"></script>
+<script src="js/render/gl/batches.js"></script>
+<script src="js/render/gl/glrenderer.js"></script>
+<script src="js/render/gpu/gpurenderer.js"></script>
+<script src="js/render/backend.js"></script>
 <script src="js/core/store.js"></script>
+<script src="js/core/music.js"></script>
 <script src="js/core/audio.js"></script>
+<script src="js/core/profile.js"></script>
 <script src="js/net/net.js"></script>
+<script src="js/net/lan.js"></script>
+<script src="js/net/audit.js"></script>
+<script src="js/net/online.js"></script>
+<script src="js/net/cloud.js"></script>
+<script src="js/ui/perf.js"></script>
+<script src="js/ui/framestats.js"></script>
 <script src="js/ui/dom.js"></script>
+<script src="js/ui/icons.js"></script>
 <script src="js/ui/forge.js"></script>
 <script src="js/ui/tech.js"></script>
 <script src="js/ui/codex.js"></script>
 <script src="js/ui/game.js"></script>
 <script src="js/ui/menus.js"></script>
+<script src="js/native.js"></script>
+<script src="js/bench.js"></script>
 </body>
 </html>

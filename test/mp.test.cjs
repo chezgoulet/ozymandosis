@@ -1,5 +1,6 @@
-// Multiplayer end-to-end: host + guest browsers through the relay server.
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+// SPDX-License-Identifier: AGPL-3.0-only
+// Multiplayer end-to-end: host + guest browsers, introduced by the LAN signaling server, playing over WebRTC.
+const pw = require('../tools/pw.cjs');
 const path = require('path');
 process.env.PORT = process.env.PORT || '8094'; process.env.QUIET = '1';
 const server = require('../server/server.js');
@@ -7,7 +8,7 @@ const URL0 = `http://localhost:${process.env.PORT}/`;
 const OUT = path.join(__dirname, 'shots');
 const assert = require('assert');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome' });
+  const b = await pw.launch({ args: ['--disable-features=WebRtcHideLocalIpsWithMdns'] });
   const errs = [];
   const page = async (name, vp, touch) => {
     const ctx = await b.newContext({ viewport: vp, hasTouch: !!touch, isMobile: !!touch });
@@ -26,6 +27,9 @@ const assert = require('assert');
   await guest.click('#m-mp'); await guest.fill('#mp-name', 'Guesto'); await guest.fill('#mp-code', room); await guest.click('#mp-join');
   await guest.waitForSelector('#scr-setup:not([hidden])');
   await host.waitForTimeout(600);
+  // the room code is shown prominently and copyably, to everyone in the lobby
+  assert.strictEqual((await host.textContent('#lobby-code')).trim(), room, 'host shows the room code');
+  assert.strictEqual((await guest.textContent('#lobby-code')).trim(), room, 'guest sees the room code');
   // guest picks a culture
   await guest.selectOption('#slots .slot-row:nth-child(2) select:first-child', 'current');
   await host.waitForTimeout(600);
@@ -44,7 +48,13 @@ const assert = require('assert');
   await guest.waitForTimeout(1500);
   const g1 = await guest.evaluate(() => ({ local: E.game.local, units: E.game.world.s.units.length, t: E.game.world.s.t, mode: E.game.netMode }));
   console.log('guest', JSON.stringify(g1));
-  assert.strictEqual(g1.local, 1); assert(g1.units > 10);
+  assert.strictEqual(g1.local, 1); assert(g1.units >= 6);
+  // fog: the guest only receives rivals its team can see; the host has the whole world
+  const hostUnits = await host.evaluate(() => E.game.world.s.units.length);
+  const leak = await guest.evaluate(() => { const w = E.game.world, src = w.visionSources(E.game.local); return w.s.units.filter(u => w.isEnemy(E.game.local, u.o) && !src.some(v => Math.hypot(v.x - u.x, v.y - u.y) < v.r + 260)).length; });
+  console.log('fog: host units', hostUnits, 'guest units', g1.units, 'unseen rivals sent', leak);
+  assert(hostUnits > g1.units && leak === 0, 'snapshots are culled to what the guest can see');
+  assert(await host.evaluate(() => [...E.game.relay.peers.values()].every(p => p.z)), 'links are compressed');
   // guest commands: hatch at its nucleus
   await guest.evaluate(() => { const g = E.game, n = g.world.s.structs.find(b => b.o === g.local); g.send({ c: 'hatch', sid: n.id, d: 'warden' }); });
   await host.waitForTimeout(7000);
@@ -54,13 +64,19 @@ const assert = require('assert');
   await guest.screenshot({ path: OUT + '/mp-03-guest-game.png' });
   await host.screenshot({ path: OUT + '/mp-04-host-game.png' });
   // host pause propagates
-  await host.keyboard.press('p'); await guest.waitForTimeout(500);
+  await host.keyboard.press('F10'); await guest.waitForTimeout(500);
   const paused = await guest.evaluate(() => !document.getElementById('ov-pause').hidden);
   console.log('guest sees pause', paused); assert(paused);
   await host.click('#p-resume'); await guest.waitForTimeout(400);
   // in-game chat
   await guest.evaluate(() => { E.game.relay.toHost({ k: 'chat', text: 'gg' }); }); await host.waitForTimeout(400);
   assert((await host.textContent('#chat-log')).includes('gg'));
+  // the guest's link to the host breaks: it rejoins by itself, same seat
+  await guest.evaluate(() => { window.__oldRelay = E.game.relay; E.game.relay.peers.get(0).pc.close(); });
+  await guest.waitForFunction(() => E.game.running && E.game.relay !== window.__oldRelay && E.game.netMode === 'guest' && !E.game.reconnecting && document.getElementById('net-banner').hidden && E.game.world.s.units.length > 0, null, { timeout: 30000 });
+  await host.waitForTimeout(600);
+  const back = await host.evaluate(() => E.game.world.s.players[1].kind);
+  console.log('auto-rejoin', back, await guest.evaluate(() => E.game.local)); assert.strictEqual(back, 'remote');
   // guest disconnect -> bot takeover, then rejoin
   await guest.close(); await host.waitForTimeout(800);
   const kind = await host.evaluate(() => E.game.world.s.players[1].kind); console.log('after drop kind', kind); assert.strictEqual(kind, 'bot');
@@ -72,6 +88,14 @@ const assert = require('assert');
   console.log('rejoin', JSON.stringify(st)); assert(st.inGame && st.local === 1);
   const kind2 = await host.evaluate(() => E.game.world.s.players[1].kind); assert.strictEqual(kind2, 'remote');
   await guest2.screenshot({ path: OUT + '/mp-05-rejoin.png' });
+  // a build on a different peer protocol is refused with a clear message, and the match carries on
+  const old = await page('old', { width: 1024, height: 700 });
+  await old.evaluate(() => { E.PROTOCOL = 1; });
+  await old.click('#m-mp'); await old.fill('#mp-name', 'Oldie'); await old.fill('#mp-code', room); await old.click('#mp-join');
+  await old.waitForFunction(() => /update/i.test(document.getElementById('mp-status').textContent), null, { timeout: 10000 });
+  const oldSt = await old.evaluate(() => ({ status: document.getElementById('mp-status').textContent, inGame: !document.getElementById('game').hidden }));
+  console.log('old protocol', JSON.stringify(oldSt)); assert(!oldSt.inGame && /update/i.test(oldSt.status));
+  assert.strictEqual(await host.evaluate(() => E.game.world.s.players[1].kind), 'remote', 'host match unaffected');
   console.log(errs.length ? errs.join('\n') : 'no errors');
   await b.close(); server.close(); process.exit(errs.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

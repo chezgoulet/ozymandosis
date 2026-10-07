@@ -1,0 +1,6 @@
+{
+  "_doc": "Regression budget for `npm run test:perf` (host GPU via ANGLE/Vulkan, 1440x900@1x, high tier). p95 frame interval and mean JS render time in ms. The 60 fps contract is p95 <= 16.6 ms at 700 creatures on the reference desktop.",
+  "webgl2": { "100": { "p95": 8, "cpu": 3 }, "700": { "p95": 16.6, "cpu": 7 } },
+  "webgpu": { "100": { "p95": 8, "cpu": 3 }, "700": { "p95": 16.6, "cpu": 7 } },
+  "canvas2d": { "100": { "p95": 120, "cpu": 20 }, "700": { "p95": 400, "cpu": 200 } }
+}

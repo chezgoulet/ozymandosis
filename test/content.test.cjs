@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Every ability, power and powerup does something observable.
 const E = require('./load.cjs')();
 const assert = require('assert');

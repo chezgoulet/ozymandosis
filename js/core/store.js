@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Persistence: settings, save slots (with autosave), and the design library.
 (function (E) {
   'use strict';
@@ -9,10 +10,13 @@
   E.LS = LS;
 
   const DEFAULTS = {
-    quality: 'auto', music: 0.5, sfx: 0.7, uiScale: 1, edgePan: true, showHp: true, tapCommand: true,
-    rightClick: 'amove', invertZoom: false, tips: true, guideStep: 0, name: '', server: '', lastSetup: null, mmCollapsed: false, speed: 1, haptics: true,
+    quality: 'auto', backend: 'auto', markers: 'auto', orientation: 'auto', muted: false, organIcons: true, music: 0.5, sfx: 0.7, uiScale: 1, edgePan: true, showHp: true, tapCommand: true,
+    rightClick: 'amove', invertZoom: false, tips: true, guideStep: 0, name: '', server: '', lastSetup: null, mmCollapsed: false, speed: 1, haptics: true, fullscreen: true, crashReports: true, playServer: '',
   };
   E.Settings = Object.assign({}, DEFAULTS, LS.get('efl.settings', {}));
+  // D19: relaying is no longer a choice. Installs that saved relayOnly: false must
+  // not keep an un-relayed path, so the old setting is dropped rather than obeyed.
+  delete E.Settings.relayOnly;
   E.saveSettings = () => LS.set('efl.settings', E.Settings);
 
   // Saves: index + one key per slot. slot ids: 'auto', 's1'..'s8'
@@ -31,20 +35,20 @@
     write(id, world, extra) {
       const data = { v: 1, state: world.serialize(), extra: extra || {} };
       const ok = LS.set('efl.save.' + id, data);
-      if (ok) LS.set('efl.meta.' + id, this.meta(world, extra));
+      if (ok) { LS.set('efl.meta.' + id, this.meta(world, extra)); if (E.Cloud) E.Cloud.dirty('save.' + id); }
       return ok;
     },
     read(id) { return LS.get('efl.save.' + id, null); },
-    remove(id) { LS.del('efl.save.' + id); LS.del('efl.meta.' + id); },
+    remove(id) { LS.del('efl.save.' + id); LS.del('efl.meta.' + id); if (E.Cloud) E.Cloud.removed('save.' + id); },
     freeSlot() { const used = new Set(this.list().map(m => m.id)); return SAVE_SLOTS.slice(1).find(s => !used.has(s)) || SAVE_SLOTS[1]; },
-    exportBlob(world, extra) { return new Blob([JSON.stringify({ efflorescent: 1, v: 1, state: world.serialize(), extra: extra || {} })], { type: 'application/json' }); },
+    exportBlob(world, extra) { return new Blob([JSON.stringify({ ozymandosis: 1, v: 1, state: world.serialize(), extra: extra || {} })], { type: 'application/json' }); },
   };
 
   // Design library shared across games (player-authored designs).
   E.Library = {
     all() { return LS.get('efl.designs', []); },
-    save(list) { LS.set('efl.designs', list.slice(0, 30)); },
-    add(d) { const l = this.all().filter(x => x.name !== d.name); l.unshift({ name: d.name, chassis: d.chassis, organs: d.organs.slice(), role: d.role }); this.save(l); },
-    remove(name) { this.save(this.all().filter(x => x.name !== name)); },
+    save(list) { LS.set('efl.designs', list.slice(0, 30)); if (E.Cloud) E.Cloud.dirty('designs'); },
+    add(d) { const l = this.all().filter(x => x.name !== d.name); l.unshift({ name: d.name, chassis: d.chassis, organs: d.organs.slice(), role: d.role, at: Date.now() }); this.save(l); },
+    remove(name) { const g = LS.get('efl.designs.gone', {}); g[name] = Date.now(); LS.set('efl.designs.gone', g); this.save(this.all().filter(x => x.name !== name)); },
   };
 })(window.E);

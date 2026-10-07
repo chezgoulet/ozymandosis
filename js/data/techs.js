@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Tech tree and the six cultures.
 (function (E) {
   'use strict';
@@ -45,28 +46,28 @@
   // ── Cultures (colors straight from the seed's _SWIMMER_COLORS) ─
   const BASE = { hp: 1, speed: 1, attack: 1, harvest: 1, sense: 1, cost: 1, hatch: 1, research: 1 };
   const C = [
-    { id: 'verdant', name: 'The Verdant Strain', short: 'Verdant', epithet: 'Gardeners of the Drift', spec: 'Economy',
-      rule: 'Harvest ×1.5 · Bite ×0.8', mods: { harvest: 1.5, attack: 0.8 }, affinity: 'pili', startForm: 'fronds', startChassis: 'siphonophore',
+    { id: 'verdant', name: 'The Verdant', short: 'Verdant', epithet: 'Gardeners of the Drift', spec: 'Economy',
+      rule: 'Harvest ×1.5 · Bite ×0.8', mods: { harvest: 1.5, attack: 0.8 }, pressures: ['umbral', 'choir'], persona: 'boom', affinity: 'pili', startForm: 'fronds', startChassis: 'siphonophore',
       aiResearch: ['tier:pili:1', 'form:combs', 'power:roots', 'tier:leg:1', 'tier:mandible:1', 'power:mitosis', 'form:tubefeet', 'tier:mandible:2', 'power:symbiosis', 'form:pincers'],
       blurb: 'Patient tenders who out-grow and out-research their rivals, then drown them in bodies.' },
     { id: 'luminant', name: 'The Luminants', short: 'Luminants', epithet: 'Keepers of the Gold Spore', spec: 'Generalist · Tech',
-      rule: 'Research ×0.6 cost and time · +50% spore', mods: { research: 0.6 }, sporeMul: 1.5, affinity: null, startForm: 'eyestalks', startChassis: 'nautiloid',
+      rule: 'Research ×0.6 cost and time · +50% spore', mods: { research: 0.6 }, pressures: ['current', 'choir'], persona: 'tech', sporeMul: 1.5, affinity: null, startForm: 'eyestalks', startChassis: 'nautiloid',
       aiResearch: ['tier:mandible:1', 'form:nematocyst', 'chassis:ctenophore', 'tier:antenna:1', 'power:chitin', 'tier:mandible:2', 'form:horns', 'power:bloom', 'tier:leg:1', 'power:apex'],
       blurb: 'Emerald and gold, without a glaring weakness. Their gift is evolution itself.' },
-    { id: 'current', name: 'The Current-born', short: 'Current-born', epithet: 'Riders of the Long Water', spec: 'Mobility · Raids',
-      rule: 'Speed ×1.35 · HP ×0.85', mods: { speed: 1.35, hp: 0.85 }, affinity: 'flagella', startForm: 'jetsiphon', startChassis: 'ctenophore',
+    { id: 'current', name: 'The Slither', short: 'Slither', epithet: 'Riders of the Long Water', spec: 'Mobility · Raids',
+      rule: 'Speed ×1.35 · HP ×0.85', mods: { speed: 1.35, hp: 0.85 }, pressures: ['verdant', 'umbral'], persona: 'raider', affinity: 'flagella', startForm: 'jetsiphon', startChassis: 'ctenophore',
       aiResearch: ['tier:flagella:1', 'tier:mandible:1', 'form:twinwhip', 'form:sawjaw', 'power:frenzy', 'tier:mandible:2', 'power:tidecall', 'tier:flagella:2', 'power:hunger'],
       blurb: 'Fast, fragile and never where you left them. They punish greedy economies.' },
-    { id: 'choir', name: 'The Deep Choir', short: 'Deep Choir', epithet: 'Listeners in the Dark', spec: 'Sensing · Ambush',
-      rule: 'Sense ×1.5 · Unseen beyond 55 · Ambush 2× bite', mods: { sense: 1.5 }, stealth: true, affinity: 'antenna', startForm: 'photophores', startChassis: 'medusa',
+    { id: 'choir', name: 'The Choir', short: 'Choir', epithet: 'Listeners in the Dark', spec: 'Sensing · Ambush',
+      rule: 'Sense ×1.5 · Unseen beyond 55 · Ambush 2× bite', mods: { sense: 1.5 }, pressures: ['current', 'bloom'], persona: 'turtle', stealth: true, affinity: 'antenna', startForm: 'photophores', startChassis: 'medusa',
       aiResearch: ['tier:antenna:1', 'tier:mandible:1', 'form:whiskers', 'form:proboscis', 'power:hivemind', 'tier:mandible:2', 'power:flare', 'form:horns', 'power:metamorph'],
       blurb: 'Violet singers who hear everything and strike from where no one is looking.' },
-    { id: 'umbral', name: 'The Umbral Kin', short: 'Umbral Kin', epithet: 'The Tethered Hunger', spec: 'Parasitism · Conversion',
-      rule: '30% of kills rise again as Umbral', mods: { harvest: 0.9 }, convert: 0.3, affinity: 'pili', startForm: 'tether', startChassis: 'nautiloid',
+    { id: 'umbral', name: 'The Seethe', short: 'Seethe', epithet: 'The Tethered Hunger', spec: 'Parasitism · Conversion',
+      rule: '30% of kills rise again as Seethe', mods: { harvest: 0.9 }, pressures: ['bloom', 'luminant'], persona: 'tech', convert: 0.3, affinity: 'pili', startForm: 'tether', startChassis: 'nautiloid',
       aiResearch: ['tier:mandible:1', 'tier:pili:1', 'form:venom', 'power:hunger', 'tier:leg:1', 'tier:mandible:2', 'form:thorn', 'power:bloom', 'power:metamorph'],
       blurb: 'They don’t kill their enemies so much as recruit them.' },
-    { id: 'bloom', name: 'The Bloomtide', short: 'Bloomtide', epithet: 'The Brief and Burning', spec: 'Aggression · Swarm',
-      rule: 'Cost ×0.6 · Hatch ×0.6 · Bite ×1.25 · Live 90s', mods: { cost: 0.6, hatch: 0.6, attack: 1.25 }, lifespan: 90, popBonus: 30, affinity: 'mandible', startForm: 'pincers', startChassis: 'carapace',
+    { id: 'bloom', name: 'The Bloom', short: 'Bloom', epithet: 'The Brief and Burning', spec: 'Aggression · Swarm',
+      rule: 'Cost ×0.6 · Hatch ×0.6 · Bite ×1.25 · Live 90s', mods: { cost: 0.6, hatch: 0.6, attack: 1.25 }, pressures: ['verdant', 'luminant'], persona: 'swarm', lifespan: 90, popBonus: 30, affinity: 'mandible', startForm: 'pincers', startChassis: 'carapace',
       aiResearch: ['tier:mandible:1', 'power:frenzy', 'form:sawjaw', 'tier:leg:1', 'tier:mandible:2', 'power:mitosis', 'form:stinger', 'power:hunger', 'tier:mandible:3'],
       blurb: 'Cheap, vicious and gone in ninety seconds. They win early or not at all.' },
   ];

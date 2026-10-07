@@ -1,21 +1,21 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // World renderer: camera, layers, fog of war, effects, overlays.
 (function (E) {
   'use strict';
   const TAU = E.TAU;
-  const FOG_CELL = 64;
 
-  class Renderer {
+  // Canvas2D backend (the original renderer; now the low-end fallback).
+  class Renderer extends E.RenderCore {
     constructor(canvas) {
-      this.cv = canvas; this.ctx = canvas.getContext('2d');
-      this.cam = { x: 0, y: 0, z: 1 };
-      this.vis = new Map(); this.corpses = []; this.fx = []; this.texts = []; this.streaks = [];
+      super(canvas);
+      this.ctx = canvas.getContext('2d');
+      this.streaks = [];
       this.fogCv = document.createElement('canvas'); this.fogCtx = this.fogCv.getContext('2d');
       this.hole = this.makeHole();
       this.quality = 'high';
       this.dust = [];
       const r = E.RNG(211);
       for (let i = 0; i < 90; i++) this.dust.push({ x: r.next(), y: r.next(), d: r.next(), ph: r.next() * TAU, sz: 0.6 + r.next() * 1.4 });
-      this.W = 1; this.H = 1; this.dpr = 1;
     }
     makeHole() {
       const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -31,91 +31,11 @@
       this.fogCv.width = Math.ceil(this.W / 4); this.fogCv.height = Math.ceil(this.H / 4);
     }
     reset(view, local) {
-      this.vis.clear(); this.corpses = []; this.fx = []; this.texts = []; this.streaks = [];
+      super.reset(view, local); this.streaks = [];
       const m = view.s.map;
-      this.cols = Math.ceil(m.w / FOG_CELL); this.rows = Math.ceil(m.h / FOG_CELL);
-      this.explored = new Uint8Array(this.cols * this.rows);
-      this.visGrid = new Uint8Array(this.cols * this.rows);
-      this.visT = 0; this.local = local;
       this.expCv = document.createElement('canvas'); this.expCv.width = Math.ceil(m.w / 16); this.expCv.height = Math.ceil(m.h / 16);
       this.expCtx = this.expCv.getContext('2d');
     }
-    s2w(sx, sy) { return { x: (sx - this.W / 2) / this.cam.z + this.cam.x, y: (sy - this.H / 2) / this.cam.z + this.cam.y }; }
-    w2s(x, y) { return { x: (x - this.cam.x) * this.cam.z + this.W / 2, y: (y - this.cam.y) * this.cam.z + this.H / 2 }; }
-    clampCam(view) {
-      const m = view.s.map, c = this.cam;
-      const minZ = Math.max(0.12, Math.min(this.W / (m.w + 600), this.H / (m.h + 600)));
-      c.z = E.clamp(c.z, minZ, 2.4);
-      const hw = this.W / 2 / c.z, hh = this.H / 2 / c.z;
-      c.x = m.w + 300 < hw * 2 ? m.w / 2 : E.clamp(c.x, hw - 300, m.w + 300 - hw);
-      c.y = m.h + 300 < hh * 2 ? m.h / 2 : E.clamp(c.y, hh - 300, m.h + 300 - hh);
-    }
-    // ── fog ─────────────────────────────────────────────────────
-    fogOn(view) { return view.s.cfg.map.fog && this.local >= 0 && view.s.players[this.local] && view.s.players[this.local].alive && !(view.s.players[this.local].echoT > 0); }
-    updateVision(view) {
-      const g = this.visGrid; g.fill(0);
-      if (this.local < 0) return;
-      const src = view.visionSources(this.local);
-      const cols = this.cols, rows = this.rows;
-      for (const s of src) {
-        const r = s.r, c0 = Math.max(0, Math.floor((s.x - r) / FOG_CELL)), c1 = Math.min(cols - 1, Math.floor((s.x + r) / FOG_CELL));
-        const r0 = Math.max(0, Math.floor((s.y - r) / FOG_CELL)), r1 = Math.min(rows - 1, Math.floor((s.y + r) / FOG_CELL));
-        const rr = r * r;
-        for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
-          const dx = (cx + 0.5) * FOG_CELL - s.x, dy = (cy + 0.5) * FOG_CELL - s.y;
-          if (dx * dx + dy * dy <= rr) { g[cy * cols + cx] = 1; this.explored[cy * cols + cx] = 1; }
-        }
-      }
-      this.sources = src;
-      const ec = this.expCtx;
-      for (const s of src) { const r = s.r / 16; ec.drawImage(this.hole, s.x / 16 - r, s.y / 16 - r, r * 2, r * 2); }
-    }
-    seen(x, y) {
-      if (!this.fogActive) return true;
-      const cx = Math.floor(x / FOG_CELL), cy = Math.floor(y / FOG_CELL);
-      if (cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows) return false;
-      return this.visGrid[cy * this.cols + cx] === 1;
-    }
-    explore(x, y) { const cx = Math.floor(x / FOG_CELL), cy = Math.floor(y / FOG_CELL); return cx >= 0 && cy >= 0 && cx < this.cols && cy < this.rows && this.explored[cy * this.cols + cx] === 1; }
-
-    // ── events → fx ─────────────────────────────────────────────
-    consume(view, events) {
-      const t = this.t || 0;
-      for (const ev of events) {
-        const vis = ev.x === undefined || this.seen(ev.x, ev.y);
-        const p = ev.o !== undefined ? view.s.players[ev.o] : null;
-        const cult = p ? E.CULTURES[p.culture] : null;
-        const c0 = cult ? cult.colors[0] : E.WHITE, c1 = cult ? cult.colors[1] : E.WHITE;
-        if (!vis) { if (ev.e === 'die') this.vis.delete(ev.id); continue; }
-        switch (ev.e) {
-          case 'hatch': this.burst(ev.x, ev.y, c0, 50, 0.9); break;
-          case 'die': {
-            const v = this.vis.get(ev.id);
-            if (v && v.last) this.corpses.push({ v, pts: v.last.pts, o: v.last.o, t0: t });
-            this.vis.delete(ev.id);
-            if (!ev.withered) this.burst(ev.x, ev.y, c1, 46, 0.8); break;
-          }
-          case 'hit': this.burst(ev.x, ev.y, c1, 18, 0.35, 0.5); break;
-          case 'ability': { const a = E.ABILITIES[ev.id]; this.ring(ev.x, ev.y, E.hex(a.color), 60, 0.7); if (ev.id === 'dazzle') this.burst(ev.x, ev.y, E.WHITE, 130, 1.2, 0.6); break; }
-          case 'flash': this.burst(ev.x, ev.y, E.WHITE, ev.r * 1.2, 1.3, 0.5); break;
-          case 'ring': this.ring(ev.x, ev.y, c1, ev.r, 0.8); break;
-          case 'heal': this.ring(ev.x, ev.y, { r: 160, g: 255, b: 190 }, ev.r, 0.8); this.burst(ev.x, ev.y, { r: 160, g: 255, b: 190 }, ev.r * 0.6, 0.5); break;
-          case 'pickup': { const pu = E.POWERUPS[ev.k]; this.burst(ev.x, ev.y, E.hex(pu.color), 80, 1.1); if (ev.o === this.local) this.text(ev.x, ev.y - 20, pu.name, pu.color); break; }
-          case 'built': case 'plant': this.ring(ev.x, ev.y, c1, 90, 1.2); this.burst(ev.x, ev.y, c0, 70, 1); break;
-          case 'destroy': this.burst(ev.x, ev.y, c1, 220, 1.8, 1.2); this.ring(ev.x, ev.y, c1, 240, 1.6); break;
-          case 'convert': this.burst(ev.x, ev.y, c1, 70, 1.2); this.ring(ev.x, ev.y, c1, 50, 0.9); break;
-          case 'rank': this.text(ev.x, ev.y - 16, '▲'.repeat(ev.rank), '#ffe066'); break;
-          case 'spire': this.burst(ev.x, ev.y, c1, 24, 0.4); break;
-          case 'apex': this.burst(ev.x, ev.y, c1, 260, 2, 1); this.ring(ev.x, ev.y, c1, 300, 2); break;
-          case 'deposit': if (ev.o === this.local && this.quality !== 'low') this.burst(ev.x, ev.y, { r: 200, g: 255, b: 255 }, 22, 0.3, 0.5); break;
-          case 'cloud': if (ev.kind === 'flare') this.burst(ev.x, ev.y, { r: 255, g: 243, b: 160 }, ev.r, 1.4, 0.7); break;
-        }
-      }
-    }
-    burst(x, y, c, r, dur, hot) { this.fx.push({ k: 'burst', x, y, c, r, dur, hot: hot || 1, t0: this.t || 0 }); }
-    ring(x, y, c, r, dur) { this.fx.push({ k: 'ring', x, y, c, r, dur, t0: this.t || 0 }); }
-    text(x, y, s, color) { this.texts.push({ x, y, s, color, t0: this.t || 0 }); }
-
     // ── frame ───────────────────────────────────────────────────
     frame(view, alpha, t, dt, ui) {
       this.t = t;
@@ -160,6 +80,8 @@
       for (const b of s.structs) if (inView(b.x, b.y, 120) && (b.o === local || !this.fogActive || this.explore(b.x, b.y))) this.drawStruct(ctx, view, b, pals[b.o], t, ui);
       this.drawUnits(ctx, view, alpha, t, dt, pals, inView, ui);
       this.drawShots(ctx, view, alpha, t, pals);
+      this.gore.step(dt); this.gore.draw(E.canvasStructAdapter(ctx, z, 0, (x, y) => this.seen(x, y), pal), t, inView);
+      this.trackDamage(view, dt);
       this.drawFx(ctx, t);
       // fog
       if (this.fogActive) this.drawFog(ctx, view);
@@ -169,7 +91,8 @@
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       if (pal.blighted) { ctx.fillStyle = E.rgba({ r: 255, g: 70, b: 70 }, 0.03 + 0.05 * (0.5 + 0.5 * Math.sin(t * 3))); ctx.fillRect(0, 0, W, H); }
       if (ui && ui.box) {
-        const b = ui.box; ctx.fillStyle = 'rgba(96,240,255,.07)'; ctx.strokeStyle = 'rgba(96,240,255,.7)'; ctx.lineWidth = 1;
+        // the selection membrane takes the colony's live palette, like the rest of the HUD
+        const b = ui.box, bc = pal.accent; ctx.fillStyle = E.rgba(bc, 0.08); ctx.strokeStyle = E.rgba(E.mix(bc, E.WHITE, 0.2), 0.8); ctx.lineWidth = 1.25;
         ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.strokeRect(b.x0 + 0.5, b.y0 + 0.5, b.x1 - b.x0, b.y1 - b.y0);
       }
     }
@@ -226,7 +149,7 @@
         const pu = E.POWERUPS[k.k], c = E.hex(pu.color), bob = Math.sin(t * 2 + k.id) * 4;
         E.drawGlow(ctx, k.x, k.y + bob, 30, c, 0.7 + 0.2 * Math.sin(t * 3), true);
         ctx.strokeStyle = E.rgba(c, 0.6); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(k.x, k.y + bob, 12, 0, TAU); ctx.stroke();
-        ctx.fillStyle = E.rgba(E.mix(c, E.WHITE, 0.5), 0.95); ctx.font = '600 14px Figtree, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = E.rgba(E.mix(c, E.WHITE, 0.5), 0.95); ctx.font = '600 14px "Atkinson Hyperlegible Next", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(pu.glyph, k.x, k.y + bob + 1);
       }
     }
@@ -258,27 +181,9 @@
       const vis = b.o === this.local || this.seen(b.x, b.y);
       const R = sd.r, beat = 0.5 + 0.5 * Math.sin(t * (1.4 + p.energy * 3 + p.fever * 4) + b.id);
       const ga = ctx.globalAlpha; ctx.globalAlpha = ga * (b.build < 1 ? 0.35 + b.build * 0.5 : 1) * (vis ? 1 : 0.55);
-      E.drawGlow(ctx, b.x, b.y, R * 3.4, pal.accent, 0.35 + 0.15 * beat, true);
-      if (b.kind === 'spire') {
-        for (let k = 0; k < 3; k++) { ctx.strokeStyle = E.rgba(c1, 0.25 + k * 0.15); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(b.x, b.y, R * (1.4 - k * 0.35), 0, TAU); ctx.stroke(); }
-        const n = 6 + cult.idx;
-        for (let k = 0; k < n; k++) {
-          const a = k / n * TAU + t * 0.4; ctx.strokeStyle = E.rgba(E.mix(c1, E.WHITE, 0.3), 0.7); ctx.lineWidth = 1.2;
-          ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * R * 0.6, b.y + Math.sin(a) * R * 0.6); ctx.lineTo(b.x + Math.cos(a + 0.2) * R * 1.8, b.y + Math.sin(a + 0.2) * R * 1.8); ctx.stroke();
-        }
-        E.drawGlow(ctx, b.x, b.y, R * 1.2, pal.accent, 0.9);
-      } else {
-        const petals = (b.kind === 'bud' ? 3 : 5) + cult.idx;
-        for (let k = 0; k < petals; k++) {
-          const a = k / petals * TAU + t * 0.12 * (b.id % 2 ? 1 : -1), L = R * (1.25 + 0.1 * Math.sin(t * 1.8 + k)) * (0.96 + 0.08 * beat), w = 0.42;
-          ctx.beginPath(); ctx.moveTo(b.x, b.y);
-          ctx.quadraticCurveTo(b.x + Math.cos(a - w) * L * 0.8, b.y + Math.sin(a - w) * L * 0.8, b.x + Math.cos(a) * L, b.y + Math.sin(a) * L);
-          ctx.quadraticCurveTo(b.x + Math.cos(a + w) * L * 0.8, b.y + Math.sin(a + w) * L * 0.8, b.x, b.y);
-          ctx.fillStyle = E.rgba(E.mix(c0, pal.primary, 0.5), 0.14); ctx.fill();
-          ctx.strokeStyle = E.rgba(E.mix(c1, pal.accent, 0.5), 0.5); ctx.lineWidth = 1; ctx.stroke();
-        }
-        E.drawGlow(ctx, b.x, b.y, R * 0.9 * (0.9 + 0.15 * beat), pal.accent, 0.95);
-      }
+      E.drawGlow(ctx, b.x, b.y, R * 3.4, pal.accent, 0.3 + 0.12 * beat, true);
+      const z = this.cam.z, lod = z < 0.25 || this.quality === 'low' ? (z < 0.25 ? 2 : 1) : z < 0.45 ? 1 : 0;
+      E.drawStructure(E.canvasStructAdapter(ctx, z, lod, (x, y) => this.seen(x, y), pal), this, view, b, pal, t, { alpha: 1 });
       // lance
       if (b.lance && sd.lance && vis) {
         const tg = view.byId.get(b.lance);
@@ -323,12 +228,17 @@
         const pts = E.buildPts(v, x, y, t, st.size);
         const hc = E.creatureColor(cult, cpal, v.indiv, v.phase, t);
         const hpF = E.clamp(u.hp / st.hp, 0, 1);
-        const o = { design, tier: p.tier, hc, pal: cpal, t, lod, size: st.size, elite: u.elite,
+        // wounds and role, as in the GPU renderer
+        const org = design.organs.slice(0, (E.CHASSIS[design.chassis] || E.CHASSIS.serpent).slots), cols = v.cols || (v.cols = E.residueColors(cult));
+        const AI = { head: 0, body: 5, tail: 19 }, sides = E.organSides(org);
+        const anchors = i => { const ai = AI[E.organAnchor(org[i])], a = pts[Math.max(0, ai - 1)], b = pts[Math.min(19, ai + 1)]; return { x: pts[ai].x, y: pts[ai].y, rot: Math.atan2(a.y - b.y, a.x - b.x), side: sides[i] }; };
+        const wound = this.gore.update(v, u.id, hpF, design, org.length, 0, cols, t, { X: pts.map(q => q.x), Y: pts.map(q => q.y) }, anchors, st.size);
+        const o = { design, tier: p.tier, hc, pal: cpal, t, lod, size: st.size, elite: u.elite, role: E.roleClass(st), cargo: st.cargo ? u.cargo / st.cargo : 0, wound, growScale: i => this.gore.growScale(v, i, t),
           alpha: u.fade * E.lerp(0.35, 0.95, hpF) * (1 - cpal.starve * 0.3) * (stealth ? 0.35 : 1),
           activity: u.engaged ? 1.3 : 1, flicker: cpal.panic > 0 ? 0.7 + 0.3 * Math.sin(t * 12 + v.phase * 3) : 1 };
         v.last = { pts, o };
         E.drawCreature(ctx, v, pts, o);
-        if (u.cargo > 0 && lod < 2) E.drawGlow(ctx, pts[4].x, pts[4].y, 4 + 7 * u.cargo / Math.max(1, st.cargo), u.ct === 's' ? { r: 255, g: 224, b: 102 } : { r: 200, g: 255, b: 255 }, 0.9);
+        if (u.cargo > 0 && lod < 2) E.drawGlow(ctx, (pts[4].x + pts[6].x) / 2, (pts[4].y + pts[6].y) / 2, 4 + 7 * u.cargo / Math.max(1, st.cargo), u.ct === 's' ? { r: 255, g: 224, b: 102 } : { r: 200, g: 255, b: 255 }, 0.9);
         if (u.buffs && u.buffs.length && lod < 2) this.drawBuffs(ctx, u, x, y, t, st.size);
         drawn.push({ u, x, y, st, own, hpF, cpal });
       }
@@ -343,6 +253,11 @@
         } else if (hpF < 0.98 && z > 0.45 && ui && ui.showHp) {
           const w = 16 * st.size; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(x - w / 2, y - r - 5, w, 2.5);
           ctx.fillStyle = E.rgba(hpF > 0.35 ? cpal.accent : E.RED, 0.9); ctx.fillRect(x - w / 2, y - r - 5, w * hpF, 2.5);
+        }
+        if ((E.Settings.markers === 'always' || (E.Settings.markers !== 'off' && z >= 0.45)) && E.shapePath) {
+          const cult = E.CULTURES[s.players[u.o].culture], sz = 4.5 / Math.max(0.7, z);
+          ctx.save(); ctx.translate(x, y + r + (u.rank ? 9 : 5)); E.shapePath(ctx, E.SHAPES[cult.idx], sz);
+          ctx.fillStyle = cult.hex[1]; ctx.fill(); ctx.lineWidth = 1 / z; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
         }
         if (u.rank && z > 0.5) { ctx.fillStyle = '#ffe066'; for (let k = 0; k < u.rank; k++) { ctx.beginPath(); ctx.arc(x - (u.rank - 1) * 2.5 + k * 5, y + r + 3, 1.4, 0, TAU); ctx.fill(); } }
       }
@@ -368,6 +283,17 @@
         ctx.strokeStyle = E.rgba(c, 0.5); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(sh.x, sh.y); ctx.lineTo(sh.x - sh.vx / m * 12, sh.y - sh.vy / m * 12); ctx.stroke();
       }
     }
+    consume(view, events) {
+      for (const ev of events) if (ev.e === 'die' && !ev.withered) {
+        const v = this.vis.get(ev.id), L = v && v.last;
+        if (!L || (ev.x !== undefined && !this.seen(ev.x, ev.y))) continue;
+        const pts = L.pts, org = L.o.design.organs.slice(0, (E.CHASSIS[L.o.design.chassis] || E.CHASSIS.serpent).slots), sides = E.organSides(org), AI = { head: 0, body: 5, tail: 19 }, all = [];
+        org.forEach((id, i) => { if (v.wmask & (1 << i)) return; const ai = AI[E.organAnchor(id)], a = pts[Math.max(0, ai - 1)], b = pts[Math.min(pts.length - 1, ai + 1)]; all.push({ id, x: pts[ai].x, y: pts[ai].y, rot: Math.atan2(a.y - b.y, a.x - b.x), side: sides[i] }); });
+        this.gore.dismember(pts.map(q => q.x), pts.map(q => q.y), L.o.design, 0, v.cols || E.residueColors(E.CULTURE_LIST[0]), L.o.size, all);
+        v.last = null; // no fading corpse: it came apart
+      }
+      super.consume(view, events);
+    }
     drawFx(ctx, t) {
       this.corpses = this.corpses.filter(c => t - c.t0 < 1.6);
       for (const c of this.corpses) {
@@ -386,7 +312,7 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (const x of this.texts) {
         const a = (t - x.t0) / 1.8;
-        ctx.globalAlpha = 1 - a; ctx.fillStyle = x.color; ctx.font = `600 ${Math.round(13 / Math.max(0.6, this.cam.z))}px Figtree, system-ui, sans-serif`;
+        ctx.globalAlpha = 1 - a; ctx.fillStyle = x.color; ctx.font = `600 ${Math.round(13 / Math.max(0.6, this.cam.z))}px "Atkinson Hyperlegible Next", system-ui, sans-serif`;
         ctx.fillText(x.s, x.x, x.y - a * 26); ctx.globalAlpha = 1;
       }
     }
@@ -420,7 +346,7 @@
         for (const id of ui.selection) {
           const u = view.byId.get(id); if (!u || u.kind !== undefined || u.o !== this.local) continue;
           const o = u.order; let tx, ty;
-          if (o.t === 'move' || o.t === 'amove' || o.t === 'build') { tx = o.x; ty = o.y; }
+          if (o.t === 'move' || o.t === 'amove' || o.t === 'build' || o.t === 'mend') { tx = o.x; ty = o.y; }
           else if (o.t === 'attack') { const tg = view.byId.get(o.id); if (tg) { tx = tg.x; ty = tg.y; } }
           if (tx === undefined) continue;
           ctx.strokeStyle = o.t === 'attack' || o.t === 'amove' ? 'rgba(255,120,120,.35)' : 'rgba(160,255,240,.3)';

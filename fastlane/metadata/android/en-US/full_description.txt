@@ -1,0 +1,17 @@
+A real-time strategy game of living light.
+
+You tend a glowing culture on a living world: harvest drifting lumen, evolve your
+creatures organ by organ in the Spawnforge, and send living swarms against rival
+cultures. Everything about the colony shows in its colour — fever, starvation and
+blight are visible on the board, not buried in a panel.
+
+Every planet, creature, structure and note of music is generated from code: there are no
+downloaded assets and no samples. The music adapts to the battle as it turns.
+
+Online play needs an account. One full match every 24 hours is free — hosting or joining,
+however long it runs. A membership makes online play unlimited, and it is bought on our
+website, not inside this app: this build has no payment code in it at all. Local network
+play is always free and needs no account or internet.
+
+This is the same app that ships on Google Play, built from the same source, with the
+store's billing library removed.

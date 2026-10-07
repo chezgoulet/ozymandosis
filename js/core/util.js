@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Core utilities shared by sim, renderer and UI. No DOM access here.
 (function (E) {
   'use strict';

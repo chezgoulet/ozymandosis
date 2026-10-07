@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // DOM helpers, toasts/modals, and canvas previews of creatures and organs.
 (function (E) {
   'use strict';
@@ -63,7 +64,7 @@
     const v = E.makeVis(0, 0, 0, ch.bodyLen * st.size, 7);
     const tr = v.trail; for (let i = 0; i < tr.length; i++) { tr[i].x = -i * v.spacing; tr[i].y = Math.sin(i * 0.12 + (t || 0)) * 3; }
     const pts = E.buildPts(v, 0, 0, t || 0.7, st.size);
-    E.drawCreature(ctx, v, pts, { design, tier: tier || {}, hc: E.mix(cult.colors[0], cult.colors[1], 0.3), pal, t: t || 0.7, alpha: 0.95, lod: 0, size: st.size, vOverride: opts.v });
+    E.drawCreature(ctx, v, pts, { design, tier: tier || {}, hc: E.mix(cult.colors[0], cult.colors[1], 0.3), pal, t: t || 0.7, alpha: 0.95, lod: 0, size: st.size, vOverride: opts.v, role: design.organs.length ? E.roleClass(st) : null });
     ctx.restore();
   };
   // Single organ on a bare spine (tech tree + codex)
@@ -83,6 +84,29 @@
     E.drawGlow(ctx, pts[0].x, pts[0].y, 11, pal.accent, 0.9);
     ctx.restore();
   };
+  // Command icons drawn from the organs themselves (cached per culture).
+  const ICON_ORGAN = { Attack: 'nippers', Move: 'whiptail', Hold: 'stilts', Patrol: 'finveil', Queue: 'tether', Harvest: 'fuzz', Spore: 'sporesacs',
+    Evolve: 'plumes', Spawnforge: 'horns', Army: 'pincers', Idle: 'lures', Rally: 'photophores', Next: 'corkscrew', Hatch: 'tubefeet', Build: 'combs', Stop: 'thorn' };
+  const iconCache = new Map();
+  E.cmdIcon = function (label, cult) {
+    const id = ICON_ORGAN[label]; if (!id) return null;
+    const key = id + cult; let url = iconCache.get(key);
+    if (!url) {
+      const cv = document.createElement('canvas'); cv.width = 68; cv.height = 40; cv.style.width = '68px'; cv.style.height = '40px';
+      // transparent close-up of the organ, framed on its anchor (head, body or tail)
+      const ctx = cv.getContext('2d'), o = E.ORGANS[id], c = E.CULTURES[cult] || E.CULTURE_LIST[0], pal = E.palette(c, 0.6, 0, 100, false);
+      const pts = []; for (let i = 0; i < 20; i++) pts.push({ x: -i * 2.7, y: Math.sin(i * 0.5) * i * 0.12 });
+      const anchor = id === 'finveil' ? -34 : o.cls === 'flagella' ? pts[19].x - 30 : (o.cls === 'mandible' || o.cls === 'antenna') && id !== 'photophores' ? 4 : -14;
+      ctx.translate(34, 20); ctx.scale(1.45, 1.45); ctx.translate(-anchor, 0);
+      const hc = E.mix(c.colors[0], c.colors[1], 0.35);
+      E.glowStroke(ctx, pts, 20, 0.7, hc, 0.7, 1);
+      o.draw(ctx, pts, 1, { speed: 1, phase: 0.6 }, 0.7, 6, pal, hc);
+      if (o.cls !== 'flagella') o.draw(ctx, pts, -1, { speed: 1, phase: 1.9 }, 0.7, 6, pal, hc);
+      url = cv.toDataURL();
+      iconCache.set(key, url);
+    }
+    return url;
+  };
   E.drawChassisThumb = function (cv, chId, cultId, t) {
     const d = { chassis: chId, organs: [] };
     E.drawPortrait(cv, d, cultId, {}, t, { zoom: 0.95 });
@@ -96,7 +120,7 @@
       const st = E.computeStats(design, { culture: cultId }, v ? { v } : null);
       const ch = E.CHASSIS[design.chassis];
       const prev = this.items[0];
-      this.items = [{ x: prev ? prev.x : 0, y: prev ? prev.y : 0, a: prev ? prev.a : 0, vis: E.makeVis(0, 0, 0, ch.bodyLen * st.size, 3), size: st.size, tx: 0, ty: 0, tt: 0 }];
+      this.items = [{ x: prev ? prev.x : 0, y: prev ? prev.y : 0, a: prev ? prev.a : 0, vis: E.makeVis(0, 0, 0, ch.bodyLen * st.size, 3), size: st.size, role: E.roleClass(st), tx: 0, ty: 0, tt: 0 }];
     }
     frame(dt) {
       if (!this.design) return;
@@ -119,7 +143,7 @@
         c.x = E.clamp(c.x, 20, W - 20); c.y = E.clamp(c.y, 20, H - 20);
         E.advanceVis(c.vis, c.x, c.y, dt);
         const pts = E.buildPts(c.vis, c.x, c.y, t, c.size);
-        E.drawCreature(ctx, c.vis, pts, { design: this.design, hc: E.creatureColor(this.cult, pal, c.vis.indiv, c.vis.phase, t), pal, t, alpha: 0.95, lod: 0, size: c.size, vOverride: this.v });
+        E.drawCreature(ctx, c.vis, pts, { design: this.design, hc: E.creatureColor(this.cult, pal, c.vis.indiv, c.vis.phase, t), pal, t, alpha: 0.95, lod: 0, size: c.size, vOverride: this.v, role: c.role });
       }
     }
   }

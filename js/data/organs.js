@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Organs: 5 classes × 6 forms = 30. Form 1 of each class is the seed's own
 // renderer; forms 2–6 are new renderers written in the seed's idiom
 // (round caps, low-alpha strokes on the heat-shifted body color).

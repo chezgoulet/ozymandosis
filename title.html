@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ozymandosis</title>
+<style>html, body { margin: 0; background: transparent; overflow: hidden; } canvas { display: block; width: 100vw; height: 100vh; }</style>
+</head>
+<body>
+<!-- The living title on its own, for embedding (the concept document). -->
+<canvas id="t" aria-label="Ozymandosis"></canvas>
+<script src="js/core/seed.js"></script>
+<script src="js/core/util.js"></script>
+<script src="js/data/organs.js"></script>
+<script src="js/data/chassis.js"></script>
+<script src="js/data/specials.js"></script>
+<script src="js/data/techs.js"></script>
+<script src="js/render/look.js"></script>
+<script src="js/render/menuscene.js"></script>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search), last = performance.now();
+    // ?word=O renders part of the title (the app icon); ?pad= sets the margin
+    var lg = new E.LivingLogo(document.getElementById('t'), { word: q.get('word') || undefined, pad: q.has('pad') ? +q.get('pad') : undefined, flip: q.has('flip') });
+    // ?still=<seconds>: one frame at that moment (used to render the title for emails and splash screens)
+    if (q.has('still')) { lg.t = +q.get('still') || 6; lg.frame(0.001); document.title = 'ready'; return; }
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { lg.t = 4; lg.frame(0.001); addEventListener('resize', function () { lg.frame(0); }); return; }
+    (function f(now) { requestAnimationFrame(f); if (!document.hidden) lg.frame((now - last) / 1000); last = now; })(last);
+  })();
+</script>
+</body>
+</html>

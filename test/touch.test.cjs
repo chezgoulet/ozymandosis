@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Touch gestures + reload/continue on a phone viewport.
-const { chromium } = require(process.env.PW || '/home/c/git/chezgoulet/veil/client/node_modules/playwright-core');
+const pw = require('../tools/pw.cjs');
 const path = require('path'); const assert = require('assert');
 process.env.PORT = process.env.PORT || '8095'; process.env.QUIET = '1';
 const server = require('../server/server.js');
 const URL0 = `http://localhost:${process.env.PORT}/`;
 const OUT = path.join(__dirname, 'shots');
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.HOME + '/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome' });
+  const b = await pw.launch();
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const p = await ctx.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message + '\n' + e.stack));
@@ -16,12 +17,14 @@ const OUT = path.join(__dirname, 'shots');
   await p.goto(URL0 + '?quick=1&size=s'); await p.waitForTimeout(1200);
   const w2s = (x, y) => p.evaluate(([x, y]) => { const r = E.game.renderer.w2s(x, y); return [r.x, r.y]; }, [x, y]);
   // tap a unit to select it
-  const u = await p.evaluate(() => { const g = E.game, u = g.world.s.units.find(u => u.o === g.local && u.d === 'warden'); g.jump(u.x, u.y); return { id: u.id }; });
+  // hold the simulation still so the creature is where we tap
+  const u = await p.evaluate(() => { const g = E.game; g.paused = true; const u = g.world.s.units.find(u => u.o === g.local && u.d === 'warden'); g.jump(u.x, u.y); return { id: u.id }; });
   await p.waitForTimeout(200);
   let pos = await p.evaluate(id => { const u = E.game.world.byId.get(id); const r = E.game.renderer.w2s(u.x, u.y); return [r.x, r.y]; }, u.id);
   await tap(pos[0], pos[1]);
   let sel = await p.evaluate(() => [...E.game.selection]);
   console.log('tap-select', sel); assert(sel.includes(u.id), 'tap selects unit');
+  await p.evaluate(() => { E.game.paused = false; });
   // tap ground to command (attack-move)
   await p.evaluate(() => { window._cmds = []; const w = E.game.world, orig = w.command.bind(w); w.command = (pi, c) => { window._cmds.push(c); orig(pi, c); }; });
   await tap(200, 300);

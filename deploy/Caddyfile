@@ -1,0 +1,68 @@
+# TLS certificates are issued and renewed automatically by Caddy (Let's Encrypt).
+{
+	email {$ACME_EMAIL}
+	# Access logs keep method, path, status and timing. Client IPs, cookies,
+	# authorization headers and sign-in query parameters are removed.
+	log access {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip delete
+				request>client_ip delete
+				request>remote_port delete
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>headers>X-Forwarded-For delete
+				request>headers>User-Agent delete
+				resp_headers>Set-Cookie delete
+				request>uri query {
+					delete token
+					delete code
+					delete state
+					delete handoff
+					delete mfa
+				}
+			}
+		}
+	}
+}
+
+(common) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	log access
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN} {
+	import common
+	root * /srv/site
+	# there is no browser version of the game: old /play/ links go to the platforms
+	redir /play* /#platforms permanent
+	@assets path /img/* /fonts/*
+	header @assets Cache-Control "public, max-age=604800"
+	try_files {path} {path}.html {path}/
+	file_server
+	handle_errors {
+		respond "{err.status_code} {err.status_text}" {err.status_code}
+	}
+}
+
+play.{$DOMAIN} {
+	import common
+	reverse_proxy play:8787
+}
+
+# Certificate for TURN over TLS (coturn reads it from Caddy's data volume).
+turn.{$DOMAIN} {
+	respond "TURN relay for Ozymandosis" 200
+}

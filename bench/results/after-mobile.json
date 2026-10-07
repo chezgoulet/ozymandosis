@@ -1,0 +1,163 @@
+{
+ "label": "after-mobile",
+ "date": "2026-09-27T19:59:49.443Z",
+ "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+ "cpuMode": false,
+ "mobile": true,
+ "viewport": "390x844@3x, CPU 4x throttled",
+ "rows": [
+  {
+   "backend": "webgl2",
+   "units": 100,
+   "cpu": {
+    "avg": 3.87,
+    "p50": 3.7,
+    "p95": 6.3
+   },
+   "frame": {
+    "avg": 9.69,
+    "p50": 9.4,
+    "p95": 14.3
+   },
+   "fps": 103.2,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+   "tier": "medium"
+  },
+  {
+   "backend": "webgl2",
+   "units": 200,
+   "cpu": {
+    "avg": 7.14,
+    "p50": 6.9,
+    "p95": 10.4
+   },
+   "frame": {
+    "avg": 17.69,
+    "p50": 17.8,
+    "p95": 32.7
+   },
+   "fps": 56.5,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+   "tier": "medium"
+  },
+  {
+   "backend": "webgl2",
+   "units": 400,
+   "cpu": {
+    "avg": 10.24,
+    "p50": 10,
+    "p95": 13.7
+   },
+   "frame": {
+    "avg": 28.84,
+    "p50": 28,
+    "p95": 43.5
+   },
+   "fps": 34.7,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+   "tier": "medium"
+  },
+  {
+   "backend": "webgl2",
+   "units": 100,
+   "cpu": {
+    "avg": 4.36,
+    "p50": 4.3,
+    "p95": 6.5
+   },
+   "frame": {
+    "avg": 11.05,
+    "p50": 10.5,
+    "p95": 14.9
+   },
+   "fps": 90.5,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+   "tier": "low"
+  },
+  {
+   "backend": "webgl2",
+   "units": 200,
+   "cpu": {
+    "avg": 6.29,
+    "p50": 6.1,
+    "p95": 8.7
+   },
+   "frame": {
+    "avg": 17.04,
+    "p50": 16.8,
+    "p95": 32.1
+   },
+   "fps": 58.7,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+   "tier": "low"
+  },
+  {
+   "backend": "webgl2",
+   "units": 400,
+   "cpu": {
+    "avg": 8.72,
+    "p50": 8.7,
+    "p95": 11.1
+   },
+   "frame": {
+    "avg": 27.33,
+    "p50": 26.7,
+    "p95": 40.4
+   },
+   "fps": 36.6,
+   "gpu": "ANGLE (AMD, Vulkan 1.4.318 (AMD Radeon RX 590 Series (RADV POLARIS10) (0x000067DF)), radv)",
+   "tier": "low"
+  },
+  {
+   "backend": "canvas2d",
+   "units": 100,
+   "cpu": {
+    "avg": 32.24,
+    "p50": 31.6,
+    "p95": 41.5
+   },
+   "frame": {
+    "avg": 42.65,
+    "p50": 40.7,
+    "p95": 61.5
+   },
+   "fps": 23.4,
+   "gpu": "",
+   "tier": "high"
+  },
+  {
+   "backend": "canvas2d",
+   "units": 200,
+   "cpu": {
+    "avg": 57.32,
+    "p50": 56.3,
+    "p95": 68.7
+   },
+   "frame": {
+    "avg": 74.64,
+    "p50": 73,
+    "p95": 93.5
+   },
+   "fps": 13.4,
+   "gpu": "",
+   "tier": "high"
+  },
+  {
+   "backend": "canvas2d",
+   "units": 400,
+   "cpu": {
+    "avg": 100.34,
+    "p50": 100.3,
+    "p95": 121.5
+   },
+   "frame": {
+    "avg": 130.92,
+    "p50": 130,
+    "p95": 156.5
+   },
+   "fps": 7.6,
+   "gpu": "",
+   "tier": "high"
+  }
+ ]
+}

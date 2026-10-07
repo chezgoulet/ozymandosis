@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // Visual language shared by the renderer and UI previews: palettes (the
 // seed's _palette generalized), creature colors, cached glow sprites, and the
 // creature drawer used everywhere a creature appears.
@@ -93,10 +94,13 @@
     return organs.map(id => { const c = E.ORGANS[id] ? E.ORGANS[id].cls : id; seen[c] = (seen[c] || 0) + 1; return seen[c] % 2 ? 1 : -1; });
   };
 
-  // Draw one creature. o: {design, tier, hc, pal, t, alpha, activity, flicker, lod, size, rank, elite, vOverride}
+  // Draw one creature. o: {design, tier, hc, pal, t, alpha, activity, flicker, lod, size, rank, elite, vOverride,
+  //   role ('gatherer' | 'fighter'), cargo (0..1), wound {mask, tail}, growScale(i)}
   E.drawCreature = function (ctx, v, pts, o) {
     const ch = E.CHASSIS[o.design.chassis] || E.CHASSIS.serpent;
-    const size = o.size, hc = o.hc, pal = o.pal, ba = o.alpha * (o.flicker || 1), act = o.activity || 1;
+    if (o.wound && o.wound.tail) pts = E.contractPts(pts, o.wound.tail);
+    const size = o.size, pal = o.pal, ba = o.alpha * (o.flicker || 1), act = o.activity || 1;
+    const hc = o.role === 'gatherer' ? E.mix(o.hc, E.WHITE, 0.22) : o.hc;
     if (o.lod >= 2) {
       E.drawGlow(ctx, pts[0].x, pts[0].y, 9 * size, hc, ba * 0.9);
       ctx.strokeStyle = E.rgba(hc, ba * 0.7); ctx.lineWidth = 2 * size; ctx.lineCap = 'round';
@@ -108,15 +112,20 @@
       ctx.fillStyle = E.rgba(hc, ba * 0.035);
       for (let wi = n - 1; wi > 0; wi -= ws) { const f = wi / n; ctx.beginPath(); ctx.arc(tr[wi].x, tr[wi].y, size * (1 + f * 2), 0, TAU); ctx.fill(); }
     }
-    ch.draw(ctx, pts, size, hc, pal, o.t, ba, act);
+    ch.draw(ctx, pts, size * (o.role === 'gatherer' ? 0.85 : o.role === 'fighter' ? 1.08 : 1), hc, pal, o.t, ba, act);
+    if (o.lod === 0 && o.role && E.drawRoleCanvas) E.drawRoleCanvas(ctx, pts, o.role, size, hc, pal, o.t, ba, o.cargo);
     if (o.lod === 0) {
       const ga = ctx.globalAlpha; ctx.globalAlpha = ga * E.clamp(ba * 1.15, 0, 1);
       const sides = E.organSides(o.design.organs);
       o.design.organs.slice(0, ch.slots).forEach((id, i) => {
         const org = E.ORGANS[id]; if (!org) return;
+        if (o.wound && (o.wound.mask & (1 << i))) return; // torn away
+        const gs = o.growScale ? o.growScale(i) : 1;
+        if (gs < 1) ctx.globalAlpha = ga * E.clamp(ba * 1.15, 0, 1) * gs;
         const vv = o.vOverride ? o.vOverride[i] : E.TIER_V[(o.tier && o.tier[org.cls]) || 0];
         const par = v.orgPh[i % 8];
         org.draw(ctx, pts, sides[i], par, o.t, vv, pal, hc);
+        if (gs < 1) ctx.globalAlpha = ga * E.clamp(ba * 1.15, 0, 1);
       });
       ctx.globalAlpha = ga;
     } else {
