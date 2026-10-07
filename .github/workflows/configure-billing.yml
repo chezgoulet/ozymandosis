@@ -1,0 +1,85 @@
+# One-off, dispatch-only: writes the billing variables into deploy/.env on the production
+# host and restarts the play service.
+#
+# Why a workflow and not a shell: deploy/.env exists only on the server, the only key that
+# opens that box is the deploy key in the production environment, and a credential must not
+# travel through a chat or a command line. The values come from environment secrets, are
+# written into a temporary file on the runner, and are piped over the SSH channel — never
+# into an argument, never into the log.
+#
+# This file is removed from the default branch once it has run. It is here rather than on
+# `testing` because GitHub resolves workflow_dispatch against the default branch.
+name: configure-billing
+on:
+  workflow_dispatch:
+permissions: { contents: read }
+concurrency: { group: "configure-billing", cancel-in-progress: false }
+
+jobs:
+  configure:
+    # The same two-name gate as the deploy workflow: this can rewrite production secrets.
+    if: contains(fromJSON('["big-cookie","robot-chezgoulet"]'), github.actor)
+    runs-on: [self-hosted, linux, x64]
+    environment: production
+    env: { CONFIGURED: "${{ secrets.DEPLOY_HOST != '' }}" }
+    steps:
+      - name: Not configured
+        if: env.CONFIGURED != 'true'
+        run: echo "No DEPLOY_HOST for the production environment; nothing to do."
+
+      - name: Write the billing variables and restart the play service
+        if: env.CONFIGURED == 'true'
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          STRIPE_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WH: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+
+          REMOTE=$(mktemp) && chmod 600 "$REMOTE"
+          trap 'rm -f "$REMOTE"' EXIT
+          cat > "$REMOTE" <<REMOTE_SCRIPT
+          set -euo pipefail
+          cd ~/ozymandosis
+          test -f deploy/.env || { echo "no deploy/.env on the server"; exit 1; }
+          cp deploy/.env "deploy/.env.bak-\$(date -u +%Y%m%dT%H%M%SZ)"
+          upsert() { # key value — replaces the line if present, appends it if not
+            k="\$1"; v="\$2"
+            if grep -q "^\${k}=" deploy/.env; then
+              awk -v k="\$k" -v v="\$v" 'BEGIN{FS=OFS="="} \$1==k {print k "=" v; next} {print}' deploy/.env > deploy/.env.tmp
+              mv deploy/.env.tmp deploy/.env
+            else
+              printf '%s=%s\n' "\$k" "\$v" >> deploy/.env
+            fi
+          }
+          upsert STRIPE_SECRET_KEY '$STRIPE_KEY'
+          upsert STRIPE_WEBHOOK_SECRET '$STRIPE_WH'
+          upsert WEB_BILLING 1
+          chmod 600 deploy/.env
+          echo "variables present: \$(grep -cE '^(STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|WEB_BILLING)=' deploy/.env) of 3 (values not printed)"
+          docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d play
+          for i in \$(seq 1 45); do
+            [ "\$(docker inspect -f '{{.State.Health.Status}}' ozymandosis-play-1 2>/dev/null)" = healthy ] && break
+            sleep 2
+          done
+          docker inspect -f 'play health: {{.State.Health.Status}}' ozymandosis-play-1
+          REMOTE_SCRIPT
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$TARGET" 'bash -s' < "$REMOTE"
+
+      - name: Check it from outside
+        if: env.CONFIGURED == 'true'
+        run: |
+          sleep 5
+          curl -sS --max-time 20 https://play.ozymandosis.com/api/config | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          print('billing =', d.get('billing'))
+          print('plans   =', d.get('plans'))
+          assert d.get('billing') is True, 'the server is not selling on the web'
+          print('the service is selling on the web')
+          "
