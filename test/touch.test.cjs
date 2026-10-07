@@ -6,6 +6,25 @@ process.env.PORT = process.env.PORT || '8095'; process.env.QUIET = '1';
 const server = require('../server/server.js');
 const URL0 = `http://localhost:${process.env.PORT}/`;
 const OUT = path.join(__dirname, 'shots');
+
+// A toast is a transient the harness itself triggers (tapping Idle with nothing idle, or
+// continuing after a reload). A listing screenshot should show the game, not the test, so
+// wait for it to clear before capturing. The toast element carries an `on` class while it is
+// up and drops it after its timeout.
+const settle = async (p) => {
+  // Give it a chance to fade on its own first.
+  for (let i = 0; i < 20; i++) {
+    if (await p.evaluate(() => !document.getElementById('toast').classList.contains('on'))) return 'faded';
+    await p.waitForTimeout(100);
+  }
+  // Headless Chromium throttles the page's own timers, so the toast's 2.4s timeout can fail
+  // to fire at all. Drop the class instead: that is the state a player sees a moment later,
+  // and the toast is a transient the harness itself triggered, not part of the game.
+  await p.evaluate(() => document.getElementById('toast').classList.remove('on'));
+  console.log('toast cleared by the harness (its own timer was throttled)');
+  return 'cleared';
+};
+
 (async () => {
   const b = await pw.launch();
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -60,7 +79,8 @@ const OUT = path.join(__dirname, 'shots');
   await p.tap('#f-idle').catch(() => {}); 
   await p.evaluate(() => { const g = E.game; g.select(g.world.s.units.filter(u => u.o === g.local).slice(0, 1).map(u => u.id)); });
   await p.waitForTimeout(200);
-  await p.screenshot({ path: OUT + '/t-01-selected.png' });
+  await settle(p);
+  await p.screenshot({ path: OUT + '/t-01-selected.png', animations: 'disabled' });
   // reload → Continue
   await p.evaluate(() => { for (let i = 0; i < 30 * 30; i++) E.game.world.step(); E.game.autosave(); });
   const tBefore = await p.evaluate(() => E.game.world.s.t);
@@ -69,7 +89,8 @@ const OUT = path.join(__dirname, 'shots');
   await p.tap('#m-continue'); await p.waitForTimeout(800);
   const tAfter = await p.evaluate(() => E.game.world.s.t);
   console.log('continue', tBefore.toFixed(1), '->', tAfter.toFixed(1)); assert(Math.abs(tAfter - tBefore) < 3);
-  await p.screenshot({ path: OUT + '/t-02-continued.png' });
+  await settle(p);
+  await p.screenshot({ path: OUT + '/t-02-continued.png', animations: 'disabled' });
   console.log(errs.length ? errs.join('\n') : 'no errors');
   await b.close(); server.close(); process.exit(errs.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
