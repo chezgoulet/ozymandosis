@@ -60,7 +60,7 @@ Store `ozymandosis-backup.key` in your password manager and on an offline drive.
 
 ```
 sudo -iu deploy
-git clone git@github.com:chezgoulet/efflorescent.git ~/ozymandosis && cd ~/ozymandosis
+git clone git@github.com:chezgoulet/ozymandosis.git ~/ozymandosis && cd ~/ozymandosis
 cp deploy/.env.example deploy/.env && chmod 600 deploy/.env
 openssl rand -base64 32    # three times: SECRET_KEY, POSTGRES_PASSWORD, TURN_SECRET
 $EDITOR deploy/.env        # domain, public IP, secrets, SMTP, Stripe, providers, backups, alerts

@@ -2,14 +2,14 @@ Categories:
   - Strategy Game
 License: AGPL-3.0-only
 AuthorName: Christopher Goulet
-SourceCode: https://github.com/chezgoulet/efflorescent
-IssueTracker: https://github.com/chezgoulet/efflorescent/issues
-Changelog: https://github.com/chezgoulet/efflorescent/releases
+SourceCode: https://github.com/chezgoulet/ozymandosis
+IssueTracker: https://github.com/chezgoulet/ozymandosis/issues
+Changelog: https://github.com/chezgoulet/ozymandosis/releases
 
 AutoName: Ozymandosis
 
 RepoType: git
-Repo: https://github.com/chezgoulet/efflorescent.git
+Repo: https://github.com/chezgoulet/ozymandosis.git
 
 Builds:
   - versionName: 0.5.1

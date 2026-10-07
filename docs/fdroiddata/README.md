@@ -11,7 +11,7 @@ answer decides whether the main repository is reachable at all:
 
 > **Subject: Capacitor/Node build — may `prebuild` fetch npm packages?**
 >
-> Ozymandosis (github.com/chezgoulet/efflorescent) is an AGPL-3.0 Capacitor app. The Android
+> Ozymandosis (github.com/chezgoulet/ozymandosis) is an AGPL-3.0 Capacitor app. The Android
 > project lives in `android/`, and the web assets it packages are produced by Node:
 > `npm ci`, then `node tools/build-web.cjs` (esbuild), then `npx cap sync android`.
 >
