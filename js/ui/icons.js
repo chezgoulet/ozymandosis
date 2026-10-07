@@ -41,7 +41,7 @@
     queue: '<circle cx="5" cy="17" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="7" r="1.8"/><path d="M6.6 15.8 10.4 13.2M13.6 10.8l3.8-2.6" stroke-dasharray="1.6 1.8"/>',
   };
   // label (as used on command buttons) → icon
-  E.ICON_FOR = { Army: 'claws', Idle: 'grub', Hatch: 'nucleus', Home: 'nucleus', Evolve: 'helix', Spawnforge: 'egg', Attack: 'lunge', Move: 'fin', Stop: 'closed', Hold: 'shell',
+  E.ICON_FOR = { Army: 'claws', Idle: 'grub', Hatch: 'nucleus', Home: 'nucleus', Evolve: 'helix', Forge: 'egg', Attack: 'lunge', Move: 'fin', Stop: 'closed', Hold: 'shell',
     Patrol: 'orbit', Mend: 'mend', Queue: 'queue', Harvest: 'droplet', Spore: 'spore', Build: 'bud', Rally: 'flag', Next: 'eye', Cancel: 'cancel' };
   E.iconSvg = function (name, cls) {
     const body = P[name]; if (!body) return '';
