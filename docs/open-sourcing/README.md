@@ -140,16 +140,16 @@ stale copy under `apps/site` is deleted, and `chezgoulet/ozymandosis-site` (GitH
 | | |
 |---|---|
 | **R1** Google dependencies | **Done.** None in the app; a CI job asserts the packaged APK contains none. |
-| **R2** Licence and attribution | **Done.** `LICENSE` (AGPL-3.0, text verified against SPDX and the FSF's GPL-3), `NOTICE`, the fonts' OFL, SPDX headers on 129 source files, `license` in the four manifests. **Except** `js/core/seed.js`, verbatim third-party code that needs a licence decision — see the open questions. |
+| **R2** Licence and attribution | **Done.** `LICENSE` (AGPL-3.0, text verified against SPDX and the FSF's GPL-3), `NOTICE`, the fonts' OFL, SPDX headers on 129 source files, `license` in the four manifests. `js/core/seed.js` is the Bioluminescent Dreamscape pack from Phonon, vendored verbatim under its original MIT licence: it carries an SPDX line and `NOTICE` attributes it, so no decision is outstanding. |
 | **R3** History hygiene | **Done.** Every object from every ref scanned; nothing needs rotating. |
 | **R4** Release keystore | **Done.** `~/.ozymandosis/upload-keystore.jks`, 0600. |
 | **R5** Pin the toolchain | **Done.** JDK 21 enforced at configuration time; build-tools 34.0.0 (which carries apksigner); Gradle 8.14.3 and AGP 8.13.0 pinned in the tree; Node pinned to 22 in CI. |
 | **R6** Build twice and diff | **Done.** A CI job on every release tag builds an unsigned APK at two different paths and fails the release if they differ. Measured first: two builds of one commit give an identical SHA-256. |
 | **R7** Ask F-Droid about the Node build | **Drafted, not sent.** The question is written out at `docs/fdroiddata/README.md` for you to send; it is the one thing blocking a submission. |
 | **R8** Write the fdroiddata recipe | **Done.** `docs/fdroiddata/com.ozymandosis.game.yml`, and it passes their own `fdroid lint`. Fastlane metadata and two phone screenshots are in the tree. |
-| **R9** Tag releases | **Done.** `v0.5.1`, and the pipeline refuses a tag that does not name the tree's version. |
+| **R9** Tag releases | **Done.** `v0.5.1` and `v0.5.2`, and the pipeline refuses a tag that does not name the tree's version. |
 | **R10** Prove it on the Verification Server | **Waits on R7 and the first build on their infrastructure.** |
 
-Two other open questions stand as recorded: the Play policy question about a website-purchased subscription
-(narrowed, since the app sells nothing), and whether every shipped asset is ours — `js/core/seed.js` is the one
-piece of code that is not.
+One other open question stands as recorded: the Play policy question about a website-purchased subscription
+(narrowed, since the app sells nothing). The asset question is closed — `js/core/seed.js` is MIT, vendored with
+its attribution in `NOTICE`, and the shipped asset set is our own launcher and splash art.
