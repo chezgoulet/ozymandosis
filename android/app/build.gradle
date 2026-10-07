@@ -14,9 +14,11 @@ def uploadStore = signing('storeFile', 'OZY_UPLOAD_KEYSTORE')
 // compares the result with the APK we publish, so every tool that touches the bytes has to
 // be the same one (docs/open-sourcing/reproducible-builds-and-signatures.md). A different
 // JDK is a different build; fail loudly here rather than produce an APK nobody can reproduce.
-if (JavaVersion.current() != JavaVersion.VERSION_21) {
-    throw new GradleException("This project pins JDK 21 (found ${JavaVersion.current()}). " +
-        "Set JAVA_HOME to a 21 JDK, or ~/jdk-21 as docs/RELEASE-ANDROID.md describes.")
+def requiredJdk = JavaVersion.VERSION_21
+if (JavaVersion.current() != requiredJdk) {
+    // the message names the same value the condition compares, so the two cannot drift apart
+    throw new GradleException("This project pins JDK ${requiredJdk} (found ${JavaVersion.current()}). " +
+        "Set JAVA_HOME to a ${requiredJdk} JDK, or ~/jdk-21 as docs/RELEASE-ANDROID.md describes.")
 }
 
 android {
