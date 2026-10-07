@@ -15,30 +15,35 @@ concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 
 # Where each job runs, and why it is not uniform:
 #
-#   test / browsers / images   GitHub-hosted (ubuntu-latest). The org's Free plan
-#                              includes 2,000 Linux minutes a month for private repos
-#                              and usage is already past that in a busy month
-#                              (Sep 2026: 4,609 minutes), so overage costs about
-#                              $0.008/min — one full run of this matrix is roughly
-#                              40-60 billed minutes. The point of paying it is that
-#                              the alternative is running the whole matrix on the
-#                              workstation its owner is sitting at, where a red check
-#                              is a function of whatever else the machine is doing.
-#                              (The comment here used to say hosted runners were
-#                              blocked account-wide by a billing failure. That was
-#                              stale: a probe ran on the `GitHub Actions` runner group,
-#                              ubuntu24 image, on 2026-10-06.)
+#   test / browsers / images   GitHub-hosted (ubuntu-latest). On a private repository the
+#                              org's Free plan gave 2,000 Linux minutes a month and a busy
+#                              month went past it (Sep 2026: 4,609 minutes, overage about
+#                              $0.008/min). The repository is public now, so minutes are
+#                              free and unlimited and that arithmetic is gone. The reason to
+#                              keep these hosted stands on its own: the alternative is
+#                              running the matrix on the workstation its owner is sitting
+#                              at, where a red check is a function of whatever else the
+#                              machine is doing.
 #
 #   android                    GitHub-hosted. The image carries an Android SDK; the two
 #                              components this build pins are installed explicitly because
 #                              a runner image is not a promise about SDK versions.
 #
-#   steam-linux                self-hosted. It needs a lingering PipeWire session, Xvfb
-#                              and the steam package's AppArmor profile — host state a
-#                              hosted runner has no equivalent of.
+#   steam-linux                self-hosted, and the only job that is. It needs a lingering
+#                              PipeWire session, Xvfb and the steam package's AppArmor
+#                              profile — host state a hosted runner has no equivalent of.
+#                              It runs on a runner registered to *this repository* rather
+#                              than to the organisation: the org's Default runner group does
+#                              not admit public repositories, so an org runner would leave
+#                              the job queued forever. The job carries a fork guard, because
+#                              a self-hosted runner executes whatever the branch contains
+#                              and this one is a workstation.
 #
-# Keeping any job self-hosted needs the runner online; `deploy` (a separate workflow)
-# stays there too, because the Linode firewall only allows port 22 from known addresses.
+# Nothing else needs a self-hosted runner. The line that used to be here said `deploy` stays
+# self-hosted because the Linode firewall only allows port 22 from known addresses; that is
+# not true of this server, and it was measured rather than argued: on 2026-10-07 a
+# dispatch-only job on ubuntu-latest SSHed in with the deploy key and rewrote deploy/.env.
+# The deploy jobs are hosted now for the same reason.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -96,7 +101,10 @@ jobs:
   # profile. The runtime itself is fetched, pinned, to ~/.cache/steamrt.
   steam-linux:
     needs: test
-    runs-on: [self-hosted, linux, x64]
+    # A self-hosted runner executes whatever the branch contains, and this one is a
+    # workstation, so a pull request from a fork must never reach it.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64, steam-linux]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
