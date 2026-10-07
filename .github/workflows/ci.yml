@@ -29,21 +29,20 @@ concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 #                              components this build pins are installed explicitly because
 #                              a runner image is not a promise about SDK versions.
 #
-#   steam-linux                self-hosted, and the only job that is. It needs a lingering
-#                              PipeWire session, Xvfb and the steam package's AppArmor
-#                              profile — host state a hosted runner has no equivalent of.
-#                              It runs on a runner registered to *this repository* rather
-#                              than to the organisation: the org's Default runner group does
-#                              not admit public repositories, so an org runner would leave
-#                              the job queued forever. The job carries a fork guard, because
-#                              a self-hosted runner executes whatever the branch contains
-#                              and this one is a workstation.
+#   (no steam-linux job)       Removed. It packaged the desktop shell and played it inside
+#                              Steam Linux Runtime 3.0 — the rail that has been dropped — and
+#                              it was the only job that needed a self-hosted runner. Removing it
+#                              takes the workstation out of CI entirely. What it covered and no
+#                              longer does: the game's audio against a real PipeWire sink, and
+#                              the desktop shell building at all. test/steamrt.test.cjs is kept,
+#                              so the coverage comes back with the desktop rail if it returns.
 #
-# Nothing else needs a self-hosted runner. The line that used to be here said `deploy` stays
-# self-hosted because the Linode firewall only allows port 22 from known addresses; that is
-# not true of this server, and it was measured rather than argued: on 2026-10-07 a
-# dispatch-only job on ubuntu-latest SSHed in with the deploy key and rewrote deploy/.env.
-# The deploy jobs are hosted now for the same reason.
+# Every job here runs on a GitHub-hosted runner, and so do the deploy and release workflows.
+# The line that used to be here said `deploy` stayed self-hosted because the Linode firewall
+# only allows port 22 from known addresses; that is not true of this server, and it was measured
+# rather than argued — on 2026-10-07 a dispatch-only job on ubuntu-latest SSHed in with the
+# deploy key and rewrote deploy/.env. With the steam-linux job gone, nothing in this repository
+# needs a machine of ours at all.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -94,28 +93,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: "screens-${{ matrix.browser }}", path: "test/shots\ntest/traces", retention-days: 7 }
-
-  # The Linux Steam build, packaged and played inside Steam Linux Runtime 3.0
-  # (sniper) as Steam runs it (docs/STORES.md). Self-hosted on purpose: it needs Xvfb,
-  # the runner user's lingering PipeWire session, and the steam package's AppArmor
-  # profile. The runtime itself is fetched, pinned, to ~/.cache/steamrt.
-  steam-linux:
-    needs: test
-    # A self-hosted runner executes whatever the branch contains, and this one is a
-    # workstation, so a pull request from a fork must never reach it.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, steam-linux]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: npm ci
-      - run: npm ci && npm run package
-        working-directory: apps/desktop
-      - run: node test/steamrt.test.cjs
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with: { name: screens-steam-linux, path: test/shots, retention-days: 7 }
 
   # The Android app, which nothing else compiles. It is the only binary we ship, and it is
   # what F-Droid rebuilds and compares — so a break here is a break in the thing players
