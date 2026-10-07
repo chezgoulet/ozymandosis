@@ -64,9 +64,19 @@ one of the fourteen.
 
 ## Why repository secrets, not environments
 
-`chezgoulet` is on the GitHub **Free** plan and `efflorescent` is **private**, and
-GitHub's documentation says that on that combination environments and environment secrets
-are unavailable, and that required reviewers on a private repository need Enterprise.
+`chezgoulet` is on the GitHub **Free** plan and the repository was **private** when this
+section was written, so GitHub's documentation said that on that combination environments
+and environment secrets are unavailable, and that required reviewers on a private
+repository need Enterprise.
+
+**The repository is now public, and that cuts both ways.** The required-reviewer rule stops
+being a plan limitation, and Actions minutes on a public repository are free and unlimited,
+so the self-hosted runner is now a choice about *reachability* — the deploy key and the
+server's firewall — rather than about cost. The cost is on the other side: the
+organisation's `Default` runner group does **not** admit public repositories, so any job
+still asking for `[self-hosted, linux, x64]` on this repository queues indefinitely until
+that is settled. It was settled once already, for the one-off that turned web checkout on,
+by running that job on a hosted runner.
 
 **Measured 2026-10-06: the first half of that is wrong here.** The `production`
 environment exists, holds `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and

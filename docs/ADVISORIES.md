@@ -13,6 +13,6 @@ to dismiss yet. When they are enabled (docs/LAUNCH.md, "Accounts and security"),
 this one as *"Vulnerable code is not actually used"* with a link to this file:
 
 ```
-gh api -X PATCH repos/chezgoulet/efflorescent/dependabot/alerts/<number> \
+gh api -X PATCH repos/chezgoulet/ozymandosis/dependabot/alerts/<number> \
   -f state=dismissed -f dismissed_reason=not_used -f dismissed_comment="Build-time only (@capacitor/cli); see docs/ADVISORIES.md"
 ```
