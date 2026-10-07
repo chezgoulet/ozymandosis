@@ -19,8 +19,13 @@ permissions: { contents: write, actions: read }
 concurrency: { group: "release-client-${{ github.ref_name }}", cancel-in-progress: false }
 
 jobs:
+  # These jobs run on GitHub-hosted runners. They used to be self-hosted because the org's
+  # runner group was the only way to reach the server; that was never the real constraint —
+  # the deploy key is, and it reaches the server from anywhere. The repository is public
+  # now, so hosted minutes are free and unlimited, and the workstation stops being in the
+  # path of a deploy it has nothing to do with.
   scope:
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     outputs:
       client: ${{ steps.scope.outputs.client }}
       why: ${{ steps.scope.outputs.why }}
@@ -36,7 +41,7 @@ jobs:
   verified:
     needs: scope
     if: needs.scope.outputs.client == 'true'
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -90,7 +95,7 @@ jobs:
   release:
     needs: [scope, verified, reproducible]
     if: always() && needs.scope.outputs.client == 'true' && needs.verified.result == 'success' && needs.reproducible.result == 'success'
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, fetch-tags: true }

@@ -26,9 +26,14 @@ permissions: { contents: read, actions: read }
 concurrency: { group: "deploy-production", cancel-in-progress: false }
 
 jobs:
+  # These jobs run on GitHub-hosted runners. They used to be self-hosted because the org's
+  # runner group was the only way to reach the server; that was never the real constraint —
+  # the deploy key is, and it reaches the server from anywhere. The repository is public
+  # now, so hosted minutes are free and unlimited, and the workstation stops being in the
+  # path of a deploy it has nothing to do with.
   # Does this release touch the service at all? (tools/release-scope.cjs)
   scope:
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     outputs:
       server: ${{ steps.scope.outputs.server }}
       why: ${{ steps.scope.outputs.why }}
@@ -57,7 +62,7 @@ jobs:
   verified:
     needs: scope
     if: needs.scope.outputs.server == 'true' && github.event_name == 'push'
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -79,7 +84,7 @@ jobs:
       && needs.scope.outputs.server == 'true'
       && (github.event_name == 'workflow_dispatch' || needs.verified.result == 'success')
       && contains(fromJSON('["big-cookie","robot-chezgoulet"]'), github.actor)
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     environment: production
     env: { CONFIGURED: "${{ secrets.DEPLOY_HOST != '' }}" }  # secrets cannot appear in step conditions
     steps:
