@@ -85,7 +85,15 @@ jobs:
       - run: node test/flow.test.cjs
       - run: docker pull -q coturn/coturn:4.6   # online matches are always relayed (D19): the e2e runs a real TURN server
         if: matrix.browser != 'webkit'
-      - run: node test/mp.test.cjs && node test/online.test.cjs && node test/lan.test.cjs
+      - run: |
+            # mp.test.cjs waits up to 30 seconds for a guest to fully reconnect after a
+            # reload. On a 2-vCPU hosted runner that wait is occasionally not enough: this
+            # leg has gone red on unchanged code repeatedly, and the same commit passes on a
+            # re-run. One retry, and the log says when it was needed. A deterministic failure
+            # still fails twice, so nothing real is hidden.
+            node test/mp.test.cjs || { echo "::warning::mp.test.cjs failed once; retrying"; node test/mp.test.cjs; }
+            node test/online.test.cjs
+            node test/lan.test.cjs
         if: matrix.browser != 'webkit'     # headless WebKit on Linux has no loopback WebRTC
       - run: node test/frames.test.cjs
         if: matrix.browser == 'chromium'
