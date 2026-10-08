@@ -26,10 +26,28 @@ const assert = require('assert');
   console.log('room', room);
   await guest.click('#m-mp'); await guest.fill('#mp-name', 'Guesto'); await guest.fill('#mp-code', room); await guest.click('#mp-join');
   await guest.waitForSelector('#scr-setup:not([hidden])');
-  await host.waitForTimeout(600);
-  // the room code is shown prominently and copyably, to everyone in the lobby
-  assert.strictEqual((await host.textContent('#lobby-code')).trim(), room, 'host shows the room code');
-  assert.strictEqual((await guest.textContent('#lobby-code')).trim(), room, 'guest sees the room code');
+  // The room code is shown prominently and copyably, to everyone in the lobby. Wait for it to
+  // arrive rather than guessing a delay: on a loaded runner the guest's join is still in flight
+  // after any fixed wait, and a fixed wait makes that look like a wrong room.
+  const lobbyCode = async (pg) => (await pg.textContent('#lobby-code')).trim();
+  await guest.waitForFunction(r => { const e = document.getElementById('lobby-code'); return e && e.textContent.trim() === r; }, room, { timeout: 15000 }).catch(() => {});
+  const hostCode = await lobbyCode(host);
+  const guestCode = await lobbyCode(guest);
+  if (hostCode !== room || guestCode !== room) {
+    // Say what was actually on screen. Without this a failure is only two codes disagreeing,
+    // and the test throws away the console errors it has already collected.
+    const seen = await guest.evaluate(() => ({
+      screen: ['scr-menu', 'scr-mp', 'scr-setup', 'game'].filter(id => { const e = document.getElementById(id); return e && !e.hidden; }),
+      lobbyCode: (document.getElementById('lobby-code') || {}).textContent,
+      setupRoom: (document.getElementById('setup-room') || {}).textContent,
+      status: (document.getElementById('mp-status') || {}).textContent,
+      lastLog: (document.getElementById('lobby-log') || {}).textContent,
+  }));
+    console.log('lobby mismatch:', JSON.stringify({ room, hostCode, guestCode, guest: seen }));
+    if (errs.length) console.log('console errors so far:\n' + errs.join('\n'));
+  }
+  assert.strictEqual(hostCode, room, 'host shows the room code');
+  assert.strictEqual(guestCode, room, 'guest sees the room code');
   // guest picks a culture
   await guest.selectOption('#slots .slot-row:nth-child(2) select:first-child', 'current');
   await host.waitForTimeout(600);
