@@ -64,8 +64,12 @@ if (require.main === module) {
   console.log(`client=${s.client}`);
   console.log(`previous=${s.previous}`);
   console.log(`why=${s.why} -> server=${s.server} client=${s.client}`);
-  console.log(`release-scope: server=${s.server} client=${s.client} (${s.why})`);
-  if (s.files.length && s.files.length <= 40) for (const p of s.files) console.log(`  ${s.isServer(p) ? 'server' : 'client'}  ${p}`);
+  // Human-facing lines go to stderr. This tool's stdout is piped into $GITHUB_OUTPUT, where a
+  // line that is not key=value is rejected and fails the job — and the file table only prints
+  // when the change set is small, so a release touching fewer than forty files broke the
+  // pipeline while a large one sailed through.
+  console.error(`release-scope: server=${s.server} client=${s.client} (${s.why})`);
+  if (s.files.length && s.files.length <= 40) for (const p of s.files) console.error(`  ${s.isServer(p) ? 'server' : 'client'}  ${p}`);
 }
 
 module.exports = { scope, SERVER };
