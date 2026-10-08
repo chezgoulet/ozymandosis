@@ -71,10 +71,15 @@ Builds:
     versionCode: 503
     commit: v0.5.3
     subdir: android
-    # Node is not in the build image; F-Droid's React Native template installs it the same way.
+    # Node is not in the build image. F-Droid's own React Native template installs plain Debian
+    # npm; the React Native submission in review installs it from Debian forky at the
+    # maintainer's request, and forky is the newer direction, so this follows that. Verified on
+    # Node 24, which is what forky supplies: the whole build produces a byte-identical APK, the
+    # same sha256 as on Node 22, so the toolchain does not change what we publish.
     sudo:
-      - apt-get update
-      - apt-get install -y npm
+      - echo "deb https://deb.debian.org/debian forky main" > /etc/apt/sources.list.d/forky.list
+      - apt-get -o Acquire::Retries=3 update
+      - apt-get -o Acquire::Retries=3 install -y -t forky npm
     gradle:
       - yes
     prebuild:
@@ -188,9 +193,9 @@ Android is the only client; there is no browser version.
 The recipe is `metadata/com.ozymandosis.game.yml`.
 
 * Pinned at `v0.5.3`, which carries `LICENSE`, `NOTICE` and SPDX headers on the source.
-* Node comes from Debian through `sudo`, matching your React Native template. If you would
-  rather it came from forky, as the React Native submission in review does, say so and I will
-  change it.
+* Node comes from Debian **forky** through `sudo`, following the direction in the React Native
+  submission currently in review. Our build is verified on Node 24, which is what forky
+  supplies: the APK comes out byte-identical to the one built on Node 22, same sha256.
 * `binary:` and `AllowedAPKSigningKeys:` are deliberate: the reference is the APK we publish,
   so the comparison is ours against your rebuild.
 * The reproducibility check in our CI already builds twice and diffs, unsigned, which is the
@@ -222,7 +227,8 @@ What their own documents settled, so nobody wonders whether we guessed:
   exceptional.
 - A React Native app in review (merge request !48673, September 2026) has that shape, and its
   notes record the current review direction: Node from Debian — it uses Debian *forky*, at the
-  maintainer's request. Our recipe uses plain Debian npm; the two are one line apart.
+  maintainer's request. The recipe follows that direction, and it is tested: the whole build on
+  Node 24 produces a byte-identical APK to the one built on Node 22.
 - Their inclusion policy prefers Debian-packaged dependencies and accepts prebuilt FLOSS
   binaries from the Node ecosystem, which covers esbuild's platform binary — the same class as
   the hermesc entry their own template `scanignore`s.
