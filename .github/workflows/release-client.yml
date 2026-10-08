@@ -162,6 +162,7 @@ jobs:
           OZY_UPLOAD_KEY_PASSWORD: ${{ secrets.OZY_UPLOAD_KEY_PASSWORD }}
           OZY_UPLOAD_KEY_ALIAS: ${{ secrets.OZY_UPLOAD_KEY_ALIAS }}
           TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           install -m 600 /dev/null "$RUNNER_TEMP/upload-keystore.jks"
@@ -177,3 +178,4 @@ jobs:
           printf '%s  %s\n' "$(sha256sum "$APK" | cut -d' ' -f1)" "$NAME" > "$NAME.sha256"
           gh release upload "$TAG" "$NAME" "$NAME.sha256" --clobber
           echo "attached $NAME"
+          GH_TOKEN: ${{ github.token }}
