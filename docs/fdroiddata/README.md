@@ -1,97 +1,147 @@
-# Submitting to F-Droid
+# Getting Ozymandosis into F-Droid
 
-Everything F-Droid needs is in this repository now. What follows is what a person still has
-to do, and the one question to ask them before anything else.
+One page, six steps, done in a browser. Everything you need to paste is below.
 
-## What reading their docs settled (2026-10-07)
+Version being submitted: **v0.5.3** (versionCode 503). All the metadata for it is already in
+this repository.
 
-There is no question to ask before submitting. The path is documented and in use:
+---
 
-- F-Droid ships a template for Node-built apps, `templates/build-react-native.yml`, which
-  installs npm through `sudo` and then runs `npm install`. npm during the build is expected,
-  not exceptional, and the template points at the metadata directory for more examples.
-- A React Native app is in review with exactly that shape (`fdroiddata` merge request !48673,
-  September 2026), and its notes record the current review direction: install Node/npm **from
-  Debian** — that submission uses Debian *forky*, at the maintainer's request.
-- Their inclusion policy prefers Debian-packaged dependencies where they exist, and accepts
-  prebuilt FLOSS binaries from the Node ecosystem — which covers esbuild's platform binary,
-  the same class as the hermesc entry their own template `scanignore`s.
-- The signature question has an official answer. `binary:` plus `AllowedAPKSigningKeys` makes
-  our published APK the reference for reproducible verification, and *"F-Droid will use
-  upstream binaries if the verification succeeded"* — so their copy and ours are the same app,
-  and a player can move between F-Droid, Obtainium and our release page without reinstalling.
+## The six steps
 
-So the next step is the submission rather than a question: copy the recipe into a fork of
-`fdroiddata` and open a merge request. Details like the exact Node source get settled with the
-reviewer on the merge request, which is how the app in review is doing it. The one thing worth
-raising in the description is whether they prefer plain Debian npm (their template) or Debian
-forky (the newer direction).
+**1. Make a GitLab account.** <https://gitlab.com/users/sign_up> — if you already have one, skip.
 
-## The recipe
+**2. Fork their app database.** Open <https://gitlab.com/fdroid/fdroiddata> and click **Fork**.
+Two rules from their contributing guide: the fork must be **public**, and the branch must not
+be protected. A fresh fork satisfies both.
 
-`com.ozymandosis.game.yml` in this directory is the fdroiddata recipe, kept here so it
-travels with the release it describes. It passes their own linter — `fdroid lint` from
-`fdroidserver` 2.4.5, clean — which is how it was written rather than guessed: the category
-list alone has `Strategy Game`, not the `Game` or `Games` a person would type.
+**3. Make a branch in your fork.** In your fork, click the branch dropdown (it says `master`),
+type `com.ozymandosis.game`, and click **Create branch**.
 
-To submit: copy it to `metadata/com.ozymandosis.game.yml` in a fork of `fdroiddata` and open
-a merge request. The first build on their infrastructure is where the answer to the question
-above becomes visible.
+**4. Add the file.** In your fork, go to the `metadata` folder, click **+** then **New file**,
+and name it exactly:
 
-## What is already in place
+```
+com.ozymandosis.game.yml
+```
 
-- Fastlane metadata under `fastlane/metadata/android/en-US/`: title, short description (55
-  characters, no trailing dot), full description, the changelogs for 0.5.1 and 0.5.2, the icon, and two
-  phone screenshots.
-- A FOSS licence in the tree (`LICENSE`, AGPL-3.0) with `NOTICE`, and SPDX headers on the
-  source.
-- No Google dependency in the APK at all — asserted by a CI job that inspects the packaged
-  artifact, not just the build file.
-- Reproducible builds: a CI job on every release tag builds an unsigned APK at two different
-  paths and fails the release if they differ.
-- Release tags, which is what `AutoUpdateMode: Version` and `UpdateCheckMode: Tags` need.
+Paste in the block from *What to paste* below, and click **Commit changes**.
 
-## After their first build
+**5. Wait for the little pipeline.** In your fork: **Build → Pipelines**. Their CI lints the
+metadata. Green means the recipe is valid; red means the log says which line to fix. If you'd
+rather not read logs, send them to me.
 
-R10: verify the published APK on F-Droid's Verification Server and link the result from the
-release notes. That is the proof that their rebuild matches ours, and it is the last step of
-the submission rather than the first.
+**6. Open the merge request.** In your fork you'll see a banner offering to open a merge
+request — click it. Set the title to exactly:
 
-## Two things to fix first, found while preparing this
+```
+New app: Ozymandosis
+```
 
-- The **Spawnforge button label truncates to "Spawnfo…"** at phone width, visible in
-  `images/phoneScreenshots/2.png`. Measured rather than guessed: the colony row is a grid of
-  six equal columns on a 390px screen, so each button gets ~64px and the word needs ~70 at
-  the 11px floor the design sets for coarse pointers. Three ways out, and they trade
-  different things — **shorten the label** (the game already says "Spawn" in the bottom bar;
-  the Spawnforge is a deliberate piece of vocabulary, so it is a naming decision), **widen
-  the row floor to ~84px** so it wraps to two lines (measured: the sheet grows tall enough
-  that `test/touch.test.cjs`'s map-pan assertion at (200,400) lands on the panel instead of
-  the map, so it costs usable map area on a phone), or **leave it** and accept it in the
-  listing. I tried the middle one, saw the test fail, and reverted rather than spend the map
-  area without asking.
-- **`js/core/seed.js`** is verbatim code from the Bioluminescent Dreamscape pack, carrying no
-  licence header and absent from `NOTICE`. If the pack is ours it belongs in `NOTICE` as
-  ours; if it is not, its licence has to be named. F-Droid's scanner reads this.
+Choose their **App inclusion** template from the *Description* dropdown, then replace the
+template's text with the block from *What to paste as the description* below. Submit.
 
-## How to open the merge request
+Then wait. A packager picks it up; if they ask anything, answer in the merge request. Where you
+see *I am the author* in the description, that's you — it's their wording for "the person who
+wrote this app is the one submitting it".
 
-From their `CONTRIBUTING.md` and the quick start guide, in order:
+---
 
-1. Register on GitLab and fork <https://gitlab.com/fdroid/fdroiddata>. The fork must be
-   **public**, and the branch must not be protected.
-2. Create a branch named after the app id — never commit to your fork's `master`.
-3. Add the file `metadata/com.ozymandosis.game.yml`. Its contents are the recipe in this
-   directory, which already passes their `fdroid lint`.
-4. Watch the pipeline on your fork (CI/CD → Pipelines). Their CI lints the metadata; if it
-   fails, the log says why.
-5. Open the merge request against `fdroiddata` using their **App inclusion** template, titled
-   *"New app: Ozymandosis"*.
-6. Wait for a packager to pick it up, and answer their questions.
+## What to paste
 
-Only one app per merge request, and no rebasing if there is no conflict.
+That is the whole of `docs/fdroiddata/com.ozymandosis.game.yml` in this repository. If the two
+ever disagree, that file wins.
 
-### The description to paste
+```yaml
+Categories:
+  - Strategy Game
+License: AGPL-3.0-only
+AuthorName: Christopher Goulet
+SourceCode: https://github.com/chezgoulet/ozymandosis
+IssueTracker: https://github.com/chezgoulet/ozymandosis/issues
+Changelog: https://github.com/chezgoulet/ozymandosis/releases
+
+AutoName: Ozymandosis
+
+RepoType: git
+Repo: https://github.com/chezgoulet/ozymandosis.git
+
+Builds:
+  - versionName: 0.5.3
+    versionCode: 503
+    commit: v0.5.3
+    subdir: android
+    # Node is not in the build image; F-Droid's React Native template installs it the same way.
+    sudo:
+      - apt-get update
+      - apt-get install -y npm
+    gradle:
+      - yes
+    prebuild:
+      - npm ci
+      - node tools/build-web.cjs
+      - npx cap sync android
+    output: app/build/outputs/apk/release/app-release-unsigned.apk
+    # The reference binary for reproducible verification: the APK we publish. With this and
+    # AllowedAPKSigningKeys, F-Droid compares its rebuild against ours and, when they match,
+    # serves *our* signature — so an install from F-Droid, from Obtainium and from the release
+    # page are the same app, and a player can move between them.
+    binary: https://github.com/chezgoulet/ozymandosis/releases/download/v%v/ozymandosis-android-v%v.apk
+    # esbuild ships a platform binary the scanner cannot rebuild; the same class as the hermesc
+    # entry in F-Droid's own React Native template.
+    scanignore:
+      - node_modules/@esbuild/linux-x64/bin/esbuild
+    scandelete:
+      - node_modules
+
+AllowedAPKSigningKeys: c54305e6f298517d0065a9bc088831edefe4eb01f64c0988adaad347c22e8086
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.5.3
+CurrentVersionCode: 503
+
+MaintainerNotes: |
+  The Android app is free on every platform: membership is bought on our website, and the
+  build carries no billing client, no Play Integrity and no google-services (a CI job
+  asserts the packaged APK contains none of them). The Play rail is distribution only.
+
+  Pinned at v0.5.3 deliberately. The earlier tag predates the licence work: v0.5.1 carries
+  no LICENSE, no NOTICE and no SPDX headers, so a build from it would assert AGPL-3.0 in
+  this metadata while containing no licence text. v0.5.2 carries all three.
+
+
+  The build is a Capacitor/Node project, so the recipe needs npm during prebuild: `npm ci`
+  and `tools/build-web.cjs` produce `www/`, which `cap sync` copies into the Android
+  project. That is the same shape as F-Droid's own React Native template, which installs npm
+  through `sudo` and then runs `npm install`, and as a React Native app in review in
+  September 2026 — so it is a known path rather than a question. Node comes from Debian: the
+  template installs plain `npm`, while that submission installs it from Debian *forky* at the
+  maintainer's request. Happy to follow whichever the reviewer prefers.
+
+  The reference binary and AllowedAPKSigningKeys are deliberate. F-Droid's submission guide
+  says reproducible builds are best adopted from the start, because Android will not update
+  across signing keys and users would otherwise have to reinstall. With the comparison in
+  place F-Droid serves our signed APK, so the release page, Obtainium and F-Droid are one
+  app rather than two that cannot be swapped.
+
+  Toolchain pinned in the tree: JDK 21, Android build-tools 34.0.0, Gradle 8.14.3, AGP
+  8.13.0, compileSdk android-37.0, targetSdk 36, minSdk 24. Two builds of one commit
+  produce an identical APK, which the reproducibility check in CI re-tests on every release
+  tag. That comparison is of the *unsigned* build, because the signature is the one thing
+  that differs between a rebuild and the APK we published.
+
+  Fastlane metadata is in the tree (fastlane/metadata/android/en-US): title, short and
+  full description, the 0.5.1 and 0.5.2 changelogs, the icon, and two phone screenshots captured from
+  the touch harness at 390x844, padded to 1:2 which is the aspect F-Droid accepts. The
+  second screenshot still shows the harness's "Resumed" toast, and both show a real UI
+  defect worth fixing first: the Spawnforge button label truncates to "Spawnfo..." at phone
+  width.
+```
+
+---
+
+## What to paste as the description
 
 ```markdown
 ## Abstract
@@ -100,7 +150,7 @@ Ozymandosis is a real-time strategy game of bioluminescent evolution: grow a col
 nucleus, design creatures organ by organ, and fight for the light. Two to six players online
 or on a local network, with bots standing in for anyone who drops.
 
-[attach the two phone screenshots]
+Screenshots are in the repository under fastlane/metadata/android/en-US/images/phoneScreenshots.
 
 It is the free, open-source Android client for a game whose multiplayer service we also run.
 The app carries no billing client, no store account and no Google code at all — a CI job
@@ -116,8 +166,7 @@ Android is the only client; there is no browser version.
 * [x] The original app author has been notified and does not oppose the inclusion. **I am the
   author** — the application id, the source, the signing key and this metadata are all mine.
 * [x] The upstream repository carries the metadata in a Fastlane structure with the `en-US`
-  locale: short description, full description, icon, changelogs for 0.5.1 to 0.5.3, and two
-  phone screenshots.
+  locale: short description, full description, icon, the changelogs, and two phone screenshots.
 
 ### Docs
 
@@ -148,10 +197,46 @@ The recipe is `metadata/com.ozymandosis.game.yml`.
   comparison your buildserver makes.
 ```
 
-### After it is merged
+---
 
-`AutoUpdateMode: Version` and `UpdateCheckMode: Tags` mean later releases build from their tags
-without another merge request. Their official badge lives at
-<https://f-droid.org/docs/Badges/> — the artwork is
-`https://fdroid.gitlab.io/artwork/badge/get-it-on.png`, which is the one to put beside the
-Obtainium badge on the site once the app is listed.
+## What happens after they accept it
+
+Nothing further is needed from you, ever, for future releases. The recipe sets
+`AutoUpdateMode: Version` and `UpdateCheckMode: Tags`, so every new tag we push builds
+automatically on their infrastructure.
+
+Two things worth doing once it's listed. Their verification server rebuilds our APK and
+compares — that result is the proof their F-Droid build is our app, and it belongs in the
+release notes. And their official badge artwork is
+`https://fdroid.gitlab.io/artwork/badge/get-it-on.png`, which goes beside the Obtainium badge on
+the website.
+
+---
+
+## Why it is shaped this way, for whoever reads this next
+
+What their own documents settled, so nobody wonders whether we guessed:
+
+- F-Droid ships a template for Node-built apps, `templates/build-react-native.yml`, which
+  installs npm through `sudo` and runs `npm install`. npm during the build is expected, not
+  exceptional.
+- A React Native app in review (merge request !48673, September 2026) has that shape, and its
+  notes record the current review direction: Node from Debian — it uses Debian *forky*, at the
+  maintainer's request. Our recipe uses plain Debian npm; the two are one line apart.
+- Their inclusion policy prefers Debian-packaged dependencies and accepts prebuilt FLOSS
+  binaries from the Node ecosystem, which covers esbuild's platform binary — the same class as
+  the hermesc entry their own template `scanignore`s.
+- `binary:` plus `AllowedAPKSigningKeys` is the official answer to signing. *"F-Droid will use
+  upstream binaries if the verification succeeded"* — so their copy and ours are the same app,
+  and a player can move between F-Droid, Obtainium and our release page without reinstalling.
+  Their submission guide says to adopt this from the start, because Android will not update
+  across signing keys.
+
+Already in place, so the submission adds nothing: the AGPL-3.0 licence with `NOTICE` and SPDX
+headers; no Google dependency in the APK at all, asserted by CI against the packaged artifact;
+reproducible builds, built twice and diffed on every release tag; release tags, which is what
+the auto-update fields need; and the fastlane metadata — title, descriptions, icon, changelogs
+and two screenshots captured from the app.
+
+Both things that were open before this were closed: the creature designer's button label reads
+Forge and fits at phone width, and `js/core/seed.js` is MIT with its attribution in `NOTICE`.
