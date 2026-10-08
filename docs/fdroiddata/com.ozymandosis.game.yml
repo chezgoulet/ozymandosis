@@ -12,9 +12,9 @@ RepoType: git
 Repo: https://github.com/chezgoulet/ozymandosis.git
 
 Builds:
-  - versionName: 0.5.2
-    versionCode: 502
-    commit: v0.5.2
+  - versionName: 0.5.3
+    versionCode: 503
+    commit: v0.5.3
     subdir: android
     # Node is not in the build image; F-Droid's React Native template installs it the same way.
     sudo:
@@ -43,15 +43,15 @@ AllowedAPKSigningKeys: c54305e6f298517d0065a9bc088831edefe4eb01f64c0988adaad347c
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.5.2
-CurrentVersionCode: 502
+CurrentVersion: 0.5.3
+CurrentVersionCode: 503
 
 MaintainerNotes: |
   The Android app is free on every platform: membership is bought on our website, and the
   build carries no billing client, no Play Integrity and no google-services (a CI job
   asserts the packaged APK contains none of them). The Play rail is distribution only.
 
-  Pinned at v0.5.2 deliberately. The earlier tag predates the licence work: v0.5.1 carries
+  Pinned at v0.5.3 deliberately. The earlier tag predates the licence work: v0.5.1 carries
   no LICENSE, no NOTICE and no SPDX headers, so a build from it would assert AGPL-3.0 in
   this metadata while containing no licence text. v0.5.2 carries all three.
 
