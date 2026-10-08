@@ -99,11 +99,19 @@ jobs:
   # install. The toolchain is pinned in android/app/build.gradle (JDK 21, build-tools 34).
   android:
     needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        # forky supplies Node 24 to F-Droid's buildserver, so the artifact is built on that and
+        # on the 22 we develop against. Both produce the same APK; this keeps that true.
+        node: [22, 24]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21, cache: gradle }
       - run: npm ci
