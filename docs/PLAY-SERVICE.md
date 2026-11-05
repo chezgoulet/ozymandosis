@@ -10,7 +10,7 @@ The play service (`apps/play`) introduces players and vouches for them. It never
 | Two-factor | TOTP (RFC 6238, any authenticator app), QR setup, 10 single-use recovery codes, replay protection (a code's time step is used once), email notice when turned on or off. Staff tools require 2FA on the current session in production. |
 | Other sign-ins | Google and Apple (OpenID Connect; PKCE for Google) and Steam (OpenID 2.0 in the browser; `POST /api/auth/steam-ticket` for native Steam builds). A provider appears when its credentials are set. Linking by email happens only when both sides have verified it. |
 | Game sign-in | Browser hand-off: the client registers `sha256(verifier)`, opens `/login?handoff=…`, the player signs in there by any method, the client claims a game session with the verifier. |
-| Membership | Web: Stripe Checkout ($2/month and $12/year, created by `npm run admin -- stripe:setup 1200`), Stripe Customer Portal, signed and idempotent webhooks. Android: Google Play Billing, each purchase validated with the Play Developer API and kept current by Real-time Developer Notifications (`src/billing/play.ts`); it counts only on Android. `past_due` keeps access for 3 days. Staff and complimentary grants count as members. |
+| Membership | **Web only:** Stripe Checkout ($2/month and $12/year, created by `npm run admin -- stripe:setup 1200`), Stripe Customer Portal, signed and idempotent webhooks. A web membership counts everywhere. Store billing (Play, App Store, Steam) is retired and not used. `past_due` keeps access for 3 days. Staff and complimentary grants count as members. |
 | Promo codes | Admins mint codes (one custom code or random batches up to 1,000, `OZY-XXXX-XXXX-XXXX` without look-alike characters) granting a month, a year or life, each with a finite number of uses, once per player, optional expiry, disable, CSV export and a redemption list. Players redeem in their account or in the game; months and years stack on existing free time. |
 | Matchmaking | Public lobby browser, private lobbies (5-letter codes), rated quick match (duel; 4-player FFA that starts with 3 after 45 s). Rating gap widens the longer a player waits. A member hosts when possible. |
 | Signaling | WebRTC offers, answers and ICE candidates, host↔guest only. TURN credentials (coturn REST format, 12 h, pseudonymous usernames). |
@@ -60,8 +60,10 @@ The scheme is `docs/MONETIZATION.md`; how it is implemented is D20.
 
 - **One full online match per rolling 24 hours, per account** (`freeMatchesPerDay`, live-configurable). The service counts it when the host starts the match, once per player, whichever side; a rejoin is not counted again; members are never counted. A free player with none left is refused before hosting, joining or queueing (`error {code: 'allowance', allowance}`), with when the next one comes. There is no time limit inside a match.
 - **Tickets** (v2) say who is in the match, who is a member and how many free matches each has left. Clients verify the Ed25519 signature.
-- **Store apps only, with a verified purchase** (production): the client says its platform (`android`, `ios`, `steam`) and must hold a current proof of purchase for it (`/api/ownership/*`), checked with that store. Otherwise `error {code: 'app_only' | 'ownership'}`; the app proves ownership and reconnects by itself.
-- **Memberships per platform**: Google Play (`billing/play.ts`), the App Store (`billing/appstore.ts`), Steam seasons (`billing/ownership.ts`). Each counts only on its own platform.
+- **No store purchase check.** The app is free; there is no `$1` ownership proof and no
+  `REQUIRE_STORE_CLIENT` gate. The service checks the membership row only.
+- **Membership is web-only and counts everywhere.** The subscription row carries no
+  platform. Google Play, App Store and Steam billing code is retired and not used.
 
 ## Security
 

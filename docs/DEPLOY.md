@@ -95,11 +95,11 @@ docker compose -f deploy/docker-compose.yml exec play node apps/play/dist/cli.js
 
 Sign in at https://play.ozymandosis.com, turn on two-factor sign-in (required for staff tools in production), sign out and back in, then open https://play.ozymandosis.com/admin. Promote moderators with `cli.js promote <email|name> moderator` or from their player page.
 
-## 7. Stripe (on, for the FOSS rail)
+## 7. Stripe — the only billing rail
 
-The store builds sell in their store. The FOSS build has no store, so its membership is bought here, on the
-website — see the revision in docs/MONETIZATION.md. That makes this section part of the product rather than an
-option.
+The app is free on Obtainium and F-Droid. The only paid product is worldwide online multiplayer, and its
+membership is bought here, on the website — see `docs/MONETIZATION.md`. That makes this section part of the
+product rather than an option. There are no store builds, no store receipts and no platform entitlements.
 
 **Set both secrets and the flag together, or the service will not boot.** With `WEB_BILLING=1`, production
 config validation requires `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (`apps/play/src/config.ts`); without
@@ -153,6 +153,6 @@ It backs up the database, builds, starts the new release, waits for it to be hea
 
 ## Mobile and desktop builds
 
-- There is no browser version (docs/MONETIZATION.md); the website points at F-Droid and Obtainium, and `play.ozymandosis.com` serves the account portal and the API.
-- Android and iOS: `npm run android:aab` (docs/RELEASE-ANDROID.md), `npm run ios:open` (Capacitor 8; Android targets API 36). The apps sell memberships through their own stores (docs/STORES.md).
-- Desktop: `cd apps/desktop && npm ci && npm run package` (Electron; launches fullscreen; on Linux the Steam depot is `dist/linux-unpacked/`, see [STORES.md](STORES.md#the-linux-build)). Launched from Steam (or with `steam_appid.txt` beside it) it behaves as a Steam build. Signing and notarization: [LAUNCH.md](LAUNCH.md#code-signing).
+- There is no browser version (`docs/MONETIZATION.md`); the website points at F-Droid and Obtainium, and `play.ozymandosis.com` serves the account portal and the API.
+- **Android is the shipping client.** `npm run android:apk`; Obtainium carries the signed APK from GitHub Releases; F-Droid builds from `docs/fdroiddata/`. No Google Play, App Store or Steam listing.
+- Desktop/iOS/Steam shells remain in the repository for development and history, but they are **not distribution rails** in the current scheme. Do not create store accounts for them.
