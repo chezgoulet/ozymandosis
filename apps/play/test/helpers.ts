@@ -8,7 +8,7 @@ import { hotp, stepAt } from '../src/lib/totp.js';
 
 export const WEBHOOK_SECRET = 'whsec_test_secret';
 export async function boot(env: Record<string, string> = {}, over: { stripe?: any } = {}) {
-  const cfg = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', PUBLIC_URL: 'http://play.test', SITE_URL: 'http://site.test', STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, TURN_SECRET: 'turnsecret', TURN_URLS: 'turn:turn.test:3478', ...env } as any);
+  const cfg = loadConfig({ NODE_ENV: 'test', DEV_AUTH: '1', LOG_LEVEL: 'silent', PUBLIC_URL: 'http://play.test', SITE_URL: 'http://site.test', STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, TURN_SECRET: 'turnsecret', TURN_URLS: 'turn:turn.test:3478', ...env } as any);
   const mailer = makeMailer(undefined, 'test', () => {});
   const stripe = over.stripe || new Stripe('sk_test_dummy');
   const built = await buildApp(cfg, { mailer, stripe });
