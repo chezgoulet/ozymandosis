@@ -28,21 +28,21 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.5.2",
-    "@capacitor/cli": "^8.5.2",
-    "@capacitor/ios": "^8.5.2",
-    "esbuild": "^0.25.12",
-    "three": "^0.186.1",
-    "playwright": "1.62.1"
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0",
+    "playwright": "1.65.0"
   },
   "dependencies": {
-    "@capacitor/app": "^8.0.0",
-    "@capacitor/core": "^8.5.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
     "@capacitor/haptics": "^8.0.0",
-    "@capacitor/screen-orientation": "^8.0.0",
-    "@capacitor/share": "^8.0.0",
-    "@capacitor/status-bar": "^8.0.0",
-    "@capacitor/browser": "^8.0.0"
+    "@capacitor/screen-orientation": "^8.0.2",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/status-bar": "^8.0.4",
+    "@capacitor/browser": "^8.0.5"
   },
   "workspaces": [
     "apps/play"
