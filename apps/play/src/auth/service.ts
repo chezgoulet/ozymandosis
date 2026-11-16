@@ -17,7 +17,10 @@ export function checkPassword(pw: string) {
   if (/^(.)\1+$/.test(pw) || /^(?:0123456789|1234567890|password|qwertyuiop)/i.test(pw)) throw new HttpError(400, 'That password is too easy to guess.', 'weak_password');
 }
 export const normEmail = (e: string) => String(e || '').trim().toLowerCase();
-export const validEmail = (e: string) => /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(e);
+// No whitespace, and no < > " ; or comma on either side. Those characters are what an address
+// parser turns into a different recipient (see nodemailer's addressparser advisories), and their
+// only legitimate place is a quoted local part, which this app has no reason to accept.
+export const validEmail = (e: string) => /^[^\s@<>";,]{1,64}@[^\s@<>";,]{1,190}\.[^\s@<>";,]{2,24}$/.test(e);
 
 const ADJ = ['Drifting', 'Pale', 'Hollow', 'Deep', 'Brass', 'Tidal', 'Silent', 'Gilded', 'Umber', 'Vast', 'Sunken', 'Luminous'];
 const NOUN = ['Tender', 'Lantern', 'Cantor', 'Lancer', 'Tether', 'Petalmaw', 'Nautilus', 'Medusa', 'Spire', 'Frond', 'Siphon', 'Colossus'];

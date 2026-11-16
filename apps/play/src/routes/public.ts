@@ -18,7 +18,12 @@ export default async function publicRoutes(app: FastifyInstance, ctx: Ctx) {
   // For the external uptime monitor: the relay every online match depends on (D19).
   // Kept apart from /healthz so a TURN outage never rolls back a deploy of this service.
   app.get('/healthz/turn', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (_req, reply) => {
-    const r = await ctx.monitor.turn.check();
+    // Cached for a minute. This endpoint exists so an external monitor can tell whether the relay
+    // works, and it used to perform a real coturn allocation for every anonymous request — 30 a
+    // minute, all of them spending the relay quota that players behind strict NATs need while
+    // telling an attacker whether the relay is up. One probe a minute server-wide answers the same
+    // question.
+    const r = await ctx.monitor.turn.check(60_000);
     if (!r) return reply.code(503).send({ ok: false, detail: 'TURN is not configured (TURN_URLS with a udp turn: URL, and TURN_SECRET)' });
     return reply.code(r.ok ? 200 : 503).send({ ok: r.ok, ms: r.ms, detail: r.detail });
   });

@@ -62,6 +62,9 @@ export async function buildApp(cfg: Config, opts: BuildOpts = {}): Promise<{ app
     logger: cfg.LOG_LEVEL === 'silent' ? false : { level: cfg.LOG_LEVEL, base: undefined, redact: { paths: REDACT_PATHS, censor: '[redacted]' }, serializers: { req: () => undefined as any, res: () => undefined as any } },
   });
   const secrets = Secrets.fromEnv(cfg.SECRET_KEY, !cfg.prod, cfg.SECRET_KEY_PREVIOUS);
+  // Say it at boot, not on the first sign-up attempt: without this an operator only discovers the
+  // missing captcha from a 503 in production logs.
+  if (cfg.prod && !cfg.TURNSTILE_SECRET) app.log.error('TURNSTILE_SECRET is not set — sign-up will refuse every request (503 captcha_unconfigured) until Turnstile is configured');
   const db = opts.db || (await openDb({ url: cfg.DATABASE_URL, dir: cfg.PGLITE_DIR }));
   await migrate(db, s => app.log.info(s));
   const signer = await loadSigner(db, secrets);

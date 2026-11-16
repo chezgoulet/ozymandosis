@@ -48,8 +48,15 @@ export async function approveHandoff(ctx: Ctx, handoff: string, userId: string, 
   return true;
 }
 
-async function captchaOk(ctx: Ctx, token: string | undefined): Promise<boolean> {
-  if (!ctx.cfg.TURNSTILE_SECRET) return true;
+// Exported for a test: whether sign-up has a human check is a security property, not a detail.
+export async function captchaOk(ctx: Ctx, token: string | undefined): Promise<boolean> {
+  // No secret means no human check at all. Outside production that is a convenience for local work;
+  // in production it is a hole, so refuse rather than wave every account through. An operator sees
+  // this as a 503 and a startup error, which is louder and safer than silent mass sign-up.
+  if (!ctx.cfg.TURNSTILE_SECRET) {
+    if (ctx.cfg.prod) throw new HttpError(503, 'Sign-up is not accepting new accounts right now.', 'captcha_unconfigured');
+    return true;
+  }
   if (!token) return false;
   try {
     const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: new URLSearchParams({ secret: ctx.cfg.TURNSTILE_SECRET, response: token }) });
