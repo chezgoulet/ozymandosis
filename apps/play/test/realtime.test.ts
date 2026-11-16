@@ -124,6 +124,23 @@ test('unverified email accounts cannot host or join', async () => {
   C.close();
 });
 
+test('a client cannot hold more than 8 unauthenticated sockets', async () => {
+  // Every socket costs a descriptor and an auth timer whether or not it signs in, and the HTTP
+  // rate limit alone would still let one address hold ~100 of them at once.
+  const { WebSocket } = await import('ws');
+  const url = `ws://127.0.0.1:${t.port}/ws`;
+  const open = () => new Promise<any>((res, rej) => { const s = new WebSocket(url); s.once('open', () => res(s)); s.once('error', rej); });
+  const closedWith = (s: any) => new Promise<number>(res => s.once('close', (code: number) => res(code)));
+
+  const held: any[] = [];
+  for (let i = 0; i < 8; i++) held.push(await open());
+  const extra = await open();
+  assert.equal(await closedWith(extra), 4008, 'the ninth unauthenticated socket is refused');
+
+  // Free the slots: the cap is per address, and the rest of the suite talks to the same one.
+  await Promise.all(held.map(async s => { const done = closedWith(s); s.close(); await done; }));
+});
+
 test('maintenance mode and minimum version turn players away', async () => {
   const u = await signup(t);
   await t.ctx.db.query(`insert into remote_config (key, value) values ('minClientVersion', '"99.0.0"')`);

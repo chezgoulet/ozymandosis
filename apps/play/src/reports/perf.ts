@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Ctx } from '../context.js';
 import { tooMany } from '../context.js';
+import { coarsenIp } from '../lib/privacy.js';
 import { requireRole } from '../app.js';
 import { Limiter } from '../lib/limiter.js';
 
@@ -29,7 +30,7 @@ export default async function perfRoutes(app: FastifyInstance, ctx: Ctx) {
     // account, and validating an unauthenticated body is the most expensive thing it
     // does: a schema with an array in it collects one issue per failing element, so
     // letting an anonymous caller reach the parser first buys us work with their bytes.
-    const key = req.auth ? 'u:' + ctx.secrets.pseudonym(req.auth.user.id, 16) : 'ip:' + ctx.secrets.pseudonym(req.ip || '', 16);
+    const key = req.auth ? 'u:' + ctx.secrets.pseudonym(req.auth.user.id, 16) : 'ip:' + ctx.secrets.pseudonym(coarsenIp(req.ip), 16);
     if (!perClient.take(key)) throw tooMany();
     const r = PerfRun.parse(req.body);
     if (r.mode === 'lan') return { ok: true, skipped: true }; // local play does not report to the service

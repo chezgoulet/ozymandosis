@@ -49,6 +49,34 @@ test('crash reports are scrubbed and grouped into issues; staff can triage', asy
   assert.equal(bug.status, 200);
 });
 
+test('an anonymous report cannot carry a screenshot or a large body', async () => {
+  // The route allows 1.2 MB for a signed-in player's screenshot; anonymously that size is storage
+  // nobody pays for.
+  const big = { kind: 'bug', description: 'x', screenshot: 'data:image/png;base64,' + 'A'.repeat(100 * 1024) };
+  assert.equal((await t.api('POST', '/api/reports', big)).status, 413, 'an anonymous body over the cap is refused');
+
+  // Under the cap, a screenshot from a signed-out client is dropped rather than stored.
+  const anon = await t.api('POST', '/api/reports', { kind: 'bug', description: 'anon with a tiny image', screenshot: 'data:image/png;base64,iVBORw0KGgo=' });
+  assert.equal(anon.status, 200);
+  const row = await t.ctx.db.one<any>('select screenshot from reports where issue_id = $1', [anon.json.issue]);
+  assert.equal(row?.screenshot ?? null, null, 'no screenshot is stored for an anonymous report');
+
+  // A signed-in player keeps theirs.
+  const u = await signup(t);
+  const mine = await t.api('POST', '/api/reports', { kind: 'bug', description: 'signed in, with an image', screenshot: 'data:image/png;base64,iVBORw0KGgo=' }, u.token);
+  const kept = await t.ctx.db.one<any>('select screenshot from reports where issue_id = $1', [mine.json.issue]);
+  assert.ok(kept?.screenshot, 'a signed-in report keeps its screenshot');
+});
+
+test('identical anonymous bug reports collapse onto one issue; different ones do not', async () => {
+  const one = { kind: 'bug', description: 'the spire renders green', version: '1.2.0' };
+  const a = await t.api('POST', '/api/reports', one);
+  const b = await t.api('POST', '/api/reports', one);
+  assert.equal(a.json.issue, b.json.issue, 'the same anonymous report does not mint a second issue');
+  const c = await t.api('POST', '/api/reports', { ...one, description: 'the spire renders blue' });
+  assert.notEqual(c.json.issue, a.json.issue, 'a different report keeps its own issue');
+});
+
 test('player reports, moderation actions take effect live, staff hierarchy holds', async () => {
   const victim = await signup(t), troll = await signup(t), mod = await staff('moderator'), admin = await staff('admin');
   const r = await t.api('POST', '/api/player-reports', { target: troll.id, reason: 'harassment', details: 'kept insulting', chat: [{ from: 'troll', text: 'you are bad' }] }, victim.token);

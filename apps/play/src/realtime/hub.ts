@@ -25,7 +25,7 @@ import { createHmac, randomInt } from 'node:crypto';
 import type { Ctx, UserRow } from '../context.js';
 import { entitlements, sessionUser, bump, type Entitlements } from '../auth/service.js';
 import { allowance, allowanceMessage, countPlayer, freeMatchesPerDay } from '../billing/allowance.js';
-import { userTag } from '../lib/privacy.js';
+import { userTag, coarsenIp } from '../lib/privacy.js';
 import { filterChat } from '../lib/names.js';
 import { activeAnnouncements } from '../routes/public.js';
 import { recordClaim, settle, dueMatches, type Settled } from './results.js';
@@ -33,6 +33,12 @@ import { freeChatAllowed } from '../lib/age.js';
 
 // Quick chat: the only messages players under 16 send or receive.
 export const QUICK_CHAT = ['Hello!', 'Good luck, have fun', 'Good game', 'Well played', 'Nice!', 'Oops', 'Thanks', 'Sorry', 'One moment', 'Let’s go', 'Help!', 'Attack here', 'Defend here', 'Rematch?'];
+// Every socket held, authenticated or not. A socket costs a descriptor and a timer whether or not
+// it ever signs in, so the total is bounded here and not only by the HTTP rate limit.
+const MAX_CONNS = 2000;
+// Sockets a single client may hold between connecting and sending its auth message. That window is
+// 10 s; at the HTTP ceiling that is ~100 sockets per address, which is work nobody pays for.
+const MAX_PENDING_PER_CLIENT = 8;
 const CHAT_KEEP = 100, CHAT_LOG_TTL = 30 * 60e3;
 interface ChatLine { at: string; uid: string; from: string; text: string }
 
@@ -43,7 +49,7 @@ const QUEUE_MODES: Record<string, { size: number; min: number; waitMin: number }
 const cmpVersion = (a: string, b: string) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
 
 interface Conn {
-  ws: WebSocket; user: UserRow | null; ent: Entitlements | null; tag: string;
+  ws: WebSocket; user: UserRow | null; ent: Entitlements | null; tag: string; pendKey: string | null;
   lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; queued: string | null; queuedAt: number; chatAt: number[];
 }
 interface Lobby {
@@ -60,6 +66,10 @@ export class Hub {
   conns = new Set<Conn>();
   lobbies = new Map<string, Lobby>();
   queue = new Map<string, Conn[]>();
+  // Sockets that have connected but not yet authenticated, counted per client key. Kept apart from
+  // `conns` so the pending cap cannot be spent by signing in and out: a slot is released the moment
+  // the socket authenticates, and on close if it never does.
+  private pending = new Map<string, number>();
   // chat of lobbies that have closed, kept a little while for reports filed after the match
   chatLogs = new Map<string, { lines: ChatLine[]; until: number }>();
   private timer: NodeJS.Timeout;
@@ -88,8 +98,17 @@ export class Hub {
 
   // ── connection lifecycle ─────────────────────────────────────
   private accept(ws: WebSocket, req: FastifyRequest) {
-    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, queued: null, queuedAt: 0, chatAt: [] };
+    // Refuse before the socket is registered, so a refused upgrade costs nothing to hold.
+    const pid = this.ctx.secrets.pseudonym('ws:' + coarsenIp(req.ip), 16);
+    const held = this.pending.get(pid) || 0;
+    if (this.conns.size >= MAX_CONNS || held >= MAX_PENDING_PER_CLIENT) {
+      try { ws.close(4008, 'too many connections'); } catch { /* already gone */ }
+      this.ctx.log.warn({ u: pid, held, conns: this.conns.size }, 'ws refused: connection cap');
+      return;
+    }
+    const c: Conn = { ws, user: null, ent: null, tag: '-', pendKey: pid, lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, queued: null, queuedAt: 0, chatAt: [] };
     this.conns.add(c);
+    this.pending.set(pid, held + 1);
     const authTimer = setTimeout(() => { if (!c.user) ws.close(4001, 'auth timeout'); }, 10000);
     (ws as any).isAlive = true;
     ws.on('pong', () => { (ws as any).isAlive = true; });
@@ -101,11 +120,11 @@ export class Hub {
       let m: any; try { m = JSON.parse(raw.toString('utf8')); } catch { return; }
       if (!m || typeof m.op !== 'string') return;
       try {
-        if (!c.user) { if (m.op === 'auth') { clearTimeout(authTimer); await this.auth(c, m, req); } return; }
+        if (!c.user) { if (m.op === 'auth') { clearTimeout(authTimer); await this.auth(c, m, req); if (c.user) this.releasePending(c); } return; }
         await this.handle(c, m);
       } catch (e: any) { this.ctx.log.warn({ op: m.op, e: e.message, u: c.tag }, 'ws handler'); this.send(c, { op: 'error', msg: 'That did not work. Please try again.' }); }
     });
-    ws.on('close', () => { clearTimeout(authTimer); this.drop(c); });
+    ws.on('close', () => { clearTimeout(authTimer); this.releasePending(c); this.drop(c); });
     ws.on('error', () => {});
   }
   private async auth(c: Conn, m: any, _req: FastifyRequest) {
@@ -330,6 +349,15 @@ export class Hub {
     for (const L of this.lobbies.values()) if (L.matchId === matchOrRoom || L.code === matchOrRoom) return L.chat.slice(-30);
     const e = this.chatLogs.get(matchOrRoom) || this.chatLogs.get('room:' + matchOrRoom);
     return e && e.until > Date.now() ? e.lines.slice(-30) : null;
+  }
+
+  // A socket that has authenticated, or that has gone away, is no longer "pending": give its slot
+  // back so the per-client cap counts only what is genuinely held without a session.
+  private releasePending(c: Conn) {
+    const k = c.pendKey; if (!k) return;
+    c.pendKey = null;
+    const n = (this.pending.get(k) || 1) - 1;
+    if (n > 0) this.pending.set(k, n); else this.pending.delete(k);
   }
 
   private drop(c: Conn) { this.unqueue(c); this.leaveLobby(c, true, true); this.conns.delete(c); }
