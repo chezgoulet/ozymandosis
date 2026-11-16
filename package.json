@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.2",
-    "@capacitor/cli": "^8.5.2",
+    "@capacitor/cli": "^8.6.2",
     "esbuild": "^0.25.12",
     "three": "^0.186.1",
     "playwright": "1.62.1"
