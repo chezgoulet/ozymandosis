@@ -7,6 +7,9 @@ import { scrub, coarseClient } from '../src/lib/privacy.js';
 import { Secrets, TicketSigner } from '../src/lib/crypto.js';
 import { fingerprint } from '../src/reports/routes.js';
 import { loadConfig } from '../src/config.js';
+import { captchaOk } from '../src/auth/routes.js';
+import { validEmail } from '../src/auth/service.js';
+import { templates } from '../src/lib/mail.js';
 
 test('TOTP matches RFC 6238 vectors and rejects replays', () => {
   const secret = base32(Buffer.from('12345678901234567890'));
@@ -86,4 +89,31 @@ test('the development sign-in needs DEV_AUTH as well as a non-production NODE_EN
   } as any);
   assert.equal(prod.prod, true);
   assert.equal(prod.DEV_AUTH, true, 'the flag is recorded, and the route gate refuses it in production');
+});
+
+test('sign-up refuses rather than waving everyone through when no captcha is configured in production', async () => {
+  // The old behaviour returned true when TURNSTILE_SECRET was unset, so a production server that
+  // never configured Turnstile accepted unlimited sign-ups — the live state when this was filed.
+  const prod = { cfg: { prod: true, TURNSTILE_SECRET: undefined } } as any;
+  await assert.rejects(() => captchaOk(prod, undefined), (e: any) => e.status === 503 && e.code === 'captcha_unconfigured');
+  // Local development is unaffected: no captcha service is reachable from a laptop.
+  const dev = { cfg: { prod: false, TURNSTILE_SECRET: undefined } } as any;
+  assert.equal(await captchaOk(dev, undefined), true);
+});
+
+test('validEmail refuses the characters that turn one recipient into another', () => {
+  // These are the shapes nodemailer's addressparser advisories are about; the only legitimate use
+  // is a quoted local part, which this app does not accept.
+  for (const bad of ['a<b>@example.com', '"a"@example.com', 'a;b@example.com', 'a,b@example.com', 'a b@example.com', 'a@exa<mple.com', 'a@exa;mple.com', 'no-at-sign.example.com', 'a@example']) {
+    assert.equal(validEmail(bad), false, bad);
+  }
+  for (const good of ['player@example.com', 'first.last+tag@sub.example.co.uk', "o'brien@example.com"]) {
+    assert.equal(validEmail(good), true, good);
+  }
+});
+
+test('transactional mail escapes what it interpolates into the HTML', () => {
+  const html = templates.emailChanged('<img src=x onerror=alert(1)>@example.com').html!;
+  assert.ok(!html.includes('<img'), 'the address must not survive as markup');
+  assert.ok(html.includes('&lt;img'), 'it appears escaped instead');
 });

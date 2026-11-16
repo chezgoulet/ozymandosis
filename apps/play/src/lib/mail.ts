@@ -16,12 +16,16 @@ export function makeMailer(url: string | undefined, from: string, log: (s: strin
 // The living title can't move in an email, so mail carries a still of it (tools/render-title.cjs).
 let titleImage = '';
 export const setTitleImage = (url: string) => { titleImage = url; };
+// Nothing interpolated into the HTML is trusted. Addresses are validated before they get here, but
+// "validated" is a regex with a history of being one character too kind, and an address is
+// sometimes the previous one on the account rather than the one the user just typed.
+const esc = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const wrap = (title: string, body: string, cta?: { href: string; label: string }) => `<!doctype html><html><body style="margin:0;background:#02070a;color:#d4ece7;font:16px/1.5 system-ui,sans-serif">
 <div style="max-width:520px;margin:0 auto;padding:32px 20px">
 ${titleImage ? `<img src="${titleImage}" width="354" height="60" alt="Ozymandosis" style="display:block;width:354px;max-width:100%;height:auto;border:0">` : '<div style="font:700 22px Georgia,serif;letter-spacing:.08em;color:#9ff6e4">OZYMANDOSIS</div>'}
 <p style="margin:6px 0 0;font-size:12px;font-weight:700;color:#ffd28a;letter-spacing:.12em">BETA</p>
-<h1 style="font-size:20px;margin:24px 0 8px">${title}</h1><p>${body}</p>
-${cta ? `<p style="margin:28px 0"><a href="${cta.href}" style="background:#1c5d58;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none">${cta.label}</a></p><p style="font-size:13px;color:#6b8d88">Or paste this link: ${cta.href}</p>` : ''}
+<h1 style="font-size:20px;margin:24px 0 8px">${esc(title)}</h1><p>${body}</p>
+${cta ? `<p style="margin:28px 0"><a href="${esc(cta.href)}" style="background:#1c5d58;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none">${esc(cta.label)}</a></p><p style="font-size:13px;color:#6b8d88">Or paste this link: ${esc(cta.href)}</p>` : ''}
 <p style="font-size:13px;color:#6b8d88;margin-top:32px">If you did not ask for this, you can ignore this email. Ozymandosis is in beta.</p></div></body></html>`;
 
 export const templates = {
@@ -29,6 +33,6 @@ export const templates = {
   reset: (link: string) => ({ subject: 'Reset your Ozymandosis password', text: `Reset your password: ${link}\nThe link works for 1 hour.`, html: wrap('Reset your password', 'Tap below to choose a new password. The link works for one hour.', { href: link, label: 'Choose a new password' }) }),
   mfaOn: () => ({ subject: 'Two-factor sign-in is on', text: 'Two-factor authentication was turned on for your Ozymandosis account. If this was not you, reset your password now.', html: wrap('Two-factor sign-in is on', 'Your authenticator app is now required to sign in. Keep your recovery codes somewhere safe. If this was not you, reset your password now.') }),
   mfaOff: () => ({ subject: 'Two-factor sign-in was turned off', text: 'Two-factor authentication was turned off for your Ozymandosis account. If this was not you, reset your password now.', html: wrap('Two-factor sign-in was turned off', 'If this was not you, reset your password now and turn it back on.') }),
-  handoffApproved: (hint: string) => ({ subject: 'A game client signed in to your account', text: `A game client (${hint}) was just approved to sign in to your Ozymandosis account. If this was not you, change your password now and sign out your other devices.`, html: wrap('A game client signed in', `A game client (${hint}) was just approved to sign in to your account. If this was not you, change your password now and sign out your other devices.`) }),
-  emailChanged: (next: string) => ({ subject: 'Your Ozymandosis email was changed', text: `The email on your Ozymandosis account was changed to ${next}. If this was not you, reset your password now.`, html: wrap('Your email was changed', `The email on your account was changed to ${next}. If this was not you, reset your password now.`) }),
+  handoffApproved: (hint: string) => ({ subject: 'A game client signed in to your account', text: `A game client (${hint}) was just approved to sign in to your Ozymandosis account. If this was not you, change your password now and sign out your other devices.`, html: wrap('A game client signed in', `A game client (${esc(hint)}) was just approved to sign in to your account. If this was not you, change your password now and sign out your other devices.`) }),
+  emailChanged: (next: string) => ({ subject: 'Your Ozymandosis email was changed', text: `The email on your Ozymandosis account was changed to ${next}. If this was not you, reset your password now.`, html: wrap('Your email was changed', `The email on your account was changed to ${esc(next)}. If this was not you, reset your password now.`) }),
 };
