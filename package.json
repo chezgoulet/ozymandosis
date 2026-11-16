@@ -12,7 +12,6 @@
     "vendor:three": "node tools/vendor-three.cjs",
     "cap:sync": "node tools/build-web.cjs && npx cap sync",
     "android:apk": "node tools/build-web.cjs && npx cap sync android && cd android && ./gradlew assembleDebug",
-    "ios:open": "node tools/build-web.cjs && npx cap sync ios && npx cap open ios",
     "bench": "node bench/bench.cjs",
     "test:perf": "node bench/bench.cjs --backends webgl2,canvas2d --units 100,700 --label check --check",
     "play:dev": "npm run dev -w apps/play",
@@ -30,7 +29,6 @@
   "devDependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
-    "@capacitor/ios": "^8.5.2",
     "esbuild": "^0.25.12",
     "three": "^0.186.1",
     "playwright": "1.62.1"

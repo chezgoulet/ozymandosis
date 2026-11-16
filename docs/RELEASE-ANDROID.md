@@ -14,7 +14,6 @@ everywhere else it appears and `npm test` fails if any of them drift:
 | `apps/play/package.json` | the service |
 | `apps/desktop/package.json` | desktop shell (Steam) |
 | `android/app/build.gradle` | `versionName`, and `versionCode` derived as major·10000 + minor·100 + patch |
-| `ios/App/App.xcodeproj/project.pbxproj` | `MARKETING_VERSION`, and `CURRENT_PROJECT_VERSION` (the same derived number) |
 | `js/net/online.js` | `E.VERSION`: the peer protocol hello, crash reports, the service's minimum-version check |
 | `index.html` | the version on the main menu |
 | `package-lock.json` | npm's copies |

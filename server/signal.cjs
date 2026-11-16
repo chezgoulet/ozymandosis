@@ -3,8 +3,8 @@
 // WebRTC connection straight to each other. It brokers offers, answers and ICE
 // candidates only; the match runs peer to peer and never passes through here.
 // Shared by the LAN server (server/server.js) and the desktop shell's in-app host
-// (apps/desktop). Android and iOS implement the same protocol natively
-// (android/…/LanHost.java, ios/…/LanPlugin.swift). Zero dependencies.
+// (apps/desktop). Android implements the same protocol natively (android/…/LanHost.java).
+// Zero dependencies.
 //
 // Protocol (JSON text frames over /ws):
 //   → host {name}              ← hosted {room, id: 0, ice: []}

@@ -33,7 +33,7 @@ Ozymandosis is plain browser scripts on one global namespace `E`. There is no bu
 | Backends | `js/render/gl/*`, `js/render/gpu/*`, `js/render/renderer.js` | WebGL2 (GLSL), WebGPU (TSL node materials) and Canvas2D, all behind the same interface. |
 | UI | `js/ui/*` | DOM overlays. It reads world state and sends commands. |
 | Net | `js/net/net.js`, `server/server.js` | Host-authoritative: the host runs the World, guests interpolate snapshots and send commands. |
-| Native | `js/native.js`, `android/`, `ios/`, `capacitor.config.json` | A no-op on the web. |
+| Native | `js/native.js`, `android/`, `capacitor.config.json` | A no-op on the web. |
 
 ## The GPU pipeline (js/render/gl)
 - **RibbonBatch**: one instanced capsule per spine segment. The fragment shader reproduces the seed's three-layer stroke (outer 10·size at α .1, mid, whitened core). MAX blending stops joints from doubling up.

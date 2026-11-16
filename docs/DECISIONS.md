@@ -91,3 +91,24 @@ membership bought on the website through Stripe. `WEB_BILLING=1` and
 `REQUIRE_STORE_CLIENT=0`. The game remains AGPL-3.0-only; the play service is operated by
 Sorcelot LLC and the game is licensed by Chez Goulet LLC. Store billing code and store
 documentation are retained as history, not as launch instructions.
+
+**D23. iOS is dropped, not deferred (2026-11-16, owner).** Christopher: iOS will never be
+pursued. Android is the only supported platform, distributed through Obtainium and F-Droid
+(D22). The Xcode project, the Capacitor iOS platform, the StoreKit plugin and the iOS version
+markers are **deleted** rather than left unmaintained, because an unmaintained build is a claim
+that the product runs somewhere it does not. `npm test`'s version check now covers seven
+markers instead of nine.
+
+Two things are deliberately kept, and neither is an iOS dependency:
+
+- **Sign in with Apple** (`APPLE_CLIENT_ID` / `APPLE_TEAM_ID` / `APPLE_KEY_ID` /
+  `APPLE_PRIVATE_KEY`, and the `apple` branch of `apps/play/src/auth/oauth.ts`) is a login
+  provider for the web portal, not a store path. It is wired but has never been enabled —
+  `GET /api/config` reports `providers: ["google","steam"]`.
+- **Steam sign-in** is live and stays. Only Steam as a *distribution platform* is gone (D22).
+
+The client's dead store-purchase paths (`O.store`, `O.play`, `O.appstore`, `O.proveOwnership`,
+`O.plans`, and the purchase branches in `js/net/online.js`) are **not** removed here. They are
+unreachable rather than iOS-specific — the server stopped serving those endpoints before this
+ruling — and rewriting the game's networking layer without the browser suite running is not a
+change to make blind. Tracked as its own task.

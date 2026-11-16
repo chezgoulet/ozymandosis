@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What does this release actually contain?
 //
-// This repo holds the game (client, Android, iOS, desktop, website) and the service
+// This repo holds the game (client, Android, desktop, website) and the service
 // (apps/play). A tag fires both release workflows, and each asks this module whether
 // it has any work — so a release that only touches the client does not redeploy the
 // service (backup, rebuild, restart) for nothing, and vice versa.
