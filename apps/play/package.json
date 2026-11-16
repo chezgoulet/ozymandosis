@@ -6,7 +6,7 @@
   "description": "play.ozymandosis.com: accounts, subscriptions, matchmaking and WebRTC signaling, reports, moderation and admin for Ozymandosis.",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "NODE_ENV=development DEV_AUTH=1 tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "test": "tsx --test --test-concurrency=2 test/*.test.ts",

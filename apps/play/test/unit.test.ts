@@ -6,6 +6,7 @@ import { validateName, filterChat, skeleton } from '../src/lib/names.js';
 import { scrub, coarseClient } from '../src/lib/privacy.js';
 import { Secrets, TicketSigner } from '../src/lib/crypto.js';
 import { fingerprint } from '../src/reports/routes.js';
+import { loadConfig } from '../src/config.js';
 
 test('TOTP matches RFC 6238 vectors and rejects replays', () => {
   const secret = base32(Buffer.from('12345678901234567890'));
@@ -60,4 +61,29 @@ test('reports: fingerprints ignore line numbers and origins', () => {
   const b = fingerprint('crash', 'Cannot read properties of undefined (reading \'y\')', 'TypeError\n    at step (capacitor://localhost/js/sim/world.js:131:9)\n    at loop (capacitor://localhost/js/ui/game.js:210:3)');
   assert.equal(a.fp, b.fp);
   assert.notEqual(a.fp, fingerprint('crash', 'Other', 'at other (x.js:1:1)').fp);
+});
+
+test('NODE_ENV has no default: a server that forgets it refuses to boot', () => {
+  // The whole point: an unset NODE_ENV used to mean "development", which opened a passwordless
+  // sign-in, the mail outbox, cookies without Secure and the fixed development encryption key.
+  assert.throws(() => loadConfig({} as any), /NODE_ENV must be set explicitly/);
+  assert.throws(() => loadConfig({ NODE_ENV: 'production' } as any), /Production requires/);
+});
+
+test('the development sign-in needs DEV_AUTH as well as a non-production NODE_ENV', () => {
+  const dev = loadConfig({ NODE_ENV: 'development' } as any);
+  assert.equal(dev.dev, true);
+  assert.equal(dev.DEV_AUTH, false, 'not available unless it is asked for');
+
+  const asked = loadConfig({ NODE_ENV: 'development', DEV_AUTH: '1' } as any);
+  assert.equal(asked.DEV_AUTH, true);
+
+  // ...and never in production, however the flag is set.
+  const prod = loadConfig({
+    NODE_ENV: 'production', DATABASE_URL: 'postgres://u:p@h/d',
+    SECRET_KEY: Buffer.alloc(32, 7).toString('base64'), SMTP_URL: 'smtps://u:p@smtp.example:465',
+    DEV_AUTH: '1',
+  } as any);
+  assert.equal(prod.prod, true);
+  assert.equal(prod.DEV_AUTH, true, 'the flag is recorded, and the route gate refuses it in production');
 });

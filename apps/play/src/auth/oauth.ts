@@ -35,8 +35,11 @@ export function providers(ctx: Ctx): Record<string, Provider> {
   }
   return out;
 }
-// Steam OpenID needs no credentials (the API key only adds the persona name); 'dev' exists outside production.
-export const enabledProviders = (ctx: Ctx) => [...Object.keys(providers(ctx)), 'steam', ...(ctx.cfg.prod ? [] : ['dev'])];
+// Steam OpenID needs no credentials (the API key only adds the persona name). The 'dev' provider is
+// scaffolding: it needs the explicit DEV_AUTH flag and a non-production build, and it is not
+// advertised anywhere until it is actually registered.
+export const devAuthEnabled = (ctx: Ctx) => ctx.cfg.DEV_AUTH && !ctx.cfg.prod;
+export const enabledProviders = (ctx: Ctx) => [...Object.keys(providers(ctx)), 'steam', ...(devAuthEnabled(ctx) ? ['dev'] : [])];
 
 // Find or create the account behind a provider identity.
 export async function resolveIdentity(ctx: Ctx, provider: string, p: Profile, linkUser: string | null): Promise<UserRow> {
@@ -133,7 +136,7 @@ export default async function oauthRoutes(app: FastifyInstance, ctx: Ctx) {
   });
 
   // Development only: a fake provider so the whole flow can be exercised locally without credentials.
-  if (ctx.cfg.dev || ctx.cfg.test) {
+  if (devAuthEnabled(ctx)) {
     app.get('/auth/dev/start', async (req, reply) => {
       const state = await begin(req, 'dev', null);
       return reply.type('text/html').send(`<!doctype html><meta name=viewport content="width=device-width"><form method=post action="/auth/dev/callback?state=${state}" style="font-family:system-ui;padding:2rem;max-width:360px"><h2>Development sign-in</h2><p>Pretend to be a provider account.</p><input name=subject value="dev-${Math.floor(Math.random() * 1e6)}" style="width:100%;padding:8px"><input name=name placeholder="Name" style="width:100%;padding:8px;margin-top:8px"><button style="margin-top:12px;padding:10px 16px">Continue</button></form>`);

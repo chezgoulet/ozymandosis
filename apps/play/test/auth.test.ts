@@ -152,3 +152,18 @@ test('logs contain no emails, tokens or IPs', async () => {
   assert.ok(all.includes('"r":"/api/me"'), 'requests are logged');
   assert.doesNotMatch(all, /secret\.person|203\.0\.113\.9|127\.0\.0\.1|Bearer/);
 });
+
+test('the development sign-in and mail outbox are absent without DEV_AUTH', async () => {
+  // A non-production NODE_ENV alone must not be enough: one forgotten variable on a server should
+  // not hand out a passwordless login and a mailbox full of verification links.
+  const t2 = await boot({ DEV_AUTH: '0' });
+  try {
+    assert.equal((await t2.app.inject({ method: 'GET', url: '/auth/dev/start' })).statusCode, 404);
+    assert.equal((await t2.app.inject({ method: 'GET', url: '/api/dev/outbox' })).statusCode, 404);
+    const cfg = (await t2.api('GET', '/api/config')).json;
+    assert.ok(!cfg.providers.includes('dev'), 'dev is not advertised when it is not registered');
+  } finally {
+    // Closed even when an assertion throws, or a regression hangs the suite instead of failing it.
+    await t2.app.close();
+  }
+});

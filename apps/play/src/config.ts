@@ -5,7 +5,11 @@ import { z } from 'zod';
 
 const bool = z.enum(['1', '0', 'true', 'false', 'yes', 'no']).transform(v => v === '1' || v === 'true' || v === 'yes');
 const Env = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // No default on purpose — see the check in loadConfig.
+  NODE_ENV: z.enum(['development', 'test', 'production']),
+  // Development only: the fake sign-in provider and the mail outbox. It takes this flag *and* a
+  // non-production NODE_ENV, so one forgotten variable cannot open either on a server.
+  DEV_AUTH: bool.default(false),
   PORT: z.coerce.number().int().default(8787),
   HOST: z.string().default('0.0.0.0'),
   PUBLIC_URL: z.string().url().default('http://localhost:8787'),
@@ -70,6 +74,13 @@ const Env = z.object({
 export type Config = z.infer<typeof Env> & { dev: boolean; test: boolean; prod: boolean; corsOrigins: string[] };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  // Deliberately no default. An unset NODE_ENV used to mean "development", which turned on a
+  // passwordless sign-in, a mail outbox holding verification and reset links, cookies without
+  // Secure, and the fixed development encryption key as a fallback. A missing value must stop the
+  // process, not open all four on a server that forgot to set it.
+  if (!env.NODE_ENV) {
+    throw new Error('NODE_ENV must be set explicitly: development, test or production. There is no default on purpose.');
+  }
   const parsed = Env.safeParse(env);
   if (!parsed.success) {
     const msg = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n  ');
