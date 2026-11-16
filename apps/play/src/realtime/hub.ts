@@ -5,7 +5,8 @@
 // passes through this server.
 //
 // Protocol (JSON over one WebSocket per client; the first message must be auth):
-//   → auth {token, version, proto, platform}            ← hello {user, ent, ice, key, announcements, config}
+//   → auth {token, version, proto}                      ← hello {user, ent, ice, key, announcements, config}
+//     (a legacy `platform` field is still accepted and ignored: memberships are not scoped)
 //   → host {title?, public?, mode?, max?}         ← hosted {room, id: 0, ice}
 //   → host {resume: room}                         ← hosted {room, id: 0, ice, resumed}  (host back after a signaling drop)
 //   → join {room}                                 ← joined {room, id, ice, hostName}; host ← peer {id, name, uid, sub, muted}

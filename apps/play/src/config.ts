@@ -34,11 +34,8 @@ const Env = z.object({
   // No store scheme (docs/MONETIZATION.md, ruling of 2026-11-05): the app is free, it is not
   // listed in any app store, and Stripe on the website is the only billing rail. The App Store
   // and Steam settings below are for *sign-in* only, not for purchases.
-  // No browser version (docs/MONETIZATION.md): online play only from the store apps
-  // (android, ios, steam) whose purchase the service has verified with that store.
-  // On by default in production; development and tests use browsers.
-  // Stripe on the web is not part of the scheme (subscriptions are sold per platform,
-  // in the platform's store). Off unless an operator decides otherwise.
+  // Stripe on the website is the only billing rail (docs/MONETIZATION.md, ruling of 2026-11-05).
+  // This stays so a server can be run with billing switched off entirely; production sets it to 1.
   WEB_BILLING: bool.default(false),
   // Stripe Tax computes VAT/GST/sales tax at checkout (activate Stripe Tax in the dashboard first)
   STRIPE_TAX: bool.default(true),

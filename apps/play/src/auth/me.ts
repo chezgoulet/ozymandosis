@@ -222,6 +222,10 @@ export async function deleteAccount(ctx: Ctx, userId: string, actor?: string) {
     await t.query(`update users set display_name = $2, name_key = $3, email = null, email_verified = false, password_hash = null, totp_secret_enc = null, totp_enabled = false, status = 'deleted', stripe_customer_id = null where id = $1`, [userId, tomb, 'deleted:' + userId]);
     for (const tbl of ['identities', 'sessions', 'recovery_codes', 'email_tokens', 'cloud_items']) await t.query(`delete from ${tbl} where user_id = $1`, [userId]);
     await t.query('update reports set user_id = null, screenshot = null where user_id = $1', [userId]);
+    // The store columns outlive the store code (docs/*, migration 011): keep wiping a token for
+    // this account rather than relying on 011's one-shot nulling, which never runs again and so
+    // cannot cover a value written by a rolled-back image during a deploy window.
+    await t.query('update subscriptions set store_token_enc = null where user_id = $1', [userId]);
   });
   await audit(ctx, actor || userId, 'account.delete', userId);
   ctx.hub.kickUser(userId, 'This account was deleted.');
