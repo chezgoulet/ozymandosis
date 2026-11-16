@@ -44,9 +44,6 @@ const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
     const land = f.includes('land'), k = DENS[f.split('-').pop()] || 1;
     await render(sp, Math.round((land ? 480 : 320) * k), Math.round((land ? 320 : 480) * k), { bg: DARK, title: true });
   }
-  const IOS = path.join(ROOT, 'ios/App/App/Assets.xcassets');
-  await render(path.join(IOS, 'AppIcon.appiconset/AppIcon-512@2x.png'), 1024, 1024, { bg: DARK });
-  for (const f of ['splash-2732x2732.png', 'splash-2732x2732-1.png', 'splash-2732x2732-2.png']) await render(path.join(IOS, 'Splash.imageset', f), 2732, 2732, { bg: DARK, title: true });
   await render(path.join(ROOT, 'icons/icon-192.png'), 192, 192, { bg: DARK });
   await render(path.join(ROOT, 'icons/icon-512.png'), 512, 512, { bg: DARK });
   await render(path.join(ROOT, 'icons/maskable-512.png'), 512, 512, { bg: DARK, scale: 0.86 });

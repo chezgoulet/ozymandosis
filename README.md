@@ -25,7 +25,7 @@ apps/play/                       play.ozymandosis.com: accounts, 2FA, OAuth, Str
                                  signaling, tickets, crash reports, moderation, admin console
 apps/desktop/                    Electron shell (installed separately)
 deploy/                          Compose stack: Caddy (TLS), play, Postgres, coturn (TURN), backups
-android/, ios/                   Capacitor projects
+android/                         Capacitor project (Android only — see D23)
 ```
 
 ## Rendering and platforms

@@ -12,11 +12,6 @@
     "allowMixedContent": true,
     "webContentsDebuggingEnabled": false
   },
-  "ios": {
-    "backgroundColor": "#02070a",
-    "contentInset": "never",
-    "scrollEnabled": false
-  },
   "plugins": {
     "SystemBars": {
       "style": "DARK",

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-only
-// The product version is written down in eight places. Two of them are load-bearing:
+// The product version is written down in seven places. Two of them are load-bearing:
 //   E.VERSION          what a client announces in the peer handshake (js/net/online.js)
 //   MIN_CLIENT_VERSION what the service will let online (apps/play/src/config.ts)
-// so a bump done in six of eight places is a support incident, not a cosmetic slip.
+// so a bump done in five of seven places is a support incident, not a cosmetic slip.
 //
-//   node tools/version-check.cjs                      # the nine markers against each other
+//   node tools/version-check.cjs                      # the seven markers against each other
 //   TAG=v0.5.1 node tools/version-check.cjs           # ...and the tag against the version
 //
 // CI runs this on every push; the release workflows run it with TAG set before they
@@ -35,11 +35,6 @@ const gradle = read('android/app/build.gradle');
 const androidName = say('android versionName', /versionName\s*=?\s*["']([^"']+)["']/.exec(gradle)?.[1]);
 const androidCode = say('android versionCode', /versionCode\s*=?\s*(\d+)/.exec(gradle)?.[1]);
 
-// ── iOS ─────────────────────────────────────────────────────────────────
-const pbx = read('ios/App/App.xcodeproj/project.pbxproj');
-const iosVersions = [...new Set([...pbx.matchAll(/MARKETING_VERSION = ([^;]+);/g)].map((m) => m[1].trim()))];
-say('ios MARKETING_VERSION', iosVersions.join(' + '));
-
 // ── the two that matter at runtime ──────────────────────────────────────
 const clientVersion = say('js/net/online.js E.VERSION', /E\.VERSION\s*=\s*'([^']+)'/.exec(read('js/net/online.js'))?.[1]);
 const minClient = say('apps/play MIN_CLIENT_VERSION', /MIN_CLIENT_VERSION:\s*z\.string\(\)\.default\('([^']+)'\)/.exec(read('apps/play/src/config.ts'))?.[1]);
@@ -60,11 +55,6 @@ for (const [label, value] of Object.entries(found)) {
   // which is most of them, and raising it every time is what it must not do.
   // It is checked below as a floor, and refused only if it is NEWER than the release.
   if (label === 'apps/play MIN_CLIENT_VERSION') continue;
-  if (label === 'ios MARKETING_VERSION' && iosVersions.length > 1) {
-    problems.push(`${label} disagrees with itself: ${iosVersions.join(' + ')}`);
-    continue;
-  }
-  if (label === 'ios MARKETING_VERSION' && iosVersions.length === 1 && num(iosVersions[0]) === null) continue; // generated placeholder
   if (String(value) !== String(rootVersion)) problems.push(`${label} is ${value}, package.json is ${rootVersion}`);
 }
 

@@ -38,8 +38,6 @@ const PLACES = [
   json('apps/desktop/package.json', 'desktop shell (Steam)'),
   regex('android/app/build.gradle', 'Android versionName', /(versionName = ")([^"]+)(")/, v => v),
   regex('android/app/build.gradle', 'Android versionCode', /(versionCode = )(\d+)()/, v => String(code(v))),
-  regex('ios/App/App.xcodeproj/project.pbxproj', 'iOS MARKETING_VERSION', /(MARKETING_VERSION = )([^;]+)(;)/, v => v),
-  regex('ios/App/App.xcodeproj/project.pbxproj', 'iOS CURRENT_PROJECT_VERSION', /(CURRENT_PROJECT_VERSION = )([^;]+)(;)/, v => String(code(v))),
   regex('js/net/online.js', 'game (E.VERSION: protocol hello, crash reports, service)', /(E\.VERSION = ')([^']+)(')/, v => v),
   regex('index.html', 'main menu', /(<span id="m-version">v)([^<]+)(<\/span>)/, short),
 ];
