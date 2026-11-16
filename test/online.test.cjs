@@ -24,7 +24,7 @@ function startTurn() {
 const stopTurn = () => { try { execFileSync('docker', ['rm', '-f', TURN_NAME], { stdio: 'ignore' }); } catch (e) { /* not running */ } };
 (async () => {
   startTurn();
-  const play = spawn(process.execPath, [require.resolve('tsx/cli'), 'src/index.ts'], { cwd: path.join(__dirname, '../apps/play'), env: Object.assign({}, process.env, { NODE_ENV: 'test', PORT: String(PLAY), LOG_LEVEL: 'warn', PGLITE_DIR: '', PUBLIC_URL: PLAY_URL, TURN_URLS: `turn:127.0.0.1:${TURN_PORT}?transport=udp`, TURN_SECRET }), stdio: ['ignore', 'inherit', 'inherit'] });
+  const play = spawn(process.execPath, [require.resolve('tsx/cli'), 'src/index.ts'], { cwd: path.join(__dirname, '../apps/play'), env: Object.assign({}, process.env, { NODE_ENV: 'test', DEV_AUTH: '1', PORT: String(PLAY), LOG_LEVEL: 'warn', PGLITE_DIR: '', PUBLIC_URL: PLAY_URL, TURN_URLS: `turn:127.0.0.1:${TURN_PORT}?transport=udp`, TURN_SECRET }), stdio: ['ignore', 'inherit', 'inherit'] });
   const stopAll = code => { try { play.kill(); } catch (e) { /* */ } stopTurn(); lan.close(); process.exit(code); };
   for (let i = 0; i < 60; i++) { try { if ((await fetch(PLAY_URL + '/healthz')).ok) break; } catch (e) { /* booting */ } await sleep(500); }
   const b = await pw.launch({ args: ['--disable-features=WebRtcHideLocalIpsWithMdns'] });
@@ -47,6 +47,8 @@ const stopTurn = () => { try { execFileSync('docker', ['rm', '-f', TURN_NAME], {
     await p.selectOption('.modal.signin select[aria-label="Birth month"]', '6'); await p.selectOption('.modal.signin select[aria-label="Birth year"]', '1990');
     await p.click('.modal.signin button[type=submit]');
     await p.waitForSelector('.modal.signin', { state: 'detached', timeout: 20000 }).catch(async e => { throw new Error('sign-up did not finish: ' + (await p.textContent('.modal.signin .form-err').catch(() => '?'))); });
+    // The outbox is behind DEV_AUTH (it carries verification links), so the harness must ask for it
+    // as well as booting with a non-production NODE_ENV.
     const mail = (await (await fetch(PLAY_URL + '/api/dev/outbox')).json()).mail.filter(m => m.to === email).pop();
     const token = /token=([A-Za-z0-9_-]+)/.exec(mail.text)[1];
     assert((await fetch(PLAY_URL + '/api/auth/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }) })).ok);
