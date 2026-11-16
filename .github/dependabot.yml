@@ -1,0 +1,47 @@
+# Dependency updates: one grouped pull request a week, not a stream.
+#
+# Why grouping: this repository is an npm workspace, so a single advisory surfaces as several PRs
+# that conflict with each other — dependabot opened both #102 and #103 for the same
+# `@fastify/static` bump, dragging the same transitive set. Grouping by update type turns that into
+# one patch-and-minor PR to read and merge.
+#
+# Why majors are not grouped: they match no group, so each arrives on its own and gets reviewed on
+# its own. A grouped major is a diff nobody reads.
+#
+# Why auto-merge is NOT enabled: the only check that runs on a pull request is `test`. The browsers,
+# android and images jobs run only on push to `testing` and `main`. Auto-merging on `test` alone
+# would land dependency changes that break the end-to-end suite with nobody watching — which is
+# exactly how a regression got through during the dependency pass that produced this file. One PR a
+# week, merged by a person, keeps that gate real. If auto-merge is ever wanted, the browsers job has
+# to run on pull requests first.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Toronto
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    commit-message:
+      prefix: "deps"
+    groups:
+      patch-and-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Toronto
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
