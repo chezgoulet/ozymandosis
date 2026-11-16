@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
-    "@types/node": "22.20.4",
+    "@types/node": "26.6.6",
     "@types/nodemailer": "6.4.24",
     "@types/pg": "8.23.1",
     "@types/qrcode": "1.5.6",
