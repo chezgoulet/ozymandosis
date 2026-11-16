@@ -159,30 +159,29 @@ secret**. That key pair was missing from my earlier list.
 > whose only key sits on the machine they back up are not backups. Its homes are your
 > password manager and the offline copy — the same two places as the upload key.
 
-**Leave alone:** `WEB_BILLING` off, `REQUIRE_STORE_CLIENT` on (both already the
-production defaults).
+**Current billing:** `WEB_BILLING=1`, `REQUIRE_STORE_CLIENT=0`. Stripe is the only
+billing rail; the service refuses to boot with web billing on and the Stripe keys
+missing.
 
 ### E. Not needed
 
-**Stripe** — `WEB_BILLING` is off and the config only demands Stripe keys when it is
-on; memberships are sold in each platform's store. **Play Console login** — a browser
-session holding your Google identity is too much authority for forms that are legal
-declarations, and most of those fields have no API anyway. **Cloudflare** — the zone
-is on Linode.
+**Stripe is required.** `WEB_BILLING=1`; set `STRIPE_SECRET_KEY` and
+`STRIPE_WEBHOOK_SECRET`. Memberships are sold on the website, not in a store.
+**Play Console / App Store Connect / Steamworks** are not needed: there is no store
+listing. **Cloudflare** — the zone is on Linode.
 
 ## The one-time things only you can create
 
-1. A Google Cloud project, the Play Android Developer API enabled, and a service
-   account — unless you install `gcloud` and give me a credential with IAM rights.
-2. The **service account invited in Play Console** → Users and permissions, with app
-   permissions. Without this the JSON key authenticates and is authorised for nothing.
-3. A Google Cloud **OAuth client** (Web application) with the redirect
-   `https://play.ozymandosis.com/api/auth/google/callback`, for sign-in.
-4. **Purelymail** and **Resend** accounts.
-5. A **scoped Linode token**, replacing the full-access one.
-6. A **Linode Object Storage** bucket and its access key pair, for the off-site backups
+1. A Google Cloud **OAuth client** (Web application) with the redirect
+   `https://play.ozymandosis.com/api/auth/google/callback`, only if Google sign-in is
+   enabled. No Play Developer API or service account is needed.
+2. **Purelymail** and **Resend** accounts.
+3. A **scoped Linode token**, replacing the full-access one.
+4. A **Linode Object Storage** bucket and its access key pair, for the off-site backups
    — and an **age keypair** to encrypt them, whose private half lives only in your
    password manager and the offline copy, never on the box.
-7. Later: Apple Developer and Steamworks.
+5. A **Stripe** account with the $2/month and $12/year prices, the webhook endpoint and
+   Stripe Tax.
+6. An **F-Droid** submission (`docs/fdroiddata/`); no Apple Developer or Steamworks.
 
 Everything after those six is mine.

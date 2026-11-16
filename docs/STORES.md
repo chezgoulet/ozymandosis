@@ -1,3 +1,10 @@
+# Historical — the retired store scheme
+
+> **Not current.** As of 2026-11-05 the app is free, distributed through Obtainium and
+> F-Droid. The only paid product is worldwide online multiplayer, bought on the website
+> through Stripe. This file is kept as the record of the retired iOS/Steam store scheme.
+> Do not follow it for launch. See `MONETIZATION.md`, `LAUNCH.md` and `DEPLOY.md`.
+
 # The App Store and Steam
 
 How the iOS and Steam builds sell and prove what `docs/MONETIZATION.md` says, and what

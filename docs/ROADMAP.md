@@ -1,3 +1,5 @@
+> **Historical framing.** The "$1" pricing references predate the 2026-11-05 scheme: the app is free; the only paid product is worldwide online multiplayer. See `MONETIZATION.md`.
+
 # Roadmap
 
 **This is a wishlist.** Everything below is an idea under consideration, not a

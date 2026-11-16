@@ -50,7 +50,7 @@ Recorded so the consequences are not rediscovered:
 - **Consequence: cleartext for the local signalling hop is now permanent** (see `RELEASE-PLAN.md` Appendix C). Keeping local play serverless means the local signalling transport stays, so the Android cleartext exception and the iOS App Transport Security exception both remain for it. Local traffic on the players' own network, with the match payload still inside DTLS — acceptable, but it should be stated rather than rediscovered.
 - **Android gates local networking from API 37, and this is on the critical path.** Local Network Protections are opt-in for apps targeting 36 (the current target) and mandatory for 37, where the local network is blocked by default. The gated operations are exactly this feature: outgoing TCP, accepting incoming TCP, UDP multicast and broadcast, and resolving `.local` names. Joining can avoid the broad permission by using `NsdManager` with `DiscoveryRequest.FLAG_SHOW_PICKER`, where the user picks the device from a system dialog and the grant persists; **hosting always requires `ACCESS_LOCAL_NETWORK`**, because accepting incoming connections does. Build and test the feature under `adb shell am compat enable RESTRICT_LOCAL_NETWORK <package>` now, so the next Play target-API bump does not break it.
 
-**D20. Compliance with the monetization scheme (`MONETIZATION.md`), and how it is read.** Implemented 2026-09-28:
+**D20. Compliance with the monetization scheme (`MONETIZATION.md`), and how it is read.** Implemented 2026-09-28; **superseded by D22 (2026-11-05)** on the store scheme:
 
 - **The allowance** is server-side (D12): `apps/play/src/billing/allowance.ts`, live-configurable as `freeMatchesPerDay` (was `freeMatchMinutes`). Counted once per player per match, at the start, whichever side; a rejoin is not counted again; members are never counted; LAN never reaches the service.
 - **No browser version**: the site no longer serves the client (`/play/` redirects to the platforms) and `play.ozymandosis.com` serves the account portal and the API, not the game. The Android app is the client. (The earlier `REQUIRE_STORE_CLIENT` gate was removed with the Play integration; allowance and membership are the gate now.)
@@ -82,3 +82,12 @@ environments exist yet**, so it currently no-ops. Making it live needs the host
 bootstrapped once by hand, the two environments and their four secrets, and then
 promotion to `main` does the rest.
 
+**D22. Free app, website membership only (2026-11-05, owner).** Supersedes D20's store
+scheme. Ozymandosis is free to download and play; it is distributed through Obtainium and
+F-Droid. There is no Google Play, App Store or Steam listing, no $1 purchase and no
+platform entitlement. Single-player and local-network play are free. Worldwide online play
+is the paid service: one free match per rolling 24 hours, then a $2/month or $12/year
+membership bought on the website through Stripe. `WEB_BILLING=1` and
+`REQUIRE_STORE_CLIENT=0`. The game remains AGPL-3.0-only; the play service is operated by
+Sorcelot LLC and the game is licensed by Chez Goulet LLC. Store billing code and store
+documentation are retained as history, not as launch instructions.

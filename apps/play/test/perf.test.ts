@@ -30,6 +30,23 @@ test('LAN runs are not accepted (local play does not report), and junk is refuse
   assert.equal(Number((await t.ctx.db.one<any>('select count(*)::int as n from perf_runs')).n), 2);
 });
 
+test('the per-client limit is spent before an anonymous body is validated', async () => {
+  // A fresh address keeps this test off the module-level limiter the tests above used.
+  const addr = '203.0.113.77';
+  const post = (payload: unknown) => t.app.inject({
+    method: 'POST', url: '/api/perf', remoteAddress: addr,
+    payload: JSON.stringify(payload), headers: { 'content-type': 'application/json' },
+  });
+  // LAN runs are skipped and store nothing, so this spends the 20 tokens without adding
+  // rows the tests around it count.
+  for (let i = 0; i < 20; i++) assert.equal((await post(run({ mode: 'lan' }))).statusCode, 200, `request ${i + 1} is under the limit`);
+  // The 21st is over the limit, and its body is invalid on purpose. If the limiter is
+  // checked first the answer is 429; if the body is validated first it is 400 — which is
+  // precisely the parsing work an anonymous caller must not be able to buy.
+  const over = await post({ nothing: 'valid' });
+  assert.equal(over.statusCode, 429, 'an over-limit body is refused before it is parsed');
+});
+
 test('staff find the runs afterwards: recent runs and medians per device class', async () => {
   const player = await signup(t);
   assert.equal((await t.api('GET', '/api/admin/perf', undefined, player.token)).status, 403);

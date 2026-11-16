@@ -25,10 +25,14 @@ export const PerfRun = z.object({
 
 export default async function perfRoutes(app: FastifyInstance, ctx: Ctx) {
   app.post('/api/perf', async req => {
-    const r = PerfRun.parse(req.body);
-    if (r.mode === 'lan') return { ok: true, skipped: true }; // local play does not report to the service
+    // The rate-limit token is spent before the body is validated. This route takes no
+    // account, and validating an unauthenticated body is the most expensive thing it
+    // does: a schema with an array in it collects one issue per failing element, so
+    // letting an anonymous caller reach the parser first buys us work with their bytes.
     const key = req.auth ? 'u:' + ctx.secrets.pseudonym(req.auth.user.id, 16) : 'ip:' + ctx.secrets.pseudonym(req.ip || '', 16);
     if (!perClient.take(key)) throw tooMany();
+    const r = PerfRun.parse(req.body);
+    if (r.mode === 'lan') return { ok: true, skipped: true }; // local play does not report to the service
     const detail = { worst: r.worst, hitches: r.hitches, cpuMs: r.cpuMs, tierLog: r.tierLog || [], popCap: r.popCap, players: r.players, quality: r.quality, cores: r.cores, memoryGB: r.memoryGB, screen: r.screen };
     await ctx.db.query(`insert into perf_runs (version, platform, device_class, renderer, mode, seconds, frames, fps, p50, p95, p99, below30, tier_start, tier_end, tier_changes, units_peak, detail)
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,

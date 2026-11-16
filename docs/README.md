@@ -8,6 +8,13 @@ If two of these ever disagree, the order of authority is: **owner rulings**
 (`MONETIZATION.md`, `DECISIONS.md`) → the **live** operational documents → the
 **records**.
 
+> **Current scheme (2026-11-05).** The app is free, distributed through Obtainium and
+> F-Droid. The only paid product is worldwide online multiplayer, bought on the website
+> through Stripe. There are no store sales, no $1 purchase and no platform billing.
+> `MONETIZATION.md` is binding. `STORES.md`, `PLAY-DECLARATIONS.md`, the store sections of
+> `RELEASE-CHECKLIST.md`/`RELEASE-PLAN.md`, and the older store decisions in `DECISIONS.md`
+> are **historical**; do not follow them for launch.
+
 ## Start here
 
 | Document | What it is |
@@ -36,8 +43,8 @@ If two of these ever disagree, the order of authority is: **owner rulings**
 |---|---|
 | [RELEASE-FLOW.md](RELEASE-FLOW.md) | **Live.** Branches, tags, nightlies and Play's tracks — and the two tests that keep a server deploy safe for a client already in players' hands. |
 | [RELEASE-ANDROID.md](RELEASE-ANDROID.md) | **Live.** Signing, the AAB, and the Play track upload. |
-| [STORES.md](STORES.md) | **Live.** iOS and Steam: how those builds sell and prove what `MONETIZATION.md` says. |
-| [PLAY-DECLARATIONS.md](PLAY-DECLARATIONS.md) | **Live.** The Play Console declarations — the answers, and the one that is not true yet. |
+| [STORES.md](STORES.md) | **Historical.** The retired iOS/Steam store scheme; not used. |
+| [PLAY-DECLARATIONS.md](PLAY-DECLARATIONS.md) | **Historical.** Play Console declarations for a store listing that no longer exists. |
 
 ## Design and decisions
 

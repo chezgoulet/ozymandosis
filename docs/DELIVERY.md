@@ -1,3 +1,5 @@
+> **Historical store rows.** The store/pricing rows predate the 2026-11-05 scheme. The app is free; the only paid product is worldwide online multiplayer. See `MONETIZATION.md`.
+
 # Delivery summary: requirements → implementation
 
 Evidence commands: `npm test` (52 sim/content tests), `npm run test:ui` (smoke, touch, flow, features, multiplayer), `npm run test:perf` (budget gate), `npm run bench` (results in `bench/results/`).
