@@ -89,15 +89,18 @@ export function assertCanPlay(u: UserRow) {
 }
 
 // ── entitlements ─────────────────────────────────────────────────
-export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatches: Allowance | null; lifetime: boolean; source: 'stripe' | 'promo' | 'gift' | 'play' | 'staff' | null; billing: boolean; platform: string | null }
-// Entitlements are per platform (docs/MONETIZATION.md): a store subscription counts
-// only on its own platform; Stripe, promo codes and gifts (platform null) count
-// everywhere. `platform` is the client asking ('android', 'ios', 'web'…); '*' is the
-// staff view, which sees every source.
-export async function entitlements(ctx: Ctx, u: UserRow, platform?: string): Promise<Entitlements> {
-  const scope = platform === '*' ? 'true' : `(platform is null or platform = $2)`;
-  const sub = await ctx.db.one<any>(`select id, status, current_period_end, cancel_at_period_end, platform from subscriptions where user_id = $1 and ${scope}
-    order by (status in ('active', 'trialing', 'past_due') and current_period_end > now()) desc, current_period_end desc nulls last limit 1`, platform === '*' ? [u.id] : [u.id, platform || '']);
+export interface Entitlements { subscriber: boolean; until: string | null; status: string | null; cancelAtPeriodEnd: boolean; freeMatches: Allowance | null; lifetime: boolean; source: 'stripe' | 'promo' | 'gift' | 'staff' | null; billing: boolean; platform: string | null }
+// One membership, honoured everywhere. Stripe on the website, promo codes and gifts are the only
+// sources since the store scheme was retired (docs/MONETIZATION.md, ruling of 2026-11-05), so there
+// is no per-platform scope and nothing a store must vouch for.
+//
+// `platform` is INFORMATIONAL ONLY — it is the store a pre-retirement row came from, and it exists
+// so the account page can still tell that player where to cancel (public/portal.js) instead of
+// showing them a membership with no way out. It scopes nothing. When the column is dropped in the
+// release after this one, this field goes with it.
+export async function entitlements(ctx: Ctx, u: UserRow): Promise<Entitlements> {
+  const sub = await ctx.db.one<any>(`select id, status, current_period_end, cancel_at_period_end, platform from subscriptions where user_id = $1
+    order by (status in ('active', 'trialing', 'past_due') and current_period_end > now()) desc, current_period_end desc nulls last limit 1`, [u.id]);
   const billing = !!(await ctx.db.one(`select 1 from subscriptions where user_id = $1 and id like 'sub\\_%'`, [u.id]));
   const end = sub?.current_period_end ? new Date(sub.current_period_end).getTime() : 0;
   // active or trialing while paid up; past_due keeps access for a three-day grace
@@ -105,7 +108,7 @@ export async function entitlements(ctx: Ctx, u: UserRow, platform?: string): Pro
   const staff = u.role !== 'player';
   const lifetime = paid && end >= Date.UTC(9999, 0, 1);
   const id = String(sub?.id || '');
-  const source = paid ? (id.startsWith('promo_') ? 'promo' : id.startsWith('comp_') ? 'gift' : id.startsWith('gp_') ? 'play' : 'stripe') : staff ? 'staff' : null;
+  const source = paid ? (id.startsWith('promo_') ? 'promo' : id.startsWith('comp_') ? 'gift' : 'stripe') : staff ? 'staff' : null;
   return { subscriber: paid || staff, until: sub?.current_period_end ? new Date(sub.current_period_end).toISOString() : null, status: sub?.status ?? null, cancelAtPeriodEnd: !!sub?.cancel_at_period_end, freeMatches: paid || staff ? null : await allowance(ctx, u.id), lifetime, source, billing, platform: sub?.platform ?? null };
 }
 

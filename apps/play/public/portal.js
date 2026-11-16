@@ -182,7 +182,8 @@
     cards.push(h('div', { class: 'card' }, h('h2', null, 'Profile'),
       h('label', null, 'Display name'), h('div', { class: 'row', style: 'flex-wrap:nowrap' }, name, save),
       h('dl', { class: 'kv', style: 'margin-top:16px' }, h('dt', null, 'Rating'), h('dd', null, u.rating), h('dt', null, 'Matches'), h('dd', null, `${u.matches} played, ${u.wins} won`), h('dt', null, 'Email'), h('dd', null, u.email || 'none'), h('dt', null, 'Sign-ins'), h('dd', null, [u.hasPassword ? 'Email' : null, ...me.identities.map(p => PROVIDER[p] || p)].filter(Boolean).join(', ') || 'none'))));
-    // membership: bought per platform, in that platform's store (docs/MONETIZATION.md)
+    // membership: Stripe on the website. A row bought in a store before the scheme was retired
+    // still carries `platform`, so this page can tell that player where to cancel.
     const STORE = { android: 'Google Play (Android)', ios: 'the App Store (iOS)', steam: 'Steam' };
     const mem = h('div', { class: 'card' }, h('h2', null, 'Online play'));
     const f = ent.freeMatches;
@@ -196,7 +197,7 @@
       const webOffer = monthly ? `${price('month')} a month${yearly ? ` or ${price('year')} a year` : ''}, tax included` : 'a monthly or yearly subscription, tax included';
       mem.append(h('p', { class: 'soft' }, cfg.billing
         ? `For unlimited online play, subscribe here: ${webOffer}. It covers every platform you play on, and you can cancel any time from this page.`
-        : 'For unlimited online play, become a member in the game, through the store of the platform you play on: $2 a month or $12 a year on iOS and Android, a $12 season on Steam. A membership applies on the platform where it was bought.'));
+        : 'Membership is not offered on this server. Worldwide online play stays free within the daily allowance.'));
       if (cfg.billing) {
         const sub = h('button', { class: 'btn primary' }, 'Subscribe');
         sub.onclick = () => busy(sub, async () => { location.href = (await api('POST', '/api/billing/checkout', { plan: 'month' })).url; });

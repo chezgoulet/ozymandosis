@@ -5,7 +5,8 @@
 // passes through this server.
 //
 // Protocol (JSON over one WebSocket per client; the first message must be auth):
-//   → auth {token, version, proto, platform}            ← hello {user, ent, ice, key, announcements, config}
+//   → auth {token, version, proto}                      ← hello {user, ent, ice, key, announcements, config}
+//     (a legacy `platform` field is still accepted and ignored: memberships are not scoped)
 //   → host {title?, public?, mode?, max?}         ← hosted {room, id: 0, ice}
 //   → host {resume: room}                         ← hosted {room, id: 0, ice, resumed}  (host back after a signaling drop)
 //   → join {room}                                 ← joined {room, id, ice, hostName}; host ← peer {id, name, uid, sub, muted}
@@ -43,7 +44,7 @@ const cmpVersion = (a: string, b: string) => { const x = a.split('.').map(Number
 
 interface Conn {
   ws: WebSocket; user: UserRow | null; ent: Entitlements | null; tag: string;
-  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; platform: string; queued: string | null; queuedAt: number; chatAt: number[];
+  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; queued: string | null; queuedAt: number; chatAt: number[];
 }
 interface Lobby {
   code: string; host: Conn; members: Map<number, Conn>; seq: number; createdAt: number;
@@ -87,7 +88,7 @@ export class Hub {
 
   // ── connection lifecycle ─────────────────────────────────────
   private accept(ws: WebSocket, req: FastifyRequest) {
-    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, platform: '', queued: null, queuedAt: 0, chatAt: [] };
+    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, queued: null, queuedAt: 0, chatAt: [] };
     this.conns.add(c);
     const authTimer = setTimeout(() => { if (!c.user) ws.close(4001, 'auth timeout'); }, 10000);
     (ws as any).isAlive = true;
@@ -111,7 +112,7 @@ export class Hub {
     const a = await sessionUser(this.ctx, String(m.token || ''));
     if (!a) { this.send(c, { op: 'error', msg: 'Please sign in again.', code: 'unauthorized' }); c.ws.close(4001, 'unauthorized'); return; }
     if (a.user.status === 'suspended') { this.send(c, { op: 'kicked', msg: `Your account is suspended until ${new Date(a.user.suspended_until!).toUTCString()}.` }); c.ws.close(4003, 'suspended'); return; }
-    c.version = String(m.version || '0').slice(0, 20); c.proto = Number.isInteger(m.proto) ? m.proto : 1; c.platform = String(m.platform || '').slice(0, 20);
+    c.version = String(m.version || '0').slice(0, 20); c.proto = Number.isInteger(m.proto) ? m.proto : 1;
     const cfg = await this.remote();
     if (cmpVersion(c.version, cfg.minClientVersion) < 0) { this.send(c, { op: 'upgrade', msg: 'A new version of Ozymandosis is out. Please update to play online.', min: cfg.minClientVersion }); c.ws.close(4010, 'upgrade'); return; }
     if (!a.user.age_band) { this.send(c, { op: 'error', code: 'age', msg: 'Before you play online, tell us your age.' }); c.ws.close(4012, 'age'); return; }
@@ -120,7 +121,7 @@ export class Hub {
     // client cannot produce, and which a patched one could always lie about. The gates
     // that remain are the ones this server holds: the free daily allowance, and membership.
     if (cfg.maintenance?.on && a.user.role === 'player') { this.send(c, { op: 'maintenance', msg: cfg.maintenance.message || 'Online play is down for maintenance. Back soon.' }); c.ws.close(4011, 'maintenance'); return; }
-    c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user, c.platform);
+    c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user);
     this.send(c, {
       op: 'hello', user: this.pub(c), ent: c.ent, ice: this.ice(c),
       key: { kid: this.ctx.signer.id, x: this.ctx.signer.publicRaw }, keys: this.ctx.signer.publicKeys(),
@@ -346,7 +347,7 @@ export class Hub {
   // rolling 24 hours. Checked (fresh from the database) before hosting, joining or
   // queueing, and again when the match starts, which is when it is counted.
   private async mayPlay(c: Conn): Promise<boolean> {
-    c.ent = await entitlements(this.ctx, c.user!, c.platform);
+    c.ent = await entitlements(this.ctx, c.user!);
     if (c.ent.subscriber || !c.ent.freeMatches || c.ent.freeMatches.left > 0) return true;
     this.send(c, { op: 'error', code: 'allowance', msg: allowanceMessage(c.ent.freeMatches), allowance: c.ent.freeMatches });
     return false;
@@ -375,7 +376,7 @@ export class Hub {
     for (const [id, m] of seats) {
       const member = !!m.ent?.subscriber;
       if (L.matchId && await countPlayer(this.ctx, L.matchId, m.user!.id, id, member) && !member) {
-        m.ent = await entitlements(this.ctx, m.user!, m.platform);
+        m.ent = await entitlements(this.ctx, m.user!);
         this.send(m, { op: 'me', user: this.pub(m), ent: m.ent, config: {} });
       }
       players.push({ id, uid: m.user!.id, name: m.user!.display_name, sub: member, free: member ? null : (m.ent?.freeMatches?.left ?? (await allowance(this.ctx, m.user!.id)).left) });
@@ -432,7 +433,7 @@ export class Hub {
     const u = await this.ctx.db.one<UserRow>('select * from users where id = $1', [userId]);
     for (const c of this.conns) if (c.user?.id === userId) {
       if (!u || u.status === 'banned' || u.status === 'deleted') { this.kick(c, 'This account can no longer play online.'); continue; }
-      c.user = u; c.ent = await entitlements(this.ctx, u, c.platform);
+      c.user = u; c.ent = await entitlements(this.ctx, u);
       if (u.status === 'suspended') { this.kick(c, `Your account is suspended until ${new Date(u.suspended_until!).toUTCString()}.`); continue; }
       this.send(c, { op: 'me', user: this.pub(c), ent: c.ent, config: { needsVerify: this.needsVerify(u), mutedUntil: u.muted_until, chat: this.chatMode(u) } });
     }
