@@ -5,13 +5,17 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Ctx } from '../context.js';
-import { tooMany } from '../context.js';
-import { scrub } from '../lib/privacy.js';
+import { tooMany, HttpError } from '../context.js';
+import { scrub, coarsenIp } from '../lib/privacy.js';
 import { sha256 } from '../lib/crypto.js';
 import { Limiter } from '../lib/limiter.js';
 import { bump } from '../auth/service.js';
 
 const perClient = new Limiter(30, 60 * 60e3);
+// A signed-in player's report may carry a screenshot, which is why the route allows 1.2 MB. An
+// anonymous one is text: a message, a stack, a description. Without this, 1.2 MB of screenshots
+// per request is storage an attacker pays nothing for.
+const ANON_MAX_BODY = 64 * 1024;
 // What a crash or bug report may carry as context: settings and game-state summaries only.
 export const REPORT_CONTEXT_KEYS = ['settings', 'backend', 'tier', 'fps', 'mode', 'players', 'mapSize', 'time', 'units', 'net', 'log', 'url', 'screen', 'memory', 'lang'] as const;
 const Report = z.object({
@@ -42,7 +46,9 @@ export default async function reportRoutes(app: FastifyInstance, ctx: Ctx) {
     // As in perf.ts: spend the token before the body is validated, so an anonymous
     // caller cannot buy parser work with a large body.
     const uid = req.auth?.user.id || null;
-    const key = uid ? 'u:' + uid : 'ip:' + ctx.secrets.pseudonym(req.ip || '', 16);
+    // Refuse an oversized anonymous body outright rather than storing what it carries.
+    if (!uid && Number(req.headers['content-length'] || 0) > ANON_MAX_BODY) throw new HttpError(413, 'That report is too large. Sign in to send a screenshot.', 'too_large');
+    const key = uid ? 'u:' + uid : 'ip:' + ctx.secrets.pseudonym(coarsenIp(req.ip), 16);
     if (!perClient.take(key)) throw tooMany();
     const r = Report.parse(req.body);
     if (req.auth && !req.auth.user.crash_reports && r.kind === 'crash') return { ok: true, skipped: true };
@@ -51,9 +57,15 @@ export default async function reportRoutes(app: FastifyInstance, ctx: Ctx) {
     const context: Record<string, unknown> = {};
     for (const k of REPORT_CONTEXT_KEYS) if (k in r.context) context[k] = typeof r.context[k] === 'string' ? scrub(r.context[k] as string, 8000) : r.context[k];
     if (typeof context.url === 'string') context.url = String(context.url).split(/[?#]/)[0];
-    const shot = r.screenshot && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(r.screenshot) ? r.screenshot : null;
+    // A screenshot needs an account: it is the one field whose size and content are unbounded in
+    // practice, and attribution is worth having for it.
+    const shot = uid && r.screenshot && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(r.screenshot) ? r.screenshot : null;
     const { fp, title } = fingerprint(r.kind, message, stack);
-    const fpKey = r.kind === 'bug' ? sha256(fp + Date.now() + Math.random()) : fp; // each bug report is its own issue
+    // A signed-in player gets one issue per bug report, as before. An anonymous one collapses onto
+    // a hash of its own text: identical reports never mint a second issue, while distinct ones stay
+    // separate so triage is not a single growing bucket. The rate limit and the size cap above are
+    // what bound the rest.
+    const fpKey = r.kind === 'bug' ? (uid ? sha256(fp + Date.now() + Math.random()) : sha256('anon|' + message + '|' + description)) : fp;
     const issue = await ctx.db.one<any>(
       `insert into issues (fingerprint, kind, title, count, last_version, versions, platforms) values ($1, $2, $3, 1, $4, jsonb_build_object($4::text, 1), jsonb_build_object($5::text, 1))
        on conflict (fingerprint) do update set count = issues.count + 1, last_seen = now(), last_version = $4,
