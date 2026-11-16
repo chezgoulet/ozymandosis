@@ -92,18 +92,23 @@ const assert = require('assert');
   // the guest's link to the host breaks: it rejoins by itself, same seat
   await guest.evaluate(() => { window.__oldRelay = E.game.relay; E.game.relay.peers.get(0).pc.close(); });
   await guest.waitForFunction(() => E.game.running && E.game.relay !== window.__oldRelay && E.game.netMode === 'guest' && !E.game.reconnecting && document.getElementById('net-banner').hidden && E.game.world.s.units.length > 0, null, { timeout: 30000 });
-  await host.waitForTimeout(600);
+  // The host's view of the peer converges asynchronously. A fixed 600 ms is a guess: on a loaded
+  // runner Chromium needs longer, and when it does the failure says "the product is broken" when
+  // the truth is "the test stopped looking too early". Wait for the state instead.
+  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'remote', null, { timeout: 15000 });
   const back = await host.evaluate(() => E.game.world.s.players[1].kind);
   console.log('auto-rejoin', back, await guest.evaluate(() => E.game.local)); assert.strictEqual(back, 'remote');
   // guest disconnect -> bot takeover, then rejoin
-  await guest.close(); await host.waitForTimeout(800);
+  await guest.close();
+  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'bot', null, { timeout: 15000 });
   const kind = await host.evaluate(() => E.game.world.s.players[1].kind); console.log('after drop kind', kind); assert.strictEqual(kind, 'bot');
   const guest2 = await page('guest2', { width: 1024, height: 700 });
   await guest2.click('#m-mp'); await guest2.fill('#mp-name', 'Guesto'); await guest2.fill('#mp-code', room); await guest2.click('#mp-join');
-  await guest2.waitForTimeout(1500);
-  // mid-game join goes straight into the game
+  // mid-game join goes straight into the game: wait for that, rather than sleeping 1500 ms and hoping
+  await guest2.waitForFunction(() => { const g = document.getElementById('game'); return !!g && !g.hidden && !!E.game && E.game.local === 1; }, null, { timeout: 30000 });
   const st = await guest2.evaluate(() => ({ inGame: !document.getElementById('game').hidden, local: E.game && E.game.local }));
   console.log('rejoin', JSON.stringify(st)); assert(st.inGame && st.local === 1);
+  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'remote', null, { timeout: 15000 });
   const kind2 = await host.evaluate(() => E.game.world.s.players[1].kind); assert.strictEqual(kind2, 'remote');
   await guest2.screenshot({ path: OUT + '/mp-05-rejoin.png' });
   // a build on a different peer protocol is refused with a clear message, and the match carries on
