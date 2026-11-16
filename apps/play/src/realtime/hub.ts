@@ -5,7 +5,8 @@
 // passes through this server.
 //
 // Protocol (JSON over one WebSocket per client; the first message must be auth):
-//   → auth {token, version, proto, platform}            ← hello {user, ent, ice, key, announcements, config}
+//   → auth {token, version, proto}                      ← hello {user, ent, ice, key, announcements, config}
+//     (a legacy `platform` field is still accepted and ignored: memberships are not scoped)
 //   → host {title?, public?, mode?, max?}         ← hosted {room, id: 0, ice}
 //   → host {resume: room}                         ← hosted {room, id: 0, ice, resumed}  (host back after a signaling drop)
 //   → join {room}                                 ← joined {room, id, ice, hostName}; host ← peer {id, name, uid, sub, muted}
@@ -24,7 +25,7 @@ import { createHmac, randomInt } from 'node:crypto';
 import type { Ctx, UserRow } from '../context.js';
 import { entitlements, sessionUser, bump, type Entitlements } from '../auth/service.js';
 import { allowance, allowanceMessage, countPlayer, freeMatchesPerDay } from '../billing/allowance.js';
-import { userTag } from '../lib/privacy.js';
+import { userTag, coarsenIp } from '../lib/privacy.js';
 import { filterChat } from '../lib/names.js';
 import { activeAnnouncements } from '../routes/public.js';
 import { recordClaim, settle, dueMatches, type Settled } from './results.js';
@@ -32,6 +33,12 @@ import { freeChatAllowed } from '../lib/age.js';
 
 // Quick chat: the only messages players under 16 send or receive.
 export const QUICK_CHAT = ['Hello!', 'Good luck, have fun', 'Good game', 'Well played', 'Nice!', 'Oops', 'Thanks', 'Sorry', 'One moment', 'Let’s go', 'Help!', 'Attack here', 'Defend here', 'Rematch?'];
+// Every socket held, authenticated or not. A socket costs a descriptor and a timer whether or not
+// it ever signs in, so the total is bounded here and not only by the HTTP rate limit.
+const MAX_CONNS = 2000;
+// Sockets a single client may hold between connecting and sending its auth message. That window is
+// 10 s; at the HTTP ceiling that is ~100 sockets per address, which is work nobody pays for.
+const MAX_PENDING_PER_CLIENT = 8;
 const CHAT_KEEP = 100, CHAT_LOG_TTL = 30 * 60e3;
 interface ChatLine { at: string; uid: string; from: string; text: string }
 
@@ -42,8 +49,8 @@ const QUEUE_MODES: Record<string, { size: number; min: number; waitMin: number }
 const cmpVersion = (a: string, b: string) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
 
 interface Conn {
-  ws: WebSocket; user: UserRow | null; ent: Entitlements | null; tag: string;
-  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; platform: string; queued: string | null; queuedAt: number; chatAt: number[];
+  ws: WebSocket; user: UserRow | null; ent: Entitlements | null; tag: string; pendKey: string | null;
+  lobby: Lobby | null; lid: number; bucket: number; last: number; version: string; proto: number; queued: string | null; queuedAt: number; chatAt: number[];
 }
 interface Lobby {
   code: string; host: Conn; members: Map<number, Conn>; seq: number; createdAt: number;
@@ -59,6 +66,10 @@ export class Hub {
   conns = new Set<Conn>();
   lobbies = new Map<string, Lobby>();
   queue = new Map<string, Conn[]>();
+  // Sockets that have connected but not yet authenticated, counted per client key. Kept apart from
+  // `conns` so the pending cap cannot be spent by signing in and out: a slot is released the moment
+  // the socket authenticates, and on close if it never does.
+  private pending = new Map<string, number>();
   // chat of lobbies that have closed, kept a little while for reports filed after the match
   chatLogs = new Map<string, { lines: ChatLine[]; until: number }>();
   private timer: NodeJS.Timeout;
@@ -87,8 +98,17 @@ export class Hub {
 
   // ── connection lifecycle ─────────────────────────────────────
   private accept(ws: WebSocket, req: FastifyRequest) {
-    const c: Conn = { ws, user: null, ent: null, tag: '-', lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, platform: '', queued: null, queuedAt: 0, chatAt: [] };
+    // Refuse before the socket is registered, so a refused upgrade costs nothing to hold.
+    const pid = this.ctx.secrets.pseudonym('ws:' + coarsenIp(req.ip), 16);
+    const held = this.pending.get(pid) || 0;
+    if (this.conns.size >= MAX_CONNS || held >= MAX_PENDING_PER_CLIENT) {
+      try { ws.close(4008, 'too many connections'); } catch { /* already gone */ }
+      this.ctx.log.warn({ u: pid, held, conns: this.conns.size }, 'ws refused: connection cap');
+      return;
+    }
+    const c: Conn = { ws, user: null, ent: null, tag: '-', pendKey: pid, lobby: null, lid: -1, bucket: 60, last: Date.now(), version: '0', proto: 1, queued: null, queuedAt: 0, chatAt: [] };
     this.conns.add(c);
+    this.pending.set(pid, held + 1);
     const authTimer = setTimeout(() => { if (!c.user) ws.close(4001, 'auth timeout'); }, 10000);
     (ws as any).isAlive = true;
     ws.on('pong', () => { (ws as any).isAlive = true; });
@@ -100,18 +120,18 @@ export class Hub {
       let m: any; try { m = JSON.parse(raw.toString('utf8')); } catch { return; }
       if (!m || typeof m.op !== 'string') return;
       try {
-        if (!c.user) { if (m.op === 'auth') { clearTimeout(authTimer); await this.auth(c, m, req); } return; }
+        if (!c.user) { if (m.op === 'auth') { clearTimeout(authTimer); await this.auth(c, m, req); if (c.user) this.releasePending(c); } return; }
         await this.handle(c, m);
       } catch (e: any) { this.ctx.log.warn({ op: m.op, e: e.message, u: c.tag }, 'ws handler'); this.send(c, { op: 'error', msg: 'That did not work. Please try again.' }); }
     });
-    ws.on('close', () => { clearTimeout(authTimer); this.drop(c); });
+    ws.on('close', () => { clearTimeout(authTimer); this.releasePending(c); this.drop(c); });
     ws.on('error', () => {});
   }
   private async auth(c: Conn, m: any, _req: FastifyRequest) {
     const a = await sessionUser(this.ctx, String(m.token || ''));
     if (!a) { this.send(c, { op: 'error', msg: 'Please sign in again.', code: 'unauthorized' }); c.ws.close(4001, 'unauthorized'); return; }
     if (a.user.status === 'suspended') { this.send(c, { op: 'kicked', msg: `Your account is suspended until ${new Date(a.user.suspended_until!).toUTCString()}.` }); c.ws.close(4003, 'suspended'); return; }
-    c.version = String(m.version || '0').slice(0, 20); c.proto = Number.isInteger(m.proto) ? m.proto : 1; c.platform = String(m.platform || '').slice(0, 20);
+    c.version = String(m.version || '0').slice(0, 20); c.proto = Number.isInteger(m.proto) ? m.proto : 1;
     const cfg = await this.remote();
     if (cmpVersion(c.version, cfg.minClientVersion) < 0) { this.send(c, { op: 'upgrade', msg: 'A new version of Ozymandosis is out. Please update to play online.', min: cfg.minClientVersion }); c.ws.close(4010, 'upgrade'); return; }
     if (!a.user.age_band) { this.send(c, { op: 'error', code: 'age', msg: 'Before you play online, tell us your age.' }); c.ws.close(4012, 'age'); return; }
@@ -120,7 +140,7 @@ export class Hub {
     // client cannot produce, and which a patched one could always lie about. The gates
     // that remain are the ones this server holds: the free daily allowance, and membership.
     if (cfg.maintenance?.on && a.user.role === 'player') { this.send(c, { op: 'maintenance', msg: cfg.maintenance.message || 'Online play is down for maintenance. Back soon.' }); c.ws.close(4011, 'maintenance'); return; }
-    c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user, c.platform);
+    c.user = a.user; c.tag = userTag(this.ctx.secrets, a.user.id); c.ent = await entitlements(this.ctx, a.user);
     this.send(c, {
       op: 'hello', user: this.pub(c), ent: c.ent, ice: this.ice(c),
       key: { kid: this.ctx.signer.id, x: this.ctx.signer.publicRaw }, keys: this.ctx.signer.publicKeys(),
@@ -331,6 +351,15 @@ export class Hub {
     return e && e.until > Date.now() ? e.lines.slice(-30) : null;
   }
 
+  // A socket that has authenticated, or that has gone away, is no longer "pending": give its slot
+  // back so the per-client cap counts only what is genuinely held without a session.
+  private releasePending(c: Conn) {
+    const k = c.pendKey; if (!k) return;
+    c.pendKey = null;
+    const n = (this.pending.get(k) || 1) - 1;
+    if (n > 0) this.pending.set(k, n); else this.pending.delete(k);
+  }
+
   private drop(c: Conn) { this.unqueue(c); this.leaveLobby(c, true, true); this.conns.delete(c); }
 
   // lobbies the asking client can actually join (same peer protocol)
@@ -346,7 +375,7 @@ export class Hub {
   // rolling 24 hours. Checked (fresh from the database) before hosting, joining or
   // queueing, and again when the match starts, which is when it is counted.
   private async mayPlay(c: Conn): Promise<boolean> {
-    c.ent = await entitlements(this.ctx, c.user!, c.platform);
+    c.ent = await entitlements(this.ctx, c.user!);
     if (c.ent.subscriber || !c.ent.freeMatches || c.ent.freeMatches.left > 0) return true;
     this.send(c, { op: 'error', code: 'allowance', msg: allowanceMessage(c.ent.freeMatches), allowance: c.ent.freeMatches });
     return false;
@@ -375,7 +404,7 @@ export class Hub {
     for (const [id, m] of seats) {
       const member = !!m.ent?.subscriber;
       if (L.matchId && await countPlayer(this.ctx, L.matchId, m.user!.id, id, member) && !member) {
-        m.ent = await entitlements(this.ctx, m.user!, m.platform);
+        m.ent = await entitlements(this.ctx, m.user!);
         this.send(m, { op: 'me', user: this.pub(m), ent: m.ent, config: {} });
       }
       players.push({ id, uid: m.user!.id, name: m.user!.display_name, sub: member, free: member ? null : (m.ent?.freeMatches?.left ?? (await allowance(this.ctx, m.user!.id)).left) });
@@ -432,7 +461,7 @@ export class Hub {
     const u = await this.ctx.db.one<UserRow>('select * from users where id = $1', [userId]);
     for (const c of this.conns) if (c.user?.id === userId) {
       if (!u || u.status === 'banned' || u.status === 'deleted') { this.kick(c, 'This account can no longer play online.'); continue; }
-      c.user = u; c.ent = await entitlements(this.ctx, u, c.platform);
+      c.user = u; c.ent = await entitlements(this.ctx, u);
       if (u.status === 'suspended') { this.kick(c, `Your account is suspended until ${new Date(u.suspended_until!).toUTCString()}.`); continue; }
       this.send(c, { op: 'me', user: this.pub(c), ent: c.ent, config: { needsVerify: this.needsVerify(u), mutedUntil: u.muted_until, chat: this.chatMode(u) } });
     }

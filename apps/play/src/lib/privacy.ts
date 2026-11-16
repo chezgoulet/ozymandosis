@@ -30,3 +30,15 @@ export function coarseClient(ua: string | undefined): string {
 }
 
 export const userTag = (secrets: Secrets, id: string | null | undefined) => (id ? 'u_' + secrets.pseudonym(id) : '-');
+
+// Rate-limit keys must cost what the caller controls, not what they hold. An IPv6 client usually
+// holds a whole /64, so keying the limiter on the individual address hands it a fresh budget per
+// address it can spin up. Coarsen to the /64. IPv4 stays per address, where the unit really is
+// the household.
+export function coarsenIp(ip: string | undefined): string {
+  const s = String(ip || '').trim();
+  if (!s || !s.includes(':')) return s;
+  const v6 = s.replace(/^::ffff:/i, ''); // an IPv4-mapped address is an IPv4 client
+  if (!v6.includes(':')) return v6;
+  return v6.split(':').slice(0, 4).join(':') + '::/64';
+}
