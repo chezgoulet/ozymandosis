@@ -39,11 +39,13 @@ export function fingerprint(kind: string, message: string, stack: string): { fp:
 
 export default async function reportRoutes(app: FastifyInstance, ctx: Ctx) {
   app.post('/api/reports', { bodyLimit: 1_200_000 }, async req => {
-    const r = Report.parse(req.body);
+    // As in perf.ts: spend the token before the body is validated, so an anonymous
+    // caller cannot buy parser work with a large body.
     const uid = req.auth?.user.id || null;
-    if (req.auth && !req.auth.user.crash_reports && r.kind === 'crash') return { ok: true, skipped: true };
     const key = uid ? 'u:' + uid : 'ip:' + ctx.secrets.pseudonym(req.ip || '', 16);
     if (!perClient.take(key)) throw tooMany();
+    const r = Report.parse(req.body);
+    if (req.auth && !req.auth.user.crash_reports && r.kind === 'crash') return { ok: true, skipped: true };
     const message = scrub(r.message, 4000), stack = scrub(r.stack, 40000), description = scrub(r.description, 4000);
     // context is whitelisted: settings and game state summaries only
     const context: Record<string, unknown> = {};
