@@ -18,6 +18,9 @@
 const crypto = require('crypto');
 
 const MAX_FRAME = 4 * 1024 * 1024, MAX_PEERS = 5;
+// A host is a device on somebody's Wi-Fi, not a server: bound what it will hold. Without these a
+// guest network full of idle sockets is enough to exhaust the phone or the desktop shell.
+const MAX_CONNS = 32, MAX_ROOMS = 8;
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 function createSignal(opts) {
@@ -27,6 +30,7 @@ function createSignal(opts) {
   const ICE = opts.ice || [];
   const log = opts.log || (() => {});
   const rooms = new Map();
+  const conns = new Set();
 
   // ── minimal RFC 6455 WebSocket ──────────────────────────────────
   function accept(req, socket) {
@@ -36,8 +40,9 @@ function createSignal(opts) {
     socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + acc + '\r\n\r\n');
     socket.setNoDelay(true);
     const conn = { socket, buf: Buffer.alloc(0), frag: [], alive: true, id: 0, room: null, name: '' };
+    conns.add(conn);
     socket.on('data', d => { conn.buf = Buffer.concat([conn.buf, d]); parse(conn); });
-    socket.on('close', () => onClose(conn));
+    socket.on('close', () => { conns.delete(conn); onClose(conn); });
     socket.on('error', () => socket.destroy());
     return conn;
   }
@@ -80,6 +85,7 @@ function createSignal(opts) {
     let m; try { m = JSON.parse(raw); } catch (e) { return; }
     if (m.op === 'host') {
       if (c.room) return;
+      if (rooms.size >= MAX_ROOMS) return send(c, { op: 'error', msg: 'This device is already hosting as many games as it can hold.' });
       const room = { code: code(), host: c, peers: new Map(), seq: 0 };
       rooms.set(room.code, room); c.room = room; c.id = 0; c.name = String(m.name || 'Host').slice(0, 18);
       send(c, { op: 'hosted', room: room.code, id: 0, ice: ICE });
@@ -119,7 +125,7 @@ function createSignal(opts) {
   return {
     rooms,
     // hand an HTTP upgrade to the signaling endpoint (only /ws)
-    upgrade(req, socket) { let p = ''; try { p = new URL(req.url, 'http://x').pathname; } catch (e) { /* */ } if (p !== '/ws') return socket.destroy(); accept(req, socket); },
+    upgrade(req, socket) { let p = ''; try { p = new URL(req.url, 'http://x').pathname; } catch (e) { /* */ } if (p !== '/ws') return socket.destroy(); if (conns.size >= MAX_CONNS) return socket.destroy(); accept(req, socket); },
     close() { clearInterval(beat); for (const r of rooms.values()) for (const c of [r.host, ...r.peers.values()]) c.socket.destroy(); rooms.clear(); },
   };
 }

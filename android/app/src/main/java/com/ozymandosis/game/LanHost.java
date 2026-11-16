@@ -30,6 +30,10 @@ import java.util.Map;
  */
 final class LanHost {
     private static final int MAX_FRAME = 4 * 1024 * 1024, MAX_PEERS = 5;
+    // A phone on somebody's Wi-Fi is not a server. Bound what it will hold: without these, a guest
+    // network full of idle sockets is enough to exhaust the device, and every connection costs a
+    // thread until the handshake finishes or fails.
+    private static final int MAX_CONNS = 32, MAX_ROOMS = 8;
     private static final String LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     private static final String GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -38,6 +42,9 @@ final class LanHost {
     private final List<Conn> conns = new ArrayList<>();
     private final SecureRandom random = new SecureRandom();
     private volatile boolean open = true;
+    // Counted at accept, before the WebSocket handshake: a socket that never completes it still
+    // holds a thread, which is exactly what an abusive guest would send.
+    private final java.util.concurrent.atomic.AtomicInteger openSockets = new java.util.concurrent.atomic.AtomicInteger();
 
     private static final class Room { String code; Conn host; final Map<Integer, Conn> peers = new LinkedHashMap<>(); int seq; }
     private final class Conn {
@@ -78,6 +85,11 @@ final class LanHost {
         while (open) {
             try {
                 Socket s = server.accept();
+                if (openSockets.incrementAndGet() > MAX_CONNS) {
+                    openSockets.decrementAndGet();
+                    try { s.close(); } catch (IOException ignored) { }
+                    continue;
+                }
                 s.setTcpNoDelay(true);
                 Thread t = new Thread(() -> serve(s), "ozy-lan-conn"); t.setDaemon(true); t.start();
             } catch (IOException e) { if (!open) return; }
@@ -125,6 +137,7 @@ final class LanHost {
             }
         } catch (Exception ignored) {
         } finally {
+            openSockets.decrementAndGet();
             if (c != null) { onClose(c); c.close(); } else try { s.close(); } catch (IOException ignored) { }
         }
     }
@@ -167,6 +180,7 @@ final class LanHost {
         String op = m.optString("op");
         if (op.equals("host")) {
             if (c.room != null) return;
+            if (rooms.size() >= MAX_ROOMS) { c.send(obj("op", "error", "msg", "This device is already hosting as many games as it can hold.")); return; }
             Room r = new Room(); r.code = code(); r.host = c; rooms.put(r.code, r);
             c.room = r; c.id = 0; c.name = clip(m.optString("name", "Host"), 18);
             c.send(obj("op", "hosted", "room", r.code, "id", 0, "ice", new JSONArray()));
