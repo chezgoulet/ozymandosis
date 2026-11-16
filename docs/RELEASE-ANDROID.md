@@ -73,9 +73,10 @@ plays online inside the daily allowance, and survives an update. The membership 
 proved on the website instead — subscribe in the browser, come back, and the account
 shows *Member*; cancel from the account page and it returns to the allowance.
 
-The service's Play code (`apps/play/src/billing/play.ts`, the Play Integrity proof and the
-`GOOGLE_PLAY_*` settings) is unreferenced by any shipping client. It is slated for
-deletion and is not part of this flow.
+The service's Play code (the Play Integrity proof and the `GOOGLE_PLAY_*` settings) was removed
+on 2026-11-16: the app is free and listed in no store (`docs/MONETIZATION.md`, ruling of
+2026-11-05), so there is nothing for a store to sell or vouch for. The closed test proves the
+free experience only, which is the whole of what ships.
 
 ## Local network: the Android 17 permission
 

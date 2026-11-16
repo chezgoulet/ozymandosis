@@ -50,15 +50,17 @@ test('the window rolls: 24 hours after the free match, another is available (not
   assert.ok((await play(a, [b])).ticket, '24h later: available again');
 });
 
-test('per account, not per platform or device: owning several platforms does not give several matches', async () => {
+test('per account, not per device: one membership covers every platform, and the allowance is per account', async () => {
   const a = await signup(t), b = await signup(t), c = await signup(t);
-  await t.ctx.db.query(`insert into subscriptions (id, user_id, status, current_period_end, platform) values ('gp_x', $1, 'active', now() + interval '1 day', 'android')`, [c.id]); // c is a member on Android only
+  // A membership now comes from Stripe, a promo code or a gift, and is honoured everywhere
+  // (docs/MONETIZATION.md, ruling of 2026-11-05): there is no platform to scope it to.
+  await t.ctx.db.query(`insert into subscriptions (id, user_id, status, current_period_end) values ('comp_x', $1, 'active', now() + interval '1 day')`, [c.id]);
   assert.ok((await play(a, [b], 'android')).ticket);
-  assert.equal((await play(a, [c], 'ios')).error?.code, 'allowance', 'another platform: same account, same allowance');
-  // c is a member on Android: unlimited there, counted like anyone on iOS
-  assert.ok((await play(c, [], 'android')).ticket); assert.ok((await play(c, [], 'android')).ticket);
-  assert.ok((await play(c, [], 'ios')).ticket, 'free match on iOS');
-  assert.equal((await play(c, [], 'ios')).error?.code, 'allowance');
+  assert.equal((await play(a, [c], 'ios')).error?.code, 'allowance', 'same account, same allowance, whichever platform asks');
+  // c is a member: unlimited everywhere, not only on the platform that granted it
+  assert.ok((await play(c, [], 'android')).ticket);
+  assert.ok((await play(c, [], 'ios')).ticket, 'the same membership, asked for from another platform');
+  assert.ok((await play(c, [], 'web')).ticket);
 });
 
 test('the allowance is live configuration', async () => {

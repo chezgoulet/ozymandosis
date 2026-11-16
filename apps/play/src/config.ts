@@ -31,14 +31,9 @@ const Env = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_PRICE_ID_YEARLY: z.string().optional(),
-  // The App Store (iOS subscription and proof of purchase; docs/STORES.md)
-  APPLE_BUNDLE_ID: z.string().default('com.ozymandosis.game'),
-  APPSTORE_PRODUCT_MONTHLY: z.string().default('ozymandosis.membership.monthly'),
-  APPSTORE_PRODUCT_ANNUAL: z.string().default('ozymandosis.membership.annual'),
-  APPSTORE_ALLOW_SANDBOX: bool.default(false), // production: accept TestFlight/sandbox purchases too (review builds)
-  // Steam: the game's app id (STEAM_APP_ID, below; STEAM_API_KEY must be a publisher key) proves ownership; seasons are DLC,
-  // each unlocking online play until a date: [{"appid": 1234560, "until": "2027-10-01"}]
-  STEAM_SEASONS: z.string().default('[]'),
+  // No store scheme (docs/MONETIZATION.md, ruling of 2026-11-05): the app is free, it is not
+  // listed in any app store, and Stripe on the website is the only billing rail. The App Store
+  // and Steam settings below are for *sign-in* only, not for purchases.
   // No browser version (docs/MONETIZATION.md): online play only from the store apps
   // (android, ios, steam) whose purchase the service has verified with that store.
   // On by default in production; development and tests use browsers.

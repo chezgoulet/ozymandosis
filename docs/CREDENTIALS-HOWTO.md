@@ -116,6 +116,11 @@ uncommenting**, or the working key is shadowed and DNS work stops until it is no
 
 ## 4. The Google Play service account
 
+> **Retired on 2026-11-16 — skip this section.** The store scheme is gone: the app is free and
+> listed in no store, Stripe on the website is the only billing rail (`MONETIZATION.md`, ruling
+> of 2026-11-05), and the Play code and its `GOOGLE_PLAY_*` settings have been removed from
+> `apps/play`. Nothing below is needed unless a Play listing ever returns.
+
 This is what turns the release path into something I do rather than you.
 
 1. **Create a Google Cloud project** (console.cloud.google.com) — this can also be where
