@@ -11,9 +11,10 @@ If two of these ever disagree, the order of authority is: **owner rulings**
 > **Current scheme (2026-11-05).** The app is free, distributed through Obtainium and
 > F-Droid. The only paid product is worldwide online multiplayer, bought on the website
 > through Stripe. There are no store sales, no $1 purchase and no platform billing.
-> `MONETIZATION.md` is binding. `STORES.md`, `PLAY-DECLARATIONS.md`, the store sections of
-> `RELEASE-CHECKLIST.md`/`RELEASE-PLAN.md`, and the older store decisions in `DECISIONS.md`
-> are **historical**; do not follow them for launch.
+> `MONETIZATION.md` is binding. `STORES.md`, `PLAY-DECLARATIONS.md`, `RELEASE-PLAN.md`, and the
+> older store decisions in `DECISIONS.md` are **historical**; do not follow them for launch.
+> `RELEASE-CHECKLIST.md` was rewritten on 2026-11-16 and now carries no store content at all — it
+> is current, and it is the one to work from.
 
 ## Start here
 

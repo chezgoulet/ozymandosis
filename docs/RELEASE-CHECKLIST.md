@@ -1,214 +1,163 @@
-# Release checklist — from the signed bundle to production
+# Release checklist — from the tree to players
 
-`LAUNCH.md` is the canonical list of what a person must do, by kind.
-`WORK-ORDER-FIRST-RELEASE.md` is what the code needed. **This is the same material
+`LAUNCH.md` is the canonical list of what a person must do, by kind. **This is the same material
 ordered by what blocks what**, so it can be worked top to bottom.
 
 **[you]** only you can · **[me]** I will · **[both]** something from you, then me
+
+**Rewritten 2026-11-16** for the current scheme (D22, D23): the app is **free**, distributed through
+**Obtainium and F-Droid**, the only paid product is **website membership through Stripe**, and
+**Android is the only platform**.
+
+What the previous version of this file described, and why it is gone:
+
+- **The Google Play closed-test clock** — paid app, twelve testers opted in continuously for
+  fourteen days, production access, Play Billing. D22 retired the Play listing; the app is free and
+  sold nowhere. None of that clock exists now.
+- **iOS** — D23 deleted the project.
+- **Steam** — no listing under D22.
+
+If you are looking for those steps they are not lost; they are in git history at `v0.5.3` and in
+`docs/MONETIZATION.md` under the retired scheme. They are not part of launch.
 
 ---
 
 ## Where you already are — do not redo any of this
 
-- Google's **identity verification passed** (the gate everything sat behind).
-- The **app record exists** in Play Console, package `com.ozymandosis.game`.
-- The **upload key exists** at `~/.ozymandosis/upload-keystore.jks`, backed up
-  off-machine and checked to open. Play App Signing is confirmed.
-- A **signed bundle** exists: `app-release.aab`, 7.2 MB, signed
-  `CN=Ozymandosis upload key`, SHA-256 `C5:43:05:…:80:86`, versionCode 500.
-- **CI is green** and `testing` holds the current tip. (The suite runs on GitHub-hosted
-  runners; only the Steam Linux leg needs the House runner, because it needs that
-  machine's PipeWire session.)
-- The **site is live** over HTTPS: `ozymandosis.com`, with `/privacy` and
-  `/terms` reachable.
-- The **data answers are drafted** — `docs/PLAY-DECLARATIONS.md`.
-- The **data inventory is machine-checked** — `apps/play/test/inventory.test.ts`
-  fails if it drifts from the code.
+Verified 2026-11-16:
+
+- **The site is live over HTTPS**: `ozymandosis.com`, and `/privacy` and `/terms` both answer 200.
+- **The service is deployed and answering**: `play.ozymandosis.com/healthz` 200, running `82b6524`.
+  Deploy is a `workflow_dispatch` of `deploy.yml` (or a release tag) — **not** a push to `main`.
+  The `DEPLOY_*` environment secrets already work; the rail has been used.
+- **A signed APK already ships.** Release `v0.5.3` carries `ozymandosis-android-v0.5.3.apk` plus a
+  `.sha256`, and the release workflow verifies it with `apksigner`. That means the Android signing
+  secrets are configured — inferred from the artifact, since CI never prints them. The distribution
+  rail is proven; it needs a new tag, not new plumbing.
+- **CI is green** on `main` and `testing`: `test`, `images`, `android` (22 and 24) and all three
+  browsers.
+- **The data inventory is machine-checked** — `apps/play/test/inventory.test.ts` fails if the
+  document drifts from the schema.
+- **GitHub guards are on**: secret scanning, push protection, Dependabot alerts and updates, branch
+  protection, private vulnerability reporting, `SECURITY.md`. One gap: **"CI must pass" is not
+  enforced**, because the browser suite runs on push rather than on pull requests — see the note in
+  `LAUNCH.md`.
+- **F-Droid metadata is drafted**: `docs/fdroiddata/com.ozymandosis.game.yml`.
 
 ---
 
 ## The shape of the clock
 
+There is no fourteen-day tester window any more. What cannot be compressed now:
+
 ```
-closed-test release published
-        -> Google review
-        -> 12 testers opted in continuously
-        -> 14 continuous days            <- cannot be compressed, bought or automated
-        -> apply for production access
-        -> Google review of the application
-        -> production
+Stripe account verification ....... days        (blocks every payment test)
+F-Droid review of a new app ....... days-weeks  (volunteer-run; the slowest first submission)
+trademark search + counsel review . weeks       (slowest if counsel is slow)
+everything else ................... hours
 ```
 
-Google's own wording: *"You can start a closed test after completing your app
-setup."* And: *"At least 12 testers must be opted in to your closed test when you
-apply for production access, and they must have been opted in continuously for the
-preceding 14 days."* Note **internal testing does not count** toward it.
-
-Everything below is either making that clock *startable*, or work that runs beside it.
+The old checklist's "cannot be bought or automated" item was twelve testers. It is now
+**F-Droid's review queue**, and it is somebody else's calendar.
 
 ---
 
-## Three things that could cost you the model, so check them first
+## Three things that could sink it — check them first
 
-**1. Is the app set as PAID?** A free app on Google Play **cannot become a paid
-app.** If the app record was created as free, the $1 purchase cannot be turned on
-later and the whole monetization ruling is broken — the recovery is an in-app
-purchase rather than a price, or a new app record. **Verify in Pricing and
-distribution that it is priced, before publishing anything.** Also confirm the app
-is available in **the countries your testers live in** — a tester outside the
-distribution list cannot install it and cannot count.
+**1. Email is not optional, and nothing else works without it.** An account cannot be verified
+without a link, and password reset is the same link. `SMTP_URL` is already a hard boot requirement
+in production, so the service refuses to start without one — which means a wrong SMTP URL is not a
+degraded feature, it is a dead service or an unverifiable account. **Fix this first.**
 
-**2. Testers on a closed track must BUY the app.** Google's own guidance:
-*"if you're testing a paid app using an open or closed test, testers still need to
-purchase it. If you're testing a paid app using an internal test, testers can
-install your app for free."* So all twelve of your closed testers need a payment
-method and must each pay $1 — about $12 total, but this is the step that quietly
-sinks closed tests, because a tester who cannot pay cannot count. **Tell them
-up front.**
+**2. Membership is the only revenue and Stripe is the only rail.** Tax-inclusive prices (`$2/$12`)
+are sold into every jurisdiction Stripe Tax will register you for. If registrations are missing you
+are collecting money in a place you are not registered to collect it. That is a bookkeeping problem
+that compounds, not a config detail.
 
-**3. The web deletion-request URL does not exist.** Play requires an app with
-accounts to offer **both** in-app deletion (done) **and** a publicly reachable web
-link for deletion requests. The only web path today is the account page at
-`play.ozymandosis.com`, and that hostname does not resolve. So **App content cannot
-be completed** until it does, and the release cannot publish. Steps 1–3 below fix it.
+**3. Lose the Android keystore and you lose the package identity.** Obtainium and F-Droid pin the
+signing certificate; a new key is a new app to both, and there is no migration path that keeps
+existing installs updating. The key exists (the v0.5.3 APK proves it) — confirm it is backed up
+off-machine, twice, before you depend on it.
 
 ---
 
-## Phase 1 — Make the clock startable
+## Phase 1 — Email, because everything sits on it
 
-- [ ] **[you]** Sign up **Purelymail** (the mailboxes) and **Resend** (sending).
-      `privacy@ozymandosis.com` must be real: the privacy policy names it, and the
-      stores test that it works.
-- [ ] **[me]** Then I write **SPF, DKIM, DMARC and MX** into the Linode zone and
-      create `support@` and `privacy@`.
-- [ ] **[me]** Add **`/delete-account`** to the live site — the in-app steps, and an
-      email route for people who no longer have the app. **This unblocks App content.**
-- [ ] **[you]** Complete **App content** in the Console. Every field, because the
-      release will not publish without them: privacy policy URL, **data safety**,
-      **content rating questionnaire**, **target audience** (13+, and be ready to
-      defend it — the content is child-appealing, but no under-13 experience
-      exists), **ads** (none), **app access** (create a reviewer account; online
-      play needs one, single-player and LAN do not), and the **deletion URL**.
-      The answers are in `docs/PLAY-DECLARATIONS.md`.
-- [ ] **[both]** Complete the **store listing** — title, short and full
-      description, app icon **512×512**, feature graphic **1024×500**, at least
-      **two screenshots** per device type, app category and contact details. I can
-      write the copy and produce the graphics from the game; you approve them.
-- [ ] **[you]** Complete the **payments profile / merchant account** in Play
-      Console. You cannot sell a $1 app — or receive membership revenue — without
-      it, and verification of a new profile takes days. This is easy to overlook
-      and it sits directly on the critical path.
-- [ ] **[both]** **Deploy the service to `play.ozymandosis.com`.** The closed test
-      is meant to exercise the game, and without the service there is no sign-in
-      and no online play — the 14 days are calendar you cannot get back, so do not
-      spend them on a crippled build. The chain is:
-  - [ ] **[you]** Create the **GitHub environment** `production` and add
-        `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
-        **This is the single gate on all deploy automation** — the pipeline is
-        written and does nothing until the secrets exist. One environment only:
-        staging boxes are spun up on demand and destroyed (DEPLOY.md), and no
-        tag, push or dispatch deploys to one.
-  - [ ] **[you]** **Rebuild the Linode box** from a fresh `linode/ubuntu26.04`
-        image, and decide the size — it is idle today and nothing is attached.
-  - [ ] **[me]** Bootstrap it as **one scripted command**: Docker, a clone at
-        `~/ozymandosis`, `deploy/.env`, a swap file, memory caps.
-  - [ ] **[me]** Add the `play.ozymandosis.com` DNS record and get **TLS** — the
-        app talks to it over HTTPS/WSS, and Play Integrity and the billing
-        webhook both need a real certificate.
-  - [ ] **[both]** Prove the deploy pipeline end to end: promote `testing` to
-        `main` and watch it back up, deploy, health-check and roll back on its own.
+- [ ] **[you]** Choose a sending provider (Postmark, SES, Mailgun, Fastmail…). Check it is not
+      greylisted for the volume you expect.
+- [ ] **[both]** Put its SMTP URL in `deploy/.env` as `SMTP_URL`, then deploy.
+- [ ] **[me]** Write **SPF, DKIM, DMARC and MX** into the Linode zone once you have the provider's
+      records.
+- [ ] **[you]** Make `support@` and `privacy@ozymandosis.com` real. The privacy policy already
+      names `privacy@`; an address that bounces is a broken promise in a public document.
+- [ ] **[me]** Send a real message to an outside mailbox and check the headers land clean
+      (SPF pass, DKIM pass, DMARC pass) — not just that the request returned 200.
 
-## Phase 2 — The build that goes out
+## Phase 2 — Money
 
-- [ ] **[me]** Set up **Play Billing**: subscription `ozymandosis_membership` with
-      base plans `monthly` ($2) and `annual` ($12); a Google Cloud service account
-      invited with *View financial data* and *Manage orders and subscriptions*; and
-      real-time developer notifications through Pub/Sub to
-      `/api/billing/play/rtdn`. Then **[you]** add **license testers** so test
-      purchases renew every few minutes — that is how renewals and expiry get
-      exercised in a day rather than a month.
-- [ ] **[both]** Upload the signed AAB to **internal testing** and smoke it on your
-      own phone first. **Installs are free on internal**, so this is your own
-      ten-minute check before anyone else is involved: does it install, launch,
-      sign in, play a match.
-- [ ] **[you]** **Recruit fifteen**, not twelve. The requirement is twelve opted in
-      *continuously* for fourteen days, and a single lapse drops you under the
-      line. The buffer is the difference between a fortnight of progress and
-      starting over. Brief them that they must **buy the app** and stay opted in.
-- [ ] **[you]** Move the bundle to a **closed test track** and publish the release.
-      It goes through Google review before testers can download it — budget days,
-      not hours, for a first submission.
-- [ ] **[you]** Testers **opt in and play**. Send them the Play Store URL directly —
-      a closed test is not findable by search. Ask each to leave **feedback through
-      Play's private feedback channel**, because the production application asks
-      what feedback you received. **Insufficient tester engagement is a stated
-      reason for refusing production access.**
-- [ ] **Fourteen continuous days.** Watch that nobody drops out.
-- [ ] **[you]** **Apply for production access**, answering the questions about your
-      testing and your app's readiness. A human reads it.
+- [ ] **[you]** Complete Stripe account verification (business details, bank account). Lead time:
+      days. Nothing below works until it clears.
+- [ ] **[me]** `npm run admin -- stripe:setup 1200` — creates the product and the $2/month and
+      $12/year prices.
+- [ ] **[you]** Activate **Stripe Tax** and add your registrations. Prices are tax-inclusive, so
+      this is what stops you selling into a jurisdiction you are not registered in.
+- [ ] **[you]** Enable the **customer portal**: cancel, switch plan, update payment method. Without
+      it a member has no way to stop paying.
+- [ ] **[both]** Buy a membership with a **real card in live mode**: check the receipt, the tax
+      line, then cancel and confirm access lapses at period end rather than at once.
+- [ ] **[both]** Confirm the gate itself: one free match per rolling 24 hours on a fresh account,
+      then the allowance message, then unlimited as a member.
 
-## Phase 3 — Build the case the production application rests on
+## Phase 3 — The artifact players install
 
-These belong to the 14 days, not after them. They are also the evidence that the
-application and the store claims stand on.
+- [ ] **[you]** Confirm the Android keystore is backed up off-machine and that you can open it.
+      If it is not: `npm run android:keygen` once, then back it up **before** continuing.
+- [ ] **[me]** Bump the version, tag `vX.Y.Z`, and let the release workflow build, sign, verify and
+      attach the APK plus its sha256.
+- [ ] **[you]** Install through **Obtainium**, not a debug build, and confirm the release verifies
+      and updates over the previous install.
+- [ ] **[both]** Submit `docs/fdroiddata/com.ozymandosis.game.yml` to F-Droid as a merge request,
+      and answer the review. This is the long pole — start it as early as the APK is installable.
 
-- [ ] **[you]** **Fifteen minutes on a mid-range Android.** The frame rate is still
-      the largest unverified claim in the project and the cheapest test with the
-      biggest consequences. Settings → Performance shows p50/p95/p99 per run. **If
-      a mid-range phone cannot hold 30 fps, the plan changes rather than the code.**
-- [ ] **[you]** **Two real phones on LAN**, full match, service unreachable. Then the
-      same joining only with the code the host shows. Then on an API 36 build with
-      `adb shell am compat enable RESTRICT_LOCAL_NETWORK com.ozymandosis.game` —
-      the clause that stops local-network permissions becoming next year's emergency.
-- [ ] **[you]** **Play Billing on the internal track**, with a real card: subscribe,
-      reinstall and restore, cancel, refund. The admin console should show each change.
-- [ ] **[you]** **Pull the network mid-match**, on the guest and on the host.
-- [ ] **[me]** A **restore drill** from Object Storage, run for real rather than
-      asserted (`OPERATIONS.md`).
-- [ ] **[you]** **Counsel review** of the privacy policy and terms — both are still
-      marked as drafts and both are public.
-- [ ] **[you]** **Trademark search** for "Ozymandosis" (classes 9 and 41) before the
-      name is public on a store.
-- [ ] **[you]** **Two-factor** on every account that can touch production: registrar,
-      GitHub, Linode, Stripe, mail, Google Cloud, Apple, Steamworks. Registrar lock
-      and auto-renew on the domain.
-- [ ] **[you]** **Branch protection on `main`**, Dependabot, secret scanning. Free,
-      small, and it stops a mistake being permanent.
+## Phase 4 — Real devices, and the claims the release rests on
 
-## Phase 4 — The other platforms, and their clocks
+- [ ] **[you]** **A mid-range phone and a 3 GB one.** Settings → Performance gives p50/p95/p99 per
+      run. If a mid-range device cannot hold 30 fps, **the plan changes, not the code** — this is
+      still the largest unverified claim in the project.
+- [ ] **[you]** **Two phones on one Wi-Fi, service unreachable**: host on one, join on the other,
+      full match. Then join by the code the host shows. Then on an API 36 build with
+      `adb shell am compat enable RESTRICT_LOCAL_NETWORK com.ozymandosis.game`.
+- [ ] **[you]** **Online match across networks**: phone on mobile data (carrier NAT) against a
+      computer on office or café Wi-Fi. This is the case a single-network test never covers.
+- [ ] **[you]** **Pull the network mid-match**, on the guest and then on the host: the guest should
+      rejoin by itself; the host's guests should see the match end cleanly rather than hang.
+- [ ] **[me]** A **restore drill** from Object Storage, run for real rather than asserted
+      (`OPERATIONS.md`).
 
-Neither blocks Android. Both have lead times worth starting early.
+## Phase 5 — Legal and hygiene
 
-- [ ] **[both]** **iOS.** ⚠️ *The iOS code has never been compiled — there is no
-      Xcode on this side.* It needs Codemagic's free tier: **[you]** create the
-      account, **[me]** wire the build. Then an App Store Connect record for
-      `com.ozymandosis.game`, and the Apple Developer Program at $99/year. **The
-      remaining hole is StoreKit**: Apple's rules expect the membership to be
-      buyable inside the app, and that is not built.
-- [ ] **[you]** **Steam.** Steam Direct's **$100 per app** starts a **21-day** wait,
-      and the page must be publicly *Coming Soon* for **two weeks** before launch —
-      **about five weeks end to end, the longest lead time in the project.** Ship
-      **Windows** first and let Proton cover Linux and Deck: it is the cheapest
-      route and it is not a compromise. Windows needs code signing, or SmartScreen
-      warns every player.
-- [ ] **[you]** **Skip native Linux unless pride demands it.** Nothing else waits
-      on it.
+- [ ] **[you]** **Counsel review** of `/privacy` and `/terms`. Both are public and both are still
+      marked as drafts.
+- [ ] **[you]** **Trademark search** for "Ozymandosis" (USPTO, EUIPO, UKIPO), classes 9 and 41,
+      before the name is distributed more widely.
+- [ ] **[you]** **Two-factor** on every account that can touch production: registrar, GitHub,
+      Linode, Stripe, mail, Cloudflare. Registrar lock and auto-renew on the domain.
+- [ ] **[you]** `SECRET_KEY`, the backup age key and `deploy/.env` into the password manager, with
+      the age key also offline.
+- [ ] **[you]** Decide whether **EU/UK Art. 27 representation** and **processor DPAs** (Stripe, the
+      email provider, Linode) apply to you. If they do, they are paperwork with a lead time.
 
 ---
 
 ## What I can do with nothing from you
 
-- The store listing copy, and the icon, feature graphic and screenshots rendered
-  from the game.
-- The `/delete-account` page, ready the moment Purelymail lands.
-- The rebuild-and-bootstrap as a single scripted command.
-- The Codemagic wiring for iOS.
-- Anything else you ask for in the code, on the same gate as everything else:
-  green CI, then merged.
+- The F-Droid merge request text and its answers once review starts.
+- Release notes for any tag (`tools/release-notes.cjs` generates them).
+- The DNS records, written and ready to paste, once you name the mail provider.
+- Anything else in the code, on the same gate as everything else: green CI, then merged.
 
 ## What I cannot do, and will not pretend to
 
-The accounts, the signatures, the payments, the hardware, the lawyer, and the
-twelve people who must stay opted in for a fortnight. The twelve are the only item
-here that cannot be bought or automated — and the only one that can put the launch
-back by a fortnight on its own.
+The accounts, the signatures, the payments, the hardware, the lawyer, and F-Droid's review queue.
+The queue is the only item here that can put the launch back by weeks on its own — and the only one
+where the work is answering somebody else's questions rather than building anything.
