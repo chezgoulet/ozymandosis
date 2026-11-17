@@ -38,9 +38,9 @@ proprietary licence and not content.
 ## The operating split
 
 - **Chez Goulet LLC** owns the game IP and licenses it under AGPL-3.0.
-- **Sorcelot LLC** operates the play service: accounts, Stripe billing, matchmaking, relay,
+- **Franco Perdu LLC** operates the play service: accounts, Stripe billing, matchmaking, relay,
   moderation, support and the Linode deployment.
-- The website terms and privacy policy must name Sorcelot LLC as the service operator.
+- The website terms and privacy policy must name Franco Perdu LLC as the service operator.
 
 ## The numbers
 

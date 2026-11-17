@@ -27,7 +27,7 @@ record.
 - [ ] **Trademark search** for "Ozymandosis" (USPTO, EUIPO, UKIPO) in classes 9 and 41;
   consider filing once clear.
 - [ ] **Counsel review** of `terms.html` and `privacy.html` in `chezgoulet/ozymandosis-site`.
-  They must name **Sorcelot LLC** as the service operator and **Chez Goulet LLC** as the game
+  They must name **Franco Perdu LLC** as the service operator and **Chez Goulet LLC** as the game
   licensor.
 - [ ] **AGPL-3.0**: the game is AGPL-3.0-only; the source offer is the public repository. If
   the play service is modified, the modified source must be offered to users.
