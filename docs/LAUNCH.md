@@ -44,7 +44,11 @@ record.
   Stripe, email provider. No store accounts.
 - [ ] Registrar lock on the domain; auto-renew on.
 - [ ] GitHub: branch protection on `main` (CI must pass), Dependabot alerts and security
-  updates, secret scanning.
+  updates, secret scanning. **Partly done (2026-11-16):** secret scanning, push protection,
+  Dependabot alerts and security updates, branch protection and `SECURITY.md` are all on.
+  **The "CI must pass" half is not enforced** — requiring it today would only gate on `test`,
+  because the browser suite runs on push rather than on pull requests, and that gap is what let a
+  regression through. Either run browsers on dependency PRs first, or accept a human merge.
 - [ ] `SECRET_KEY`, the backup age key and `deploy/.env` in the password manager (and the age
   key offline too).
 
