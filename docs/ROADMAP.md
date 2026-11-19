@@ -1,5 +1,3 @@
-> **Historical framing.** The "$1" pricing references predate the 2026-11-05 scheme: the app is free; the only paid product is worldwide online multiplayer. See `MONETIZATION.md`.
-
 # Roadmap
 
 **This is a wishlist.** Everything below is an idea under consideration, not a
@@ -7,21 +5,24 @@ promise. There are no dates, because a date would turn it into a promise and I
 would rather tell you the truth than miss a deadline I invented. This page will
 change, and the changes are the point.
 
-## What you get for $1
+## What it costs
 
-The game, complete. **Every feature on this page will arrive as a free update to
-anyone who owns it** — no DLC, no season pass, no content held back, nothing
-reserved for a better edition.
+Nothing, to play. The game is free, on Android, through Obtainium and F-Droid: the
+whole of it, including single-player and local-network multiplayer with no account and
+no server involved. **Every idea on this page arrives as a free update** — no DLC, no
+season pass, no content held back, nothing reserved for a better edition.
 
-One thing costs money, and it is not content. **One multiplayer match a day is
-free, every day, of any length and any kind** — starting it or joining someone
-else's makes no difference. If you want more than that, a subscription buys
-unlimited matches. Nothing else in the game is ever metered.
+One thing costs money, and it is not content. **Worldwide online play** is the only
+paid product: one full match every 24 hours is free, every day, whether you host or
+join. A membership bought through the website buys unlimited matches. Nothing else in
+the game is ever metered. `docs/MONETIZATION.md` is the scheme of record.
 
 ## Now
 
-Making the core stable, good and fun, and getting it onto the machines people
-actually own: **Android first, then iOS, then Steam.**
+Making the core stable, good and fun, and getting it in front of people who have no
+idea how it was made — on the machines they actually own, which means **Android**. iOS
+is gone by owner ruling (D23), there is no store listing, and nothing on this page
+waits on a platform that is not this one.
 
 ## Ideas under consideration
 
@@ -47,5 +48,4 @@ multiplayer for both of you when a friend joins on your recommendation.
 
 ---
 
-*Nothing here is scheduled. Everything here is included in the game you already
-bought.*
+*Nothing here is scheduled. Everything here is included in the game, free.*

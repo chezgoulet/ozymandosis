@@ -20,7 +20,7 @@ Production (ozymandosis.com, play.ozymandosis.com) is one Docker Compose stack o
 ```
 index.html, js/, css/, vendor/   the game client (web, PWA, Capacitor, desktop all load these files)
 server/server.js                 LAN server: static files + WebRTC signaling
-server/signal.cjs                LAN signaling, shared with the desktop shell (Android/iOS: LanPlugin)
+server/signal.cjs                LAN signaling, shared with the desktop shell (Android: LanPlugin)
 apps/play/                       play.ozymandosis.com: accounts, 2FA, OAuth, Stripe, matchmaking,
                                  signaling, tickets, crash reports, moderation, admin console
 apps/desktop/                    Electron shell (installed separately)
@@ -31,8 +31,10 @@ android/                         Capacitor project (Android only — see D23)
 ## Rendering and platforms
 - **three.js GPU renderer:** instanced batches, a baked organ atlas and shader caustics, currents and fog. WebGL2 by default, WebGPU optional, Canvas2D fallback. A frame-budget governor holds 60 fps. At 700 creatures it runs 125 fps versus 7 fps on the old renderer (`docs/PERFORMANCE.md`).
 - **Web build:** `npm run build` → `www/`. This is an input to the Android app, not a rail of its own: Capacitor packages it into the APK.
-- **Android:** `npm run android:apk`.
-- **iOS:** `npm run ios:open` on a Mac (Capacitor 6).
+- **Android:** releases are built and signed in CI from a `v*` tag (`docs/RELEASE-ANDROID.md`).
+  `npm run android:apk` is a local **debug** build for development.
+- **iOS:** none. iOS was dropped by owner ruling on 2026-11-16 and deleted from the tree rather
+  than left unmaintained (D23). Android is the only supported platform.
 - **Docs:** `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/PLAY-SERVICE.md` (online design, security and privacy), `docs/DEPLOY.md`, `docs/OPERATIONS.md`, `docs/LAUNCH.md`, and `docs/DELIVERY.md` (requirement-by-requirement summaries).
 
 ## What's in the game

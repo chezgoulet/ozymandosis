@@ -1,5 +1,18 @@
 # Release flow: branches, nightlies, and Play's tracks
 
+> **Superseded in part — read this first.** The flow agreed below on 2026-09-29 was written
+> for a paid app on Google Play with an iOS and Steam roadmap. Owner rulings on 2026-11-05
+> (D22) and 2026-11-16 (D23) retired all of that: the app is free, Android is the only
+> platform, there is no Play listing, no AAB and no store billing. **The current process is
+> `docs/RELEASE-CHECKLIST.md`** (the same work, ordered by what blocks what) and
+> `docs/LAUNCH.md` (what only a person can do).
+>
+> What still holds here: the branch hierarchy below, the nightly-must-be-a-release-build
+> rule, and the two compatibility tests at the end. What does not: every Play track, the
+> AAB, store pricing, and anything that assumes a private repository or a $1 sale. Those
+> sections are kept because each rule in them cost something to learn, not because they
+> describe what happens now.
+
 The flow agreed 2026-09-29. Recorded because every rule here was established by
 checking, and several of them are counter-intuitive enough to be re-derived wrongly.
 
@@ -9,9 +22,12 @@ checking, and several of them are counter-intuitive enough to be re-derived wron
 |---|---|---|
 | feature | nothing | a PR into `testing` |
 | `testing` | nightly server + nightly APK | nightly Linode instance; APK as a **GitHub pre-release** |
-| `main` | release server + release AAB | production Linode; uploaded to a Play track by hand |
+| `main` | release server + signed release APK | production Linode; a GitHub Release that Obtainium and F-Droid pick up |
 
 `main` is the release truth. A nightly is a rehearsal and is never released from.
+Pushing a `v*` tag on `main` fires `release-client.yml`, which verifies the tag against
+every version marker, re-checks CI on that commit, proves the APK builds reproducibly at
+two paths, and only then signs and attaches it — see `docs/RELEASE-ANDROID.md`.
 
 ## The nightly channel
 
