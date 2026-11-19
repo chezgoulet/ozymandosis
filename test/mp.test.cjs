@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Multiplayer end-to-end: host + guest browsers, introduced by the LAN signaling server, playing over WebRTC.
 const pw = require('../tools/pw.cjs');
+
+// One budget for every wait that asserts another page's state has arrived. These waits are not
+// assertions about speed — nothing in this file claims the app is fast — they are the harness
+// waiting on a peer. Calibrated one at a time they were 10s, 15s and 30s, and on a 2-vCPU hosted
+// runner the suite died at whichever happened to be tightest that run: a missing control, a value
+// mismatch, a 30s Timeout, three different stories for one budget. Overridable for a slow host.
+const BUDGET = Number(process.env.E2E_BUDGET || 120000);
 const path = require('path');
 process.env.PORT = process.env.PORT || '8094'; process.env.QUIET = '1';
 const server = require('../server/server.js');
@@ -30,7 +37,7 @@ const assert = require('assert');
   // arrive rather than guessing a delay: on a loaded runner the guest's join is still in flight
   // after any fixed wait, and a fixed wait makes that look like a wrong room.
   const lobbyCode = async (pg) => (await pg.textContent('#lobby-code')).trim();
-  await guest.waitForFunction(r => { const e = document.getElementById('lobby-code'); return e && e.textContent.trim() === r; }, room, { timeout: 15000 }).catch(() => {});
+  await guest.waitForFunction(r => { const e = document.getElementById('lobby-code'); return e && e.textContent.trim() === r; }, room, { timeout: BUDGET }).catch(() => {});
   const hostCode = await lobbyCode(host);
   const guestCode = await lobbyCode(guest);
   if (hostCode !== room || guestCode !== room) {
@@ -49,7 +56,21 @@ const assert = require('assert');
   assert.strictEqual(hostCode, room, 'host shows the room code');
   assert.strictEqual(guestCode, room, 'guest sees the room code');
   // guest picks a culture
-  await guest.selectOption('#slots .slot-row:nth-child(2) select:first-child', 'current');
+  // The guest's second slot appears when the host's lobby state reaches it, not when the guest
+  // finishes joining, so wait for the row itself. Playwright's default 30s here was a guess at
+  // the runner's speed; a 2-vCPU hosted runner reached it late and the failure read as a
+  // missing control rather than as a budget.
+  const guestSlot = '#slots .slot-row:nth-child(2) select:first-child';
+  await guest.waitForSelector(guestSlot, { timeout: BUDGET }).catch(async () => {
+    const seen = await guest.evaluate(() => ({
+      screen: ['scr-menu', 'scr-mp', 'scr-setup', 'game'].filter(id => { const e = document.getElementById(id); return e && !e.hidden; }),
+      rows: document.querySelectorAll('#slots .slot-row').length,
+      status: (document.getElementById('mp-status') || {}).textContent,
+      log: (document.getElementById('lobby-log') || {}).textContent,
+    }));
+    throw new Error('the guest never got its slot row: ' + JSON.stringify(seen));
+  });
+  await guest.selectOption(guestSlot, 'current');
   await host.waitForTimeout(600);
   const hostSlots = await host.evaluate(() => [...document.querySelectorAll('#slots .slot-row select:first-child')].map(s => s.value));
   console.log('host sees cultures', hostSlots);
@@ -62,7 +83,7 @@ const assert = require('assert');
   await host.screenshot({ path: OUT + '/mp-01-lobby-host.png' });
   await guest.screenshot({ path: OUT + '/mp-02-lobby-guest.png' });
   await host.click('#setup-start');
-  await guest.waitForSelector('#game:not([hidden])', { timeout: 8000 });
+  await guest.waitForSelector('#game:not([hidden])', { timeout: BUDGET });
   await guest.waitForTimeout(1500);
   const g1 = await guest.evaluate(() => ({ local: E.game.local, units: E.game.world.s.units.length, t: E.game.world.s.t, mode: E.game.netMode }));
   console.log('guest', JSON.stringify(g1));
@@ -91,31 +112,31 @@ const assert = require('assert');
   assert((await host.textContent('#chat-log')).includes('gg'));
   // the guest's link to the host breaks: it rejoins by itself, same seat
   await guest.evaluate(() => { window.__oldRelay = E.game.relay; E.game.relay.peers.get(0).pc.close(); });
-  await guest.waitForFunction(() => E.game.running && E.game.relay !== window.__oldRelay && E.game.netMode === 'guest' && !E.game.reconnecting && document.getElementById('net-banner').hidden && E.game.world.s.units.length > 0, null, { timeout: 30000 });
+  await guest.waitForFunction(() => E.game.running && E.game.relay !== window.__oldRelay && E.game.netMode === 'guest' && !E.game.reconnecting && document.getElementById('net-banner').hidden && E.game.world.s.units.length > 0, null, { timeout: BUDGET });
   // The host's view of the peer converges asynchronously. A fixed 600 ms is a guess: on a loaded
   // runner Chromium needs longer, and when it does the failure says "the product is broken" when
   // the truth is "the test stopped looking too early". Wait for the state instead.
-  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'remote', null, { timeout: 15000 });
+  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'remote', null, { timeout: BUDGET });
   const back = await host.evaluate(() => E.game.world.s.players[1].kind);
   console.log('auto-rejoin', back, await guest.evaluate(() => E.game.local)); assert.strictEqual(back, 'remote');
   // guest disconnect -> bot takeover, then rejoin
   await guest.close();
-  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'bot', null, { timeout: 15000 });
+  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'bot', null, { timeout: BUDGET });
   const kind = await host.evaluate(() => E.game.world.s.players[1].kind); console.log('after drop kind', kind); assert.strictEqual(kind, 'bot');
   const guest2 = await page('guest2', { width: 1024, height: 700 });
   await guest2.click('#m-mp'); await guest2.fill('#mp-name', 'Guesto'); await guest2.fill('#mp-code', room); await guest2.click('#mp-join');
   // mid-game join goes straight into the game: wait for that, rather than sleeping 1500 ms and hoping
-  await guest2.waitForFunction(() => { const g = document.getElementById('game'); return !!g && !g.hidden && !!E.game && E.game.local === 1; }, null, { timeout: 30000 });
+  await guest2.waitForFunction(() => { const g = document.getElementById('game'); return !!g && !g.hidden && !!E.game && E.game.local === 1; }, null, { timeout: BUDGET });
   const st = await guest2.evaluate(() => ({ inGame: !document.getElementById('game').hidden, local: E.game && E.game.local }));
   console.log('rejoin', JSON.stringify(st)); assert(st.inGame && st.local === 1);
-  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'remote', null, { timeout: 15000 });
+  await host.waitForFunction(() => E.game.world?.s?.players?.[1]?.kind === 'remote', null, { timeout: BUDGET });
   const kind2 = await host.evaluate(() => E.game.world.s.players[1].kind); assert.strictEqual(kind2, 'remote');
   await guest2.screenshot({ path: OUT + '/mp-05-rejoin.png' });
   // a build on a different peer protocol is refused with a clear message, and the match carries on
   const old = await page('old', { width: 1024, height: 700 });
   await old.evaluate(() => { E.PROTOCOL = 1; });
   await old.click('#m-mp'); await old.fill('#mp-name', 'Oldie'); await old.fill('#mp-code', room); await old.click('#mp-join');
-  await old.waitForFunction(() => /update/i.test(document.getElementById('mp-status').textContent), null, { timeout: 10000 });
+  await old.waitForFunction(() => /update/i.test(document.getElementById('mp-status').textContent), null, { timeout: BUDGET });
   const oldSt = await old.evaluate(() => ({ status: document.getElementById('mp-status').textContent, inGame: !document.getElementById('game').hidden }));
   console.log('old protocol', JSON.stringify(oldSt)); assert(!oldSt.inGame && /update/i.test(oldSt.status));
   assert.strictEqual(await host.evaluate(() => E.game.world.s.players[1].kind), 'remote', 'host match unaffected');

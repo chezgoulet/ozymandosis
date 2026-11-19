@@ -12,6 +12,10 @@ const assert = require('assert');
 const { createSignal } = require('../server/signal.cjs');
 process.env.PORT = process.env.PORT || '8096'; process.env.QUIET = '1';
 const files = require('../server/server.js');
+
+// One budget for every wait on another page's state (see test/mp.test.cjs for why: calibrated
+// separately they were too tight for a 2-vCPU hosted runner and failed as value mismatches).
+const BUDGET = Number(process.env.E2E_BUDGET || 120000);
 // The service these clients would use for online play. It is blocked below; nothing may even try it.
 const SERVICE = 'https://play.ozymandosis.com';
 const GAME = `http://localhost:${process.env.PORT}/?nosw=1&play=${encodeURIComponent(SERVICE)}`;
@@ -85,7 +89,7 @@ async function stopHost(key) { const h = hosts.get(key); if (!h) return; hosts.d
     // '3Z000-037ZK') and read like contaminated shared state. Wait on the value the
     // assertion reads, and still report the value if it never arrives.
     let seen = '';
-    for (let i = 0; i < 100 && seen !== code; i++) {
+    for (const deadline = Date.now() + BUDGET; Date.now() < deadline && seen !== code;) {
       seen = (await G.textContent('#lobby-code').catch(() => '')).trim();
       if (seen !== code) await H.waitForTimeout(200);
     }
