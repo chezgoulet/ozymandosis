@@ -2,7 +2,7 @@
 
 One page, six steps, done in a browser. Everything you need to paste is below.
 
-Version being submitted: **v0.5.3** (versionCode 503). All the metadata for it is already in
+Version being submitted: **v0.5.4** (versionCode 504). All the metadata for it is already in
 this repository.
 
 ---
@@ -67,9 +67,9 @@ RepoType: git
 Repo: https://github.com/chezgoulet/ozymandosis.git
 
 Builds:
-  - versionName: 0.5.3
-    versionCode: 503
-    commit: v0.5.3
+  - versionName: 0.5.4
+    versionCode: 504
+    commit: v0.5.4
     subdir: android
     # Node is not in the build image. F-Droid's own React Native template installs plain Debian
     # npm; the React Native submission in review installs it from Debian forky at the
@@ -103,15 +103,16 @@ AllowedAPKSigningKeys: c54305e6f298517d0065a9bc088831edefe4eb01f64c0988adaad347c
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.5.3
-CurrentVersionCode: 503
+CurrentVersion: 0.5.4
+CurrentVersionCode: 504
 
 MaintainerNotes: |
-  The Android app is free on every platform: membership is bought on our website, and the
-  build carries no billing client, no Play Integrity and no google-services (a CI job
-  asserts the packaged APK contains none of them). The Play rail is distribution only.
+  The app is free, and Android only: membership is bought on our website, and the build
+  carries no billing client, no Play Integrity and no google-services (a CI job asserts the
+  packaged APK contains none of them). There is no store listing of any kind — no Play, no
+  App Store, no Steam (D22, D23).
 
-  Pinned at v0.5.3 deliberately. The earlier tag predates the licence work: v0.5.1 carries
+  Pinned at v0.5.4 deliberately. The earlier tag predates the licence work: v0.5.1 carries
   no LICENSE, no NOTICE and no SPDX headers, so a build from it would assert AGPL-3.0 in
   this metadata while containing no licence text. v0.5.2 carries all three.
 
@@ -192,7 +193,7 @@ Android is the only client; there is no browser version.
 
 The recipe is `metadata/com.ozymandosis.game.yml`.
 
-* Pinned at `v0.5.3`, which carries `LICENSE`, `NOTICE` and SPDX headers on the source.
+* Pinned at `v0.5.4`, which carries `LICENSE`, `NOTICE` and SPDX headers on the source.
 * Node comes from Debian **forky** through `sudo`, following the direction in the React Native
   submission currently in review. Our build is verified on Node 24, which is what forky
   supplies: the APK comes out byte-identical to the one built on Node 22, same sha256.
