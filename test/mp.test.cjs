@@ -49,7 +49,21 @@ const assert = require('assert');
   assert.strictEqual(hostCode, room, 'host shows the room code');
   assert.strictEqual(guestCode, room, 'guest sees the room code');
   // guest picks a culture
-  await guest.selectOption('#slots .slot-row:nth-child(2) select:first-child', 'current');
+  // The guest's second slot appears when the host's lobby state reaches it, not when the guest
+  // finishes joining, so wait for the row itself. Playwright's default 30s here was a guess at
+  // the runner's speed; a 2-vCPU hosted runner reached it late and the failure read as a
+  // missing control rather than as a budget.
+  const guestSlot = '#slots .slot-row:nth-child(2) select:first-child';
+  await guest.waitForSelector(guestSlot, { timeout: 90000 }).catch(async () => {
+    const seen = await guest.evaluate(() => ({
+      screen: ['scr-menu', 'scr-mp', 'scr-setup', 'game'].filter(id => { const e = document.getElementById(id); return e && !e.hidden; }),
+      rows: document.querySelectorAll('#slots .slot-row').length,
+      status: (document.getElementById('mp-status') || {}).textContent,
+      log: (document.getElementById('lobby-log') || {}).textContent,
+    }));
+    throw new Error('the guest never got its slot row: ' + JSON.stringify(seen));
+  });
+  await guest.selectOption(guestSlot, 'current');
   await host.waitForTimeout(600);
   const hostSlots = await host.evaluate(() => [...document.querySelectorAll('#slots .slot-row select:first-child')].map(s => s.value));
   console.log('host sees cultures', hostSlots);
