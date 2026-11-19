@@ -89,7 +89,7 @@ platform entitlement. Single-player and local-network play are free. Worldwide o
 is the paid service: one free match per rolling 24 hours, then a $2/month or $12/year
 membership bought on the website through Stripe. `WEB_BILLING=1` and
 `REQUIRE_STORE_CLIENT=0`. The game remains AGPL-3.0-only; the play service is operated by
-Sorcelot LLC and the game is licensed by Chez Goulet LLC. Store billing code and store
+Franco Perdu LLC and the game is licensed by Chez Goulet LLC. Store billing code and store
 documentation are retained as history, not as launch instructions.
 
 **D23. iOS is dropped, not deferred (2026-11-16, owner).** Christopher: iOS will never be
