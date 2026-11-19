@@ -46,7 +46,9 @@ const stopTurn = () => { try { execFileSync('docker', ['rm', '-f', TURN_NAME], {
     await p.fill('.modal.signin input[type=email]', email); await p.fill('.modal.signin input[type=password]', 'a long enough password'); await p.fill('.modal.signin input[type=text]', name);
     await p.selectOption('.modal.signin select[aria-label="Birth month"]', '6'); await p.selectOption('.modal.signin select[aria-label="Birth year"]', '1990');
     await p.click('.modal.signin button[type=submit]');
-    await p.waitForSelector('.modal.signin', { state: 'detached', timeout: 20000 }).catch(async e => { throw new Error('sign-up did not finish: ' + (await p.textContent('.modal.signin .form-err').catch(() => '?'))); });
+    // 60s, not 20s: the service boots an in-memory Postgres and derives a password hash on
+    // a 2-vCPU hosted runner, and the deadline had nothing to do with what is being asserted.
+    await p.waitForSelector('.modal.signin', { state: 'detached', timeout: 60000 }).catch(async e => { throw new Error('sign-up did not finish: ' + (await p.textContent('.modal.signin .form-err').catch(() => '?'))); });
     // The outbox is behind DEV_AUTH (it carries verification links), so the harness must ask for it
     // as well as booting with a non-production NODE_ENV.
     const mail = (await (await fetch(PLAY_URL + '/api/dev/outbox')).json()).mail.filter(m => m.to === email).pop();

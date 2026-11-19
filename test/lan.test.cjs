@@ -78,8 +78,18 @@ async function stopHost(key) { const h = hosts.get(key); if (!h) return; hosts.d
     console.log('found nearby:', await G.textContent('#mp-lan-found'));
     // …but joins with the code, the path that needs no discovery at all
     await G.fill('#mp-code', code.toLowerCase().replace('-', ' ')); await G.click('#mp-join');
-    await G.waitForSelector('#scr-setup:not([hidden])'); await H.waitForTimeout(800);
-    assert.strictEqual((await G.textContent('#lobby-code')).trim(), code, 'the guest sees the join code too');
+    await G.waitForSelector('#scr-setup:not([hidden])');
+    // The guest shows the room code until the host's lobby state — the thing that carries
+    // joinCode — reaches it. A fixed wait here was calibrated on a workstation and is too
+    // short on a 2-vCPU runner, where it failed as a value mismatch ('NCYT' against
+    // '3Z000-037ZK') and read like contaminated shared state. Wait on the value the
+    // assertion reads, and still report the value if it never arrives.
+    let seen = '';
+    for (let i = 0; i < 100 && seen !== code; i++) {
+      seen = (await G.textContent('#lobby-code').catch(() => '')).trim();
+      if (seen !== code) await H.waitForTimeout(200);
+    }
+    assert.strictEqual(seen, code, 'the guest sees the join code too');
     const seats = await H.evaluate(() => [...document.querySelectorAll('#slots .slot-row select:nth-child(2)')].map(s => s.selectedOptions[0].textContent));
     assert(seats.some(t => /Wanderer/.test(t)), 'host seats the guest: ' + seats);
     await H.screenshot({ path: OUT + '/lan-01-lobby.png' });
