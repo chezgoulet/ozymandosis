@@ -178,4 +178,3 @@ jobs:
           printf '%s  %s\n' "$(sha256sum "$APK" | cut -d' ' -f1)" "$NAME" > "$NAME.sha256"
           gh release upload "$TAG" "$NAME" "$NAME.sha256" --clobber
           echo "attached $NAME"
-          GH_TOKEN: ${{ github.token }}

@@ -1,7 +1,12 @@
 # Releasing on Android
 
-Everything between the code and the Play internal testing track. The one step that
-cannot be undone quickly is losing the upload key: back it up before the first upload.
+Everything between the code and a signed APK on the release page. **The one step that
+cannot be undone quickly is losing the release key**: back it up before the first upload.
+
+> This file replaced a Play-oriented version on 2026-11-17. The app is free and listed in no
+> store (D22, `docs/MONETIZATION.md`), so there is no AAB, no track, no Play App Signing and
+> no internal-test upload. What survives from that world is the key and the discipline about
+> it. For the whole launch, see `docs/RELEASE-CHECKLIST.md`.
 
 ## Versions: one source
 
@@ -12,7 +17,7 @@ everywhere else it appears and `npm test` fails if any of them drift:
 |---|---|
 | `package.json` | the source |
 | `apps/play/package.json` | the service |
-| `apps/desktop/package.json` | desktop shell (Steam) |
+| `apps/desktop/package.json` | desktop shell (development shell, not a rail) |
 | `android/app/build.gradle` | `versionName`, and `versionCode` derived as major·10000 + minor·100 + patch |
 | `js/net/online.js` | `E.VERSION`: the peer protocol hello, crash reports, the service's minimum-version check |
 | `index.html` | the version on the main menu |
@@ -23,59 +28,72 @@ npm run version:set -- patch        # or minor, major, or an exact 0.6.0
 git diff --stat                      # every place above, and nothing else
 ```
 
-`versionCode` only ever climbs (Play refuses one it has seen); the tool refuses a lower
-version. 0.5.1 (versionCode 501) is the first tagged release; the first *public* one is whatever the stores ship. When a release must stop
-older clients playing online, raise `MIN_CLIENT_VERSION` (or the admin console's live
-config) to match.
+`versionCode` only ever climbs; the tool refuses a lower one, because Android will not
+install a downgrade over an existing app. When a release must stop older clients playing
+online, raise `MIN_CLIENT_VERSION` (or the admin console's live config) to match — a floor,
+deliberately lagging the release, so a new build does not lock out everyone on the last one.
 
-## Signing: the upload key
+## The release itself
 
-Play App Signing holds the key that signs what players install. We sign uploads with an
-**upload key**, which proves an upload came from us.
+Pushing a `v*` tag on `main` runs `.github/workflows/release-client.yml`. In order, and each
+step can fail the release:
+
+1. `tools/release-scope.cjs` decides whether this tag touches the client at all, so a
+   service-only tag does not cut a client release.
+2. `tools/ci-status.cjs` refuses a tagged commit that has not passed CI.
+3. **Reproducible**: the tree is built twice at two different paths and the two unsigned
+   APKs must be byte-identical. Two directories on purpose — an APK that embeds its own
+   build path would pass a same-directory test and fail F-Droid's, which is the comparison
+   that matters.
+4. `tools/version-check.cjs` holds the tag against all seven markers.
+5. The GitHub Release is created with `tools/release-notes.cjs`.
+6. The APK is built with the release key, verified with `apksigner --print-certs`, and only
+   then attached with a `.sha256`.
+
+So cutting a release is: bump the version, merge `testing` into `main`, push the tag.
+
+## Signing: the release key
+
+The key lives in the `production` environment as four secrets —
+`OZY_UPLOAD_KEYSTORE_B64`, `OZY_UPLOAD_KEYSTORE_PASSWORD`, `OZY_UPLOAD_KEY_ALIAS`,
+`OZY_UPLOAD_KEY_PASSWORD` — and the workflow asks GitHub for the environment, not the
+repository. Its SHA-256 is the `AllowedAPKSigningKeys` value in the F-Droid recipe, which
+is what lets F-Droid serve our signature and makes Obtainium, F-Droid and the release page
+one app instead of two that cannot be swapped.
 
 1. `npm run android:keygen` — creates `~/.ozymandosis/upload-keystore.jks` (outside the
-   repository) and `android/keystore.properties` (git-ignored) pointing at it.
-2. **Back it up now, somewhere that is not this machine**: the keystore file and its
-   password (password manager, plus an encrypted copy kept elsewhere). Check the copy
-   opens with `keytool -list -keystore <copy>`. A lost upload key can be reset through
-   Play support, but it takes days and blocks every release meanwhile.
-3. CI instead sets `OZY_UPLOAD_KEYSTORE`, `OZY_UPLOAD_KEYSTORE_PASSWORD` (and optionally
-   `OZY_UPLOAD_KEY_ALIAS`, `OZY_UPLOAD_KEY_PASSWORD`).
+   repository) and `android/keystore.properties` (git-ignored) pointing at it, and prints
+   the certificate's SHA-256.
+2. **Back it up now, somewhere that is not this machine**: the keystore and its password
+   (password manager, plus an encrypted copy elsewhere). Check the copy opens with
+   `keytool -list -keystore <copy>`. Every existing install is signed with this key; losing
+   it means every player has to uninstall and reinstall to get an update.
+3. CI exports the same values from the environment secrets above.
+4. A local signed build sets `OZY_UPLOAD_KEYSTORE` and the password variables and runs the
+   release variant by hand. `npm run android:apk` builds **debug** — it is a development
+   command, and a debug build is unminified and measurably slower, so a frame-rate reading
+   taken from one is a false negative.
 
-## A signed bundle
+## There is no store, and nothing to sell in the app
 
-```
-npm run android:aab
-```
+The app sells nothing: membership is bought on the website (`docs/MONETIZATION.md`, ruling
+of 2026-11-05). There is no Play listing, no in-app purchase, no StoreKit or Play Billing,
+no `google-services.json`, and the service's Play Integrity code and `GOOGLE_PLAY_*`
+settings were removed on 2026-11-16. That the app carries no Google dependency is enforced
+by a test that reads `build.gradle`.
 
-Checks the versions agree, builds the web assets, syncs Capacitor, runs
-`bundleRelease`, and verifies the result is signed (`jarsigner -verify`, with a signer
-certificate). Output: `android/app/build/outputs/bundle/release/app-release.aab`. It
-needs JDK 21 (Capacitor 8); the script uses `~/jdk-21` when `JAVA_HOME` is unset. Build
-output stays out of git.
+The membership path is therefore proved on the website, not in a store: subscribe in the
+browser, come back, and the account shows *Member*; cancel from the account page and it
+returns to the daily allowance.
 
-In Play Console: create the app (`com.ozymandosis.game`), **accept Play App Signing**,
-register the upload key's SHA-256 (the keygen prints it), then upload the bundle to
-**Testing → Internal testing**.
+## Distribution
 
-## There is no Play Billing
-
-The app sells nothing. It is free on every platform and membership is bought on the
-website (`docs/MONETIZATION.md`, revision of 2026-10-06), so **there is nothing to set up
-on the Play side**: no subscriptions, no service account, no Real-time Developer
-Notifications, no license testers buying anything, no `google-services.json`. The app
-carries no Google dependency of any kind — that is enforced by a test that reads
-`build.gradle`.
-
-What the closed test proves, then, is the *free* experience: that it installs, signs in,
-plays online inside the daily allowance, and survives an update. The membership path is
-proved on the website instead — subscribe in the browser, come back, and the account
-shows *Member*; cancel from the account page and it returns to the allowance.
-
-The service's Play code (the Play Integrity proof and the `GOOGLE_PLAY_*` settings) was removed
-on 2026-11-16: the app is free and listed in no store (`docs/MONETIZATION.md`, ruling of
-2026-11-05), so there is nothing for a store to sell or vouch for. The closed test proves the
-free experience only, which is the whole of what ships.
+- **Obtainium** reads GitHub Releases and installs each new tag's APK. Nothing to do per
+  release beyond tagging.
+- **F-Droid** builds from the recipe in `docs/fdroiddata/com.ozymandosis.game.yml`. It is
+  pinned at one version for the first submission; after that `AutoUpdateMode: Version` with
+  `UpdateCheckMode: Tags` lets it pick up new tags itself. `docs/fdroiddata/README.md` is
+  the submission walkthrough.
 
 ## Local network: the Android 17 permission
 
