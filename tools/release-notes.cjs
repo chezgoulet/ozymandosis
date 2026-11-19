@@ -12,7 +12,7 @@ const version = require('../package.json').version;
 const s = scope({ tag: TAG, event: 'push' });
 
 const out = [];
-out.push(`Ozymandosis **${TAG}** — the web bundle is attached to this release.`);
+out.push(`Ozymandosis **${TAG}** — the signed Android APK is attached to this release.`);
 out.push('');
 out.push(`Version \`${version}\`, agreeing everywhere it is written down: the sentence the game reports about itself, ` +
   'the Android versionName and versionCode, the minimum-client gate the service enforces, and the package.json files.');
