@@ -47,8 +47,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: node tools/version-check.cjs   # the version is written down in nine places; they must agree
@@ -69,8 +69,8 @@ jobs:
         browser: [chromium, firefox, webkit]
     env: { BROWSER: "${{ matrix.browser }}", PW: playwright }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
       # --with-deps installs the system libraries each engine needs (WebKit wants
@@ -90,7 +90,7 @@ jobs:
         if: matrix.browser == 'chromium'
       - run: node test/touch.test.cjs
         if: matrix.browser == 'chromium'   # touch emulation (isMobile) is Chromium-only in Playwright
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with: { name: "screens-${{ matrix.browser }}", path: "test/shots\ntest/traces", retention-days: 7 }
 
@@ -107,12 +107,12 @@ jobs:
         node: [22, 24]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: 21, cache: gradle }
       - run: npm ci
       - run: node tools/build-web.cjs
@@ -134,7 +134,7 @@ jobs:
           n=$(unzip -l "$APK" | grep -icE 'billing|integrity|play-services|gms' || true)
           echo "Google entries in the APK: $n"
           [ "$n" = "0" ] || { echo "::error::a Google dependency is packaged in the APK"; exit 1; }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with: { name: android-failure, path: "android/app/build/reports", retention-days: 7 }
 
@@ -142,7 +142,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build --build-arg REVISION=${GITHUB_SHA::7} -f apps/play/Dockerfile -t ozymandosis-play .
       - run: docker build --build-arg REVISION=${GITHUB_SHA::7} -f deploy/web.Dockerfile -t ozymandosis-web .
       - run: docker build -f deploy/backup.Dockerfile -t ozymandosis-backup .
